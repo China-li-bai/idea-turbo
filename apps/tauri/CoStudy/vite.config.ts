@@ -70,6 +70,9 @@ export default defineConfig(async () => ({
     port: 1024,
     strictPort: false,
     host: host || false,
+    fs: {
+      allow: [path.resolve(__dirname, "..", "..", "..")],
+    },
     hmr: host
       ? {
         protocol: "ws",

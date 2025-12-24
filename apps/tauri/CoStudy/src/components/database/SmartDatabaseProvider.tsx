@@ -158,7 +158,9 @@ export function useDatabaseStatus() {
           return;
         }
 
-        const shouldUseCloud = await shouldUseCloudOnlyMode();
+        const authService = getUserAuthorizationService();
+        const authState = await authService.getUserAuthorizationState();
+        const shouldUseCloud = shouldUseCloudOnlyModeForPlatform() || authState.canAccessSupabase;
         setIsCloudOnly(shouldUseCloud);
         setIsLocalInitialized(!shouldUseCloud);
       } catch (error) {
