@@ -1,0 +1,13 @@
+{
+  "name": "test-glm",
+  "version": "1.0.0",
+  "description": "Simple test script for GLM API",
+  "type": "module",
+  "scripts": {
+    "test": "tsx src/test-glm-api.ts",
+    "test-jest": "jest src/__tests__/glm-adapter.test.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.7.0"
+  }
+}

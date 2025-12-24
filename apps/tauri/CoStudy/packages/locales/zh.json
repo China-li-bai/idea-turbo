@@ -1,0 +1,413 @@
+{
+  "decks": {
+    "title": "卡组",
+    "emptyState": {
+      "title": "您的学习之旅从这里开始。",
+      "description": "点击 {{icon}} 按钮创建您的第一个卡组。"
+    },
+    "cardInfo": "{{newCount}} 新卡片, {{learningCount}} 学习中, {{reviewCount}} 复习",
+    "menu": {
+      "viewCards": "查看所有卡片",
+      "edit": "编辑",
+      "share": "分享",
+      "delete": "删除"
+    },
+    "createDialog": {
+      "title": "创建新卡组",
+      "nameLabel": "卡组名称",
+      "namePlaceholder": "请输入卡组名称",
+      "descriptionLabel": "描述（可选）",
+      "descriptionPlaceholder": "请输入描述",
+      "cancel": "取消",
+      "create": "创建",
+      "nameRequired": "请输入卡组名称"
+    }
+  },
+  "deckDetail": {
+    "startReview": "开始复习",
+    "noDueCards": "无到期卡片",
+    "filters": {
+      "all": "全部",
+      "new": "新卡片",
+      "learning": "学习中",
+      "review": "复习"
+    },
+    "states": {
+      "new": "新卡片",
+      "learning": "学习中",
+      "review": "复习",
+      "relearning": "重新学习"
+    },
+    "dueNow": "现在到期",
+    "cardStats": "难度: {{difficulty}} · {{reps}} 次",
+    "cardMenu": {
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "emptyState": {
+      "title": "此筛选条件下没有卡片",
+      "description": "尝试选择其他筛选条件或添加新卡片。"
+    }
+  },
+  "buttons": {
+    "settings": "设置",
+    "add": "添加",
+    "createDeck": "创建卡组"
+  },
+  "theme": {
+    "toggle": "切换主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "通用",
+    "notifications": "通知",
+    "advanced": "高级",
+    "support": "支持与信息",
+    "language": "语言",
+    "appearance": "外观",
+    "account": "账户",
+    "dailyReminders": "每日提醒",
+    "reminderTime": "提醒时间",
+    "fsrsParameters": "FSRS参数",
+    "resetFsrsProfile": "重置FSRS配置",
+    "helpFaq": "帮助与常见问题",
+    "about": "关于",
+    "privacyPolicy": "隐私政策",
+    "resetWarning": "重置将永久删除您的所有学习数据。"
+  },
+  "cardEditor": {
+    "title": "新增卡片",
+    "close": "关闭",
+    "save": "保存",
+    "deckLabel": "卡组：{{name}}",
+    "unknownDeck": "未知卡组",
+    "front": "卡片正面",
+    "back": "卡片背面",
+    "frontPlaceholder": "例如：问题、单词",
+    "backPlaceholder": "例如：答案、释义"
+  },
+  "review": {
+    "showAnswer": "显示答案",
+    "howWellRecall": "你回想起来的程度如何？",
+    "ratings": {
+      "again": "再来一次",
+      "hard": "较难",
+      "good": "良好",
+      "easy": "容易"
+    }
+  }
+  ,
+  "dashboard": {
+    "title": "学习概览",
+    "noData": "暂时没有可用数据。",
+    "retention": {
+      "title": "今天总体回忆率",
+      "goal": "目标：{{goal}}%",
+      "caption": "基于未到期卡片计算"
+    },
+    "today": {
+      "title": "今日到期",
+      "minutes": "预计 {{m}} 分钟"
+    },
+    "rsd": {
+      "retention": "保留率",
+      "stability": "稳定性（均值）",
+      "difficulty": "难度（均值）"
+    },
+    "timeline": {
+      "title": "未来7天工作量时间线",
+      "count": "卡片数",
+      "minutes": "预计耗时（分钟）"
+    },
+    "forecast": {
+      "title": "工作量趋势（移动平均）",
+      "avg": "均值"
+    },
+    "grades": {
+      "title": "近7天评分分布",
+      "again": "再来一次",
+      "hard": "较难",
+      "good": "良好",
+      "easy": "容易",
+      "count": "次数"
+    },
+    "states": {
+      "title": "今日到期状态分布",
+      "new": "新卡",
+      "learning": "学习中",
+      "review": "复习",
+      "count": "数量"
+    },
+    "cta": {
+      "title": "明日工作量较大",
+      "desc": "明天有 {{n}} 张卡片到期，建议提前复习部分卡片。",
+      "action": "提前复习",
+      "tip": "使用自由复习平衡负载。"
+    }
+  }
+  ,
+  "nav": {
+    "dashboard": "首页",
+    "decks": "卡组",
+    "settings": "设置",
+    "bottom": "底部导航",
+    "sidebar": "侧边栏导航"
+  }
+  ,
+  "bulkImport": {
+    "back": "返回",
+    "title": "批量导入卡片",
+    "upload": {
+      "title": "上传文件",
+      "desc": "拖拽 .csv 或 .txt 文件到此处，或点击选择。",
+      "drop": "将文件拖到此处，或",
+      "downloadTemplate": "下载模板文件"
+    },
+    "mapping": {
+      "title": "字段映射",
+      "column": "第{{n}}列",
+      "requiredFields": "必填字段",
+      "requiredNote": "标记的字段为必填项，请确保CSV中有对应的列",
+      "detectedHeaders": "检测到的CSV表头字段",
+      "noHeadersDetected": "未检测到表头字段"
+    },
+    "fields": {
+      "question": "问题",
+      "answer": "答案",
+      "tags": "标签",
+      "notes": "备注",
+      "ignore": "忽略",
+      "word": "词汇",
+      "meaning_zh": "中文释义",
+      "meaning_en": "英文释义",
+      "part_of_speech": "词性",
+      "example_zh": "中文例句",
+      "example_en": "英文例句",
+      "synonyms": "同义词",
+      "antonyms": "反义词",
+      "language_code": "语言代码",
+      "difficulty_level": "难度等级",
+      "frequency_rank": "频率排名",
+      "ipa_pronunciation": "IPA 发音",
+      "audio_url": "音频链接",
+      "accent": "口音",
+      "etymology": "词源",
+      "mnemonic": "记忆法"
+    },
+    "options": {
+      "title": "导入选项",
+      "deck": "导入到卡组",
+      "headerRow": "首行为表头",
+      "importAs": "导入为"
+    },
+    "deckTypes": {
+      "flashcard": "闪卡",
+      "vocabulary": "词汇"
+    },
+    "preview": {
+      "title": "预览",
+      "empty": "暂无数据，请上传文件以预览。"
+    },
+    "importCta": "导入 {{count}} 张卡片",
+    "error": "导入失败，请检查文件格式。",
+    "progress": {
+      "title": "导入进度",
+      "importingCards": "正在导入 {{count}} 个卡片...",
+      "importedCards": "已导入 {{processed}}/{{total}} 个卡片...",
+      "creatingCardRecords": "正在创建基础卡片记录...",
+      "createdCardRecords": "已创建 {{processed}}/{{total}} 个卡片记录...",
+      "importingVocabulary": "正在导入 {{count}} 个词汇...",
+      "importedVocabulary": "已导入 {{processed}}/{{total}} 个词汇..."
+    },
+    "success": {
+      "cardsImported": "成功导入 {{count}} 个卡片！",
+      "vocabularyImported": "成功导入 {{count}} 个词汇！"
+    },
+    "errors": {
+      "cardIdNotFound": "无法获取词汇 \"{{word}}\" 对应的卡片ID",
+      "importFailed": "导入失败: {{message}}",
+      "fileParseFailed": "文件解析失败: {{message}}",
+      "unknownError": "未知错误"
+    },
+    "import": {
+      "inProgress": "导入中...",
+      "redirecting": "即将跳转到卡组页面..."
+    },
+    "upload": {
+      "supportedFormats": "支持 CSV (.csv, .txt) 和 Excel (.xlsx, .xls) 文件"
+    },
+    "template": {
+      "question": "Question",
+      "answer": "Answer",
+      "word": "word",
+      "meaning_zh": "meaning_zh",
+      "meaning_en": "meaning_en",
+      "part_of_speech": "part_of_speech",
+      "example_zh": "example_zh",
+      "example_en": "example_en"
+    },
+    "aiMapping": {
+      "title": "AI智能映射",
+      "error": "错误",
+      "noCsvData": "没有可用的CSV数据",
+      "unknownError": "映射过程中发生未知错误",
+      "analyzing": "AI分析中...",
+      "autoMatch": "自动匹配字段"
+    }
+  },
+  "socialStudy": {
+    "title": "社交学习",
+    "nickname": "昵称",
+    "nicknamePlaceholder": "请输入您的昵称",
+    "joinRoom": "加入房间",
+    "createRoom": "创建房间",
+    "roomId": "房间ID",
+    "roomIdPlaceholder": "请输入房间ID",
+    "roomName": "房间名称",
+    "roomNamePlaceholder": "请输入房间名称",
+    "roomPassword": "房间密码",
+    "roomPasswordPlaceholder": "可选，设置房间密码",
+    "leaveRoom": "离开房间",
+    "roomSettings": "房间设置",
+    "connected": "已连接",
+    "connecting": "连接中",
+    "disconnected": "未连接",
+    "chat": "聊天",
+    "study": "学习",
+    "achievements": "成就",
+    "startStudy": "开始学习",
+    "endStudy": "结束学习",
+    "studyStatus": {
+      "idle": "空闲",
+      "studying": "学习中",
+      "break": "休息中",
+      "away": "离开"
+    },
+    "mood": {
+      "happy": "开心",
+      "neutral": "一般",
+      "tired": "疲惫"
+    },
+    "messagePlaceholder": "输入消息...",
+    "startChatting": "开始与学习伙伴聊天吧",
+    "studyTime": "学习时长",
+    "currentStatus": "当前状态",
+    "currentMood": "当前心情",
+    "studyMembers": "学习成员",
+    "me": "我",
+    "todayStudy": "今日学习",
+    "focusCount": "专注次数",
+    "completedCards": "完成卡片",
+    "studyAtmosphere": "学习氛围",
+    "roomFocus": "房间专注度",
+    "studyCount": "学习人数",
+    "avgStudyTime": "平均学习时长",
+    "quickActions": "快速操作",
+    "focusMode": "专注模式",
+    "pomodoro": "番茄钟",
+    "studyGoal": "学习目标",
+    "leaderboard": "排行榜",
+    "noAchievements": "暂无成就，继续努力解锁更多成就吧",
+    "manageStatus": "管理您的学习状态和进度"
+  },
+  "onboarding": {
+    "navigation": {
+      "next": "下一步",
+      "back": "上一步",
+      "skip": "跳过",
+      "continue": "继续",
+      "getStarted": "开始体验"
+    },
+    "slide1": {
+      "tag1": "FSRS 算法",
+      "tag2": "Local-First",
+      "title": "您的第二大脑<br/>完全私有",
+      "subtitle": "基于 <strong>FSRS 顶级算法</strong> 与 <strong>Local-First</strong> 架构。<br/>无网络延迟，无隐私泄露，数据永久归您所有。",
+      "features": [
+        "基于科学的间隔重复算法",
+        "极致的本地性能优化",
+        "完全的数据隐私保护",
+        "离线也能完美运行"
+      ]
+    },
+    "slide2": {
+      "title": "独行<br/>但不孤独",
+      "subtitle": "进入\"平行时空自习室\"。<br/>这里没有嘈杂的聊天，只有与你一同努力的灵魂。",
+      "features": [
+        "与全球学习者的无声陪伴",
+        "专注氛围，零干扰社交",
+        "P2P连接，真正的去中心化",
+        "见证彼此的坚持与成长"
+      ],
+      "connectionStatus": "发现了 {{count}} 位同频学习者"
+    },
+    "slide3": {
+      "title": "同频共振<br/>无声陪伴",
+      "subtitle": "看见光晕，感受坚持。<br/>与伙伴共享专注，见证彼此的高光时刻。",
+      "features": [
+        "光晕信标：看见同伴的每一次坚持",
+        "专注同步：共享番茄钟，用集体力量战胜拖延",
+        "成就庆祝：为彼此的进步而喝彩",
+        "深度专注：在陪伴中获得心流状态"
+      ],
+      "achievementToast": "{{username}} 刚刚完成 {{streak}} 连胜 🔥",
+      "pulseIndicator": "正在体验专注脉冲..."
+    },
+    "slide4": {
+      "title": "投资您的专注力",
+      "subtitle": "FSRS 引擎 + 终身 P2P 平行空间",
+      "valueProps": [
+        "✅ <strong>FSRS 记忆引擎</strong>：让学习效率提升 3 倍",
+        "✅ <strong>P2P 平行空间</strong>：终身连接全球自习室，0 服务器隐私泄露风险",
+        "✅ <strong>本地优先</strong>：即使断网，您的努力也从未断线",
+        "✅ <strong>数据自主</strong>：所有学习数据完全归您所有"
+      ],
+      "plans": {
+        "lifetime": {
+          "name": "终身买断",
+          "description": "一次付费，永久拥有数据所有权",
+          "badge": "开发者推荐",
+          "price": "$49",
+          "period": "终身",
+          "features": [
+            "无限卡组和卡片",
+            "本地数据永久所有权",
+            "P2P平行时空自习室",
+            "FSRS智能算法",
+            "无广告体验",
+            "终身免费更新"
+          ]
+        },
+        "yearly": {
+          "name": "年度订阅",
+          "description": "灵活订阅，随时取消",
+          "price": "$12",
+          "period": "/年",
+          "features": [
+            "无限卡组和卡片",
+            "云端同步",
+            "P2P平行时空自习室",
+            "FSRS智能算法",
+            "无广告体验",
+            "优先客户支持"
+          ]
+        }
+      },
+      "cta": {
+        "primary": "开启平行时空",
+        "secondary": "先试用 7 天，满意再付费",
+        "processing": "正在处理中...",
+        "freeTrial": "免费试用"
+      }
+    },
+    "common": {
+      "loading": "加载中...",
+      "error": "发生错误",
+      "retry": "重试",
+      "close": "关闭"
+    }
+  }
+}

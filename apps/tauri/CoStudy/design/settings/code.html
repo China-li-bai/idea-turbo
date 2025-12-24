@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/10 bg-background-light/80 px-4 py-3 backdrop-blur-sm dark:bg-background-dark/80">
+<div class="flex size-10 shrink-0 items-center justify-center text-slate-700 dark:text-slate-300">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</div>
+<h1 class="flex-1 text-center text-lg font-bold text-slate-900 dark:text-white">Settings</h1>
+<div class="size-10 shrink-0"></div>
+</header>
+<main class="flex-1 pb-10">
+<!-- General Settings Section -->
+<section class="mt-4">
+<h3 class="px-5 pb-2 pt-4 text-sm font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">General</h3>
+<div class="mx-3 overflow-hidden rounded-xl bg-white dark:bg-slate-800/50">
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xl">translate</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Language</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-base font-medium text-slate-500 dark:text-slate-400">English</span>
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xl">desktop_windows</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Appearance</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-base font-medium text-slate-500 dark:text-slate-400">System</span>
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 px-4">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xl">person</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Account</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Notifications Section -->
+<section class="mt-4">
+<h3 class="px-5 pb-2 pt-4 text-sm font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Notifications</h3>
+<div class="mx-3 overflow-hidden rounded-xl bg-white dark:bg-slate-800/50">
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Daily Reminders</p>
+</div>
+<div class="shrink-0">
+<button aria-checked="true" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-primary transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark" role="switch" type="button">
+<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-5"></span>
+</button>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 px-4">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xl">schedule</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Reminder Time</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-base font-medium text-slate-500 dark:text-slate-400">9:00 AM</span>
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Advanced Section -->
+<section class="mt-4">
+<h3 class="px-5 pb-2 pt-4 text-sm font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Advanced</h3>
+<div class="mx-3 overflow-hidden rounded-xl bg-white dark:bg-slate-800/50">
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-yellow-500/20 text-yellow-500">
+<span class="material-symbols-outlined text-xl">science</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">FSRS Parameters</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-yellow-500">info</span>
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 px-4">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-red-500/20 text-red-500">
+<span class="material-symbols-outlined text-xl">restart_alt</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Reset FSRS Profile</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+<p class="px-5 pt-2 text-xs text-slate-500 dark:text-slate-400">Resetting will permanently delete all your learning data.</p>
+</section>
+<!-- Support & Info Section -->
+<section class="mt-4">
+<h3 class="px-5 pb-2 pt-4 text-sm font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Support &amp; Information</h3>
+<div class="mx-3 overflow-hidden rounded-xl bg-white dark:bg-slate-800/50">
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-500/20 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-xl">help</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Help &amp; FAQ</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 border-b border-slate-200 px-4 dark:border-slate-700/50">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-500/20 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-xl">info</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">About</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+<div class="flex min-h-[3.5rem] items-center justify-between gap-4 px-4">
+<div class="flex items-center gap-4">
+<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-500/20 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-xl">privacy_tip</span>
+</div>
+<p class="flex-1 truncate text-base font-normal text-slate-900 dark:text-white">Privacy Policy</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,119 @@
+/* 模拟 P2P 测试页面专用样式 */
+
+.mock-controls {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  border: 2px solid #e9ecef;
+}
+
+.instances-grid {
+  margin-top: 2rem;
+}
+
+.instances-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.instance-card {
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.instance-header h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #2c3e50;
+  word-break: break-all;
+}
+
+.instance-status {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+.instance-message {
+  margin-bottom: 1rem;
+}
+
+.instance-message input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.instance-logs {
+  font-size: 0.75rem;
+}
+
+.instance-logs h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.8rem;
+  color: #2c3e50;
+}
+
+.log-container-small {
+  background: #2c3e50;
+  color: #ecf0f1;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  max-height: 150px;
+  overflow-y: auto;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.log-container-small .log-entry {
+  margin-bottom: 0.2rem;
+  word-break: break-all;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+.btn-small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .instances-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .mock-controls .button-group {
+    flex-direction: column;
+  }
+  
+  .mock-controls .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}

@@ -1,0 +1,112 @@
+/**
+ * Philosophy Page Custom Styles
+ * 
+ * "陪伴，但不打扰" - 主题样式
+ * 柔和、含蓄、温暖的交互体验
+ */
+
+@keyframes gentle-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes soft-pulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% { 
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from { 
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+.animate-gentle-glow {
+  animation: gentle-glow 3s ease-in-out infinite;
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* 柔和的光晕效果 */
+.soft-glow {
+  box-shadow: 
+    0 0 20px rgba(255, 255, 255, 0.1),
+    0 0 40px rgba(255, 255, 255, 0.05),
+    0 0 60px rgba(255, 255, 255, 0.02);
+}
+
+/* 文字可读性增强 */
+.text-shadow-soft {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 
+               0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* 按钮悬停时的微光效果 */
+.button-microshine {
+  position: relative;
+  overflow: hidden;
+}
+
+.button-microshine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.1), 
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.button-microshine:hover::before {
+  left: 100%;
+}
+
+/* 淡入淡出过渡 */
+.fade-transition {
+  transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+}
+
+/* 柔和的边框光晕 */
+.soft-border-glow {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    inset 0 0 10px rgba(255, 255, 255, 0.05),
+    0 0 20px rgba(255, 255, 255, 0.05);
+}
+
+/* 模式切换时的背景过渡 */
+.mode-transition {
+  transition: background 1.5s ease-in-out;
+}
+
+/* 模式特定样式 */
+.campfire-mode {
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 50%, #2a1510 100%);
+}
+
+.starry-mode {
+  background: linear-gradient(135deg, #0A0E27 0%, #1A1F3A 50%, #2A2F4A 100%);
+}
