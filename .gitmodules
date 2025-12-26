@@ -1,3 +1,4 @@
 [submodule "apps/qwik/ai-visi"]
 	path = apps/qwik/ai-visi
 	url = git@github.com:China-li-bai/ai-visi.git
+

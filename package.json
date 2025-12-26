@@ -6,6 +6,7 @@
     "dev": "turbo run dev",
     "dev:costudy": "turbo run dev --filter=CoStudy",
     "dev:revcv": "turbo run dev --filter=RevCV",
+    "dev:mirrorCv": "turbo run dev --filter=mirrorCv",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
