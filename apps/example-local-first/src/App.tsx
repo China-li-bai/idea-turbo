@@ -87,6 +87,30 @@ function App() {
     }
   };
 
+  const handleSyncToRemote = async () => {
+    if (!syncManager) return;
+
+    try {
+      console.log('Syncing to remote...');
+      await syncManager.syncToRemote('todos');
+      console.log('Sync to remote completed');
+    } catch (error) {
+      console.error('Error syncing to remote:', error);
+    }
+  };
+
+  const handleSyncFromRemote = async () => {
+    if (!syncManager) return;
+
+    try {
+      console.log('Syncing from remote...');
+      await syncManager.syncFromRemote('todos');
+      console.log('Sync from remote completed');
+    } catch (error) {
+      console.error('Error syncing from remote:', error);
+    }
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -107,6 +131,15 @@ function App() {
           <option value="push-only">Push Only (仅推送)</option>
           <option value="pull-only">Pull Only (仅拉取)</option>
         </select>
+      </div>
+
+      <div className="sync-buttons">
+        <button onClick={handleSyncToRemote} disabled={syncMode === 'local-only' || syncMode === 'pull-only'}>
+          Sync to Remote (同步到远程)
+        </button>
+        <button onClick={handleSyncFromRemote} disabled={syncMode === 'local-only' || syncMode === 'push-only'}>
+          Sync from Remote (从远程同步)
+        </button>
       </div>
 
       <div className="todo-input">

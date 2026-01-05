@@ -316,6 +316,48 @@ export class SyncManager {
     return this.db.fetchAll(collection);
   }
 
+  async syncToRemote(collection?: string) {
+    if (!this.ws || this.syncMode === 'local-only') {
+      console.log('[SyncManager] Cannot sync to remote: WebSocket not connected or in local-only mode');
+      return;
+    }
+
+    const collections = collection ? [collection] : ['todos', 'users'];
+
+    for (const col of collections) {
+      try {
+        const localData = await this.db.fetchAll(col);
+        console.log(`[SyncManager] Syncing ${localData.length} items from ${col} to remote`);
+
+        for (const item of localData) {
+          this.sendSyncMessage({
+            type: 'sync',
+            collection: col,
+            operation: 'update',
+            data: item,
+            clientId: this.clientId,
+            timestamp: item.updatedAt,
+          });
+        }
+      } catch (error) {
+        console.error(`[SyncManager] Error syncing collection ${col}:`, error);
+      }
+    }
+  }
+
+  async syncFromRemote(collection?: string) {
+    if (!this.ws || this.syncMode === 'push-only') {
+      console.log('[SyncManager] Cannot sync from remote: WebSocket not connected or in push-only mode');
+      return;
+    }
+
+    const collections = collection ? [collection] : ['todos', 'users'];
+
+    for (const col of collections) {
+      this.sendSubscribeMessage(col);
+    }
+  }
+
   subscribe(collection: string, callback: (data: any[]) => void) {
     if (!this.subscriptions.has(collection)) {
       this.subscriptions.set(collection, new Set());

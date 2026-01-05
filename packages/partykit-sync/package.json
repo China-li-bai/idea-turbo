@@ -12,7 +12,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "partykit": "^0.0.115"
+    "partykit": "^0.0.115",
+    "yjs": "^13.6.29"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",

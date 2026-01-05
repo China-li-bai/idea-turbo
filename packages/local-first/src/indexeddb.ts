@@ -80,16 +80,20 @@ export class IndexedDBWrapper {
   async delete(collection: string, id: string): Promise<void> {
     if (!this.db) throw new Error('Database not connected');
 
+    console.log('[IndexedDB] Deleting item from', collection, 'with id:', id);
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([collection], 'readwrite');
       const store = transaction.objectStore(collection);
       const request = store.delete(id);
 
       request.onsuccess = () => {
+        console.log('[IndexedDB] Delete successful for id:', id);
         this.notifySubscribers(collection);
         resolve();
       };
       request.onerror = () => {
+        console.error('[IndexedDB] Delete error for id:', id, request.error);
         if (request.error) reject(request.error);
       };
     });
@@ -149,17 +153,23 @@ export class IndexedDBWrapper {
   }
 
   private notifySubscribers(collection: string) {
+    console.log('[IndexedDB] Notifying subscribers for collection:', collection);
     const collectionSubscribers = this.subscribers.get(collection);
     if (collectionSubscribers) {
+      console.log('[IndexedDB] Found', collectionSubscribers.size, 'subscribers');
       this.fetchAll(collection).then((data) => {
+        console.log('[IndexedDB] Fetched data for notification:', data.length, 'items');
         collectionSubscribers.forEach((callback) => {
           try {
+            console.log('[IndexedDB] Calling subscriber callback');
             callback(data);
           } catch (error) {
             console.error('[IndexedDB] Error in subscriber callback:', error);
           }
         });
       });
+    } else {
+      console.log('[IndexedDB] No subscribers found for collection:', collection);
     }
   }
 }
