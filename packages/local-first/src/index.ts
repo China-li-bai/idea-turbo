@@ -1,4 +1,4 @@
-import { TriplitClient } from '@triplit/client';
+import { IndexedDBWrapper } from './indexeddb';
 
 export interface LocalFirstConfig {
   projectId: string;
@@ -7,53 +7,51 @@ export interface LocalFirstConfig {
 }
 
 export class LocalFirstDatabase {
-  private client: TriplitClient;
+  private db: IndexedDBWrapper;
 
   constructor(config: LocalFirstConfig) {
-    this.client = new TriplitClient({
-      projectId: config.projectId,
-      token: config.token,
-      storage: config.storage || 'indexeddb',
-    });
+    this.db = new IndexedDBWrapper(config.projectId);
   }
 
   async connect() {
-    await this.client.connect();
+    await this.db.connect();
   }
 
   async disconnect() {
-    await this.client.disconnect();
+    await this.db.disconnect();
   }
 
   getClient() {
-    return this.client;
+    return this.db;
   }
 
   async insert(collection: string, data: any) {
-    return this.client.insert(collection, data);
+    return this.db.insert(collection, data);
   }
 
   async update(collection: string, id: string, data: any) {
-    return this.client.update(collection, id, data);
+    return this.db.update(collection, id, data);
   }
 
   async delete(collection: string, id: string) {
-    return this.client.delete(collection, id);
+    return this.db.delete(collection, id);
   }
 
   async fetchOne(collection: string, id: string) {
-    return this.client.fetchOne(collection, id);
+    return this.db.fetchOne(collection, id);
   }
 
   async fetchAll(collection: string) {
-    return this.client.fetchAll(collection);
+    return this.db.fetchAll(collection);
   }
 
   subscribe(collection: string, callback: (data: any[]) => void) {
-    return this.client.subscribe(collection, callback);
+    return this.db.subscribe(collection, callback);
   }
 }
 
 export function createLocalFirstDB(config: LocalFirstConfig) {
   return new LocalFirstDatabase(config);
 }
+
+export * from './sync';

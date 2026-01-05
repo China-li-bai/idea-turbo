@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createLocalFirstDB } from '@idea-turbo/local-first';
-import PartySocket from 'partysocket';
+import { createSyncManager, SyncManager } from '@idea-turbo/local-first';
 
 interface Todo {
   id: string;
@@ -14,113 +13,98 @@ function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('Initializing...');
+  const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
 
   useEffect(() => {
     async function init() {
       try {
-        const db = createLocalFirstDB({
+        const manager = createSyncManager({
           projectId: 'your-project-id',
+          partykitHost: 'localhost:1999',
+          partykitRoom: 'idea-turbo-sync',
           storage: 'indexeddb',
         });
 
-        await db.connect();
-        setStatus('Connected to local database');
+        await manager.connect();
+        setSyncManager(manager);
+        setStatus('Connected to sync server');
 
-        const initialTodos = await db.fetchAll('todos');
+        const initialTodos = await manager.fetchAll('todos');
         setTodos(initialTodos);
 
-        db.subscribe('todos', (data) => {
+        manager.subscribe('todos', (data) => {
           setTodos(data);
-        });
-
-        const ws = new PartySocket({
-          host: 'localhost:1999',
-          room: 'idea-turbo-sync',
-        });
-
-        ws.addEventListener('open', () => {
-          setStatus('Connected to sync server');
-        });
-
-        ws.addEventListener('message', (event) => {
-          const message = JSON.parse(event.data);
-          if (message.type === 'update' && message.collection === 'todos') {
-            setTodos(message.data);
-          }
-        });
-
-        ws.addEventListener('close', () => {
-          setStatus('Disconnected from sync server');
         });
 
       } catch (error) {
         setStatus(`Error: ${error}`);
+        console.error('Error initializing sync manager:', error);
       }
     }
 
     init();
+
+    return () => {
+      if (syncManager) {
+        syncManager.disconnect();
+      }
+    };
   }, []);
 
   const addTodo = async () => {
-    if (!input.trim()) return;
-
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      title: input,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (!input.trim() || !syncManager) return;
 
     try {
-      const db = createLocalFirstDB({
-        projectId: 'your-project-id',
-        storage: 'indexeddb',
-      });
+      const newTodo: Todo = {
+        id: Date.now().toString(),
+        title: input,
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      await db.insert('todos', newTodo);
+      await syncManager.insert('todos', newTodo);
       setInput('');
-      setStatus('Todo added locally');
+      setStatus('Todo added and synced');
     } catch (error) {
       setStatus(`Error adding todo: ${error}`);
+      console.error('Error adding todo:', error);
     }
   };
 
   const toggleTodo = async (id: string) => {
+    if (!syncManager) return;
+
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
 
     try {
-      const db = createLocalFirstDB({
-        projectId: 'your-project-id',
-        storage: 'indexeddb',
-      });
-
-      await db.update('todos', id, {
+      await syncManager.update('todos', id, {
         completed: !todo.completed,
         updatedAt: new Date().toISOString(),
       });
+      setStatus('Todo updated and synced');
     } catch (error) {
       setStatus(`Error updating todo: ${error}`);
+      console.error('Error updating todo:', error);
     }
   };
 
   const deleteTodo = async (id: string) => {
-    try {
-      const db = createLocalFirstDB({
-        projectId: 'your-project-id',
-        storage: 'indexeddb',
-      });
+    if (!syncManager) return;
 
-      await db.delete('todos', id);
+    try {
+      await syncManager.delete('todos', id);
+      setStatus('Todo deleted and synced');
     } catch (error) {
       setStatus(`Error deleting todo: ${error}`);
+      console.error('Error deleting todo:', error);
     }
   };
 
   return (
     <div>
-      <h1>Local-First Todo App</h1>
+      <h1>Local-First Todo App with Sync</h1>
       <div className="status">{status}</div>
 
       <div className="todo-input">
@@ -147,6 +131,14 @@ function App() {
           </li>
         ))}
       </ul>
+
+      <div className="info">
+        <h3>Architecture Info</h3>
+        <p><strong>Local Database:</strong> IndexedDB (Custom Wrapper)</p>
+        <p><strong>Sync Protocol:</strong> PartyKit (WebSocket)</p>
+        <p><strong>Conflict Resolution:</strong> Last-Write-Wins (based on updatedAt)</p>
+        <p><strong>Offline Support:</strong> Yes - works offline, syncs when reconnected</p>
+      </div>
     </div>
   );
 }

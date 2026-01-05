@@ -1,3 +1,5 @@
+import type { D1Database as CF_D1Database } from '@cloudflare/workers-types';
+
 export interface D1Config {
   binding: string;
   databaseName: string;
@@ -5,9 +7,9 @@ export interface D1Config {
 }
 
 export class D1Database {
-  private db: D1Database;
+  private db: CF_D1Database;
 
-  constructor(db: D1Database) {
+  constructor(db: CF_D1Database) {
     this.db = db;
   }
 
@@ -70,6 +72,6 @@ export class D1Database {
   }
 }
 
-export function createD1Database(db: D1Database) {
+export function createD1Database(db: CF_D1Database) {
   return new D1Database(db);
 }

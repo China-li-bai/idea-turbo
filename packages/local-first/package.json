@@ -11,7 +11,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@triplit/client": "^0.0.1"
+    "partysocket": "^1.1.10"
   },
   "devDependencies": {
     "@idea-turbo/eslint-config": "workspace:*",

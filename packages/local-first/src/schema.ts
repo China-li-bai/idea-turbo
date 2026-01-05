@@ -1,24 +1,18 @@
-import { defineConfig } from '@triplit/client';
+export interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export const schema = defineConfig({
-  collections: {
-    todos: {
-      schema: {
-        id: { type: 'string', primary: true },
-        title: { type: 'string' },
-        completed: { type: 'boolean' },
-        createdAt: { type: 'string' },
-        updatedAt: { type: 'string' },
-      },
-    },
-    users: {
-      schema: {
-        id: { type: 'string', primary: true },
-        name: { type: 'string' },
-        email: { type: 'string' },
-      },
-    },
-  },
-});
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
 
-export type Schema = typeof schema;
+export interface Schema {
+  todos: Todo;
+  users: User;
+}
