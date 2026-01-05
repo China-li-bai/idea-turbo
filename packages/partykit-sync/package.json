@@ -1,0 +1,23 @@
+{
+  "name": "@idea-turbo/partykit-sync",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy",
+    "build": "tsc",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "partykit": "^0.0.1"
+  },
+  "devDependencies": {
+    "@idea-turbo/eslint-config": "workspace:*",
+    "@idea-turbo/typescript-config": "workspace:*",
+    "eslint": "^8.57.0",
+    "typescript": "5.9.2"
+  }
+}

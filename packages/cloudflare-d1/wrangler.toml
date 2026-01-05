@@ -1,0 +1,8 @@
+name = "idea-turbo-d1"
+main = "./src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "idea-turbo-db"
+database_id = "your-database-id"

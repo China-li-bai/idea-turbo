@@ -1,0 +1,25 @@
+{
+  "name": "@idea-turbo/cloudflare-d1",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "db:create": "wrangler d1 create idea-turbo-db",
+    "db:migrate": "wrangler d1 execute idea-turbo-db --file=./migrations/001_init.sql",
+    "db:local": "wrangler d1 execute idea-turbo-db --local --file=./migrations/001_init.sql",
+    "build": "tsc",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0"
+  },
+  "devDependencies": {
+    "@idea-turbo/eslint-config": "workspace:*",
+    "@idea-turbo/typescript-config": "workspace:*",
+    "eslint": "^8.57.0",
+    "typescript": "5.9.2",
+    "wrangler": "^3.78.0"
+  }
+}
