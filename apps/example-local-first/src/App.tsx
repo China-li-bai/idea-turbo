@@ -1,30 +1,37 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useOptimisticMutation, createSyncManager } from '@idea-turbo/local-first';
+import { useQuery, useOptimisticMutation, createSyncManager, type SyncMode } from '@idea-turbo/local-first';
 import { todoSchema, type Todo } from '@idea-turbo/local-first';
 
 function App() {
   const [input, setInput] = useState('');
   const [syncManager, setSyncManager] = useState<ReturnType<typeof createSyncManager> | null>(null);
+  const [syncMode, setSyncMode] = useState<SyncMode>('full');
+
+  const initSyncManager = async (mode: SyncMode) => {
+    try {
+      if (syncManager) {
+        await syncManager.disconnect();
+      }
+
+      const manager = createSyncManager({
+        projectId: 'your-project-id',
+        partykitHost: window.location.hostname + ':1999',
+        partykitRoom: 'idea-turbo-sync',
+        storage: 'indexeddb',
+        schema: todoSchema,
+        syncMode: mode,
+      });
+
+      await manager.connect();
+      setSyncManager(manager);
+      setSyncMode(mode);
+    } catch (error) {
+      console.error('Error initializing sync manager:', error);
+    }
+  };
 
   useEffect(() => {
-    async function init() {
-      try {
-        const manager = createSyncManager({
-          projectId: 'your-project-id',
-          partykitHost: window.location.hostname + ':1999',
-          partykitRoom: 'idea-turbo-sync',
-          storage: 'indexeddb',
-          schema: todoSchema,
-        });
-
-        await manager.connect();
-        setSyncManager(manager);
-      } catch (error) {
-        console.error('Error initializing sync manager:', error);
-      }
-    }
-
-    init();
+    initSyncManager('full');
 
     return () => {
       if (syncManager) {
@@ -32,6 +39,10 @@ function App() {
       }
     };
   }, []);
+
+  const handleSyncModeChange = async (mode: SyncMode) => {
+    await initSyncManager(mode);
+  };
 
   const db = syncManager?.getDB();
   const { data: todos, loading, error } = useQuery<Todo>(db!, 'todos');
@@ -87,6 +98,16 @@ function App() {
   return (
     <div>
       <h1>Local-First Todo App with Sync</h1>
+
+      <div className="sync-mode-selector">
+        <label>Sync Mode:</label>
+        <select value={syncMode} onChange={(e) => handleSyncModeChange(e.target.value as SyncMode)}>
+          <option value="full">Full Sync (双向同步)</option>
+          <option value="local-only">Local Only (仅本地)</option>
+          <option value="push-only">Push Only (仅推送)</option>
+          <option value="pull-only">Pull Only (仅拉取)</option>
+        </select>
+      </div>
 
       <div className="todo-input">
         <input

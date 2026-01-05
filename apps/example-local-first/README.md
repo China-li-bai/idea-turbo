@@ -93,6 +93,76 @@ const syncManager = createSyncManager({
 await syncManager.connect();
 ```
 
+### 配置同步模式
+
+SyncManager 支持四种同步模式，可以根据应用需求选择：
+
+```typescript
+const syncManager = createSyncManager({
+  projectId: 'your-project-id',
+  partykitHost: 'localhost:1999',
+  partykitRoom: 'idea-turbo-sync',
+  storage: 'indexeddb',
+  schema: todoSchema,
+  syncMode: 'local-only', // 可选: 'full' | 'local-only' | 'push-only' | 'pull-only'
+});
+```
+
+#### 同步模式说明
+
+1. **`full`** (默认) - 完整同步
+   - 本地数据变更会推送到远程
+   - 接收远程数据更新
+   - 适用于需要实时多端同步的应用
+   - 示例：协作编辑器、实时聊天
+
+2. **`local-only`** - 仅本地模式
+   - 不连接 WebSocket
+   - 数据仅存储在本地 IndexedDB
+   - 不进行任何网络同步
+   - 适用于离线应用、本地工具
+   - 示例：本地笔记、离线表单
+
+3. **`push-only`** - 仅推送模式
+   - 本地数据变更会推送到远程
+   - 不接收远程数据更新
+   - 适用于数据收集、上报场景
+   - 示例：日志收集、数据上报
+
+4. **`pull-only`** - 仅拉取模式
+   - 接收远程数据更新
+   - 本地数据变更不会推送到远程
+   - 适用于只读数据、内容分发
+   - 示例：内容展示、配置同步
+
+#### 动态切换同步模式
+
+如果需要在运行时切换同步模式，可以创建新的 SyncManager 实例：
+
+```typescript
+// 初始使用本地模式
+let syncManager = createSyncManager({
+  projectId: 'your-project-id',
+  partykitHost: 'localhost:1999',
+  partykitRoom: 'idea-turbo-sync',
+  storage: 'indexeddb',
+  schema: todoSchema,
+  syncMode: 'local-only',
+});
+
+// 切换到完整同步
+await syncManager.disconnect();
+syncManager = createSyncManager({
+  projectId: 'your-project-id',
+  partykitHost: 'localhost:1999',
+  partykitRoom: 'idea-turbo-sync',
+  storage: 'indexeddb',
+  schema: todoSchema,
+  syncMode: 'full',
+});
+await syncManager.connect();
+```
+
 ### 使用 React Hooks
 
 ```typescript

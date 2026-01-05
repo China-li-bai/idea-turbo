@@ -1,9 +1,12 @@
 import { LocalFirstDatabase, LocalFirstConfig } from './index';
 import { PartySocket } from 'partysocket';
 
+export type SyncMode = 'full' | 'local-only' | 'push-only' | 'pull-only';
+
 export interface SyncConfig extends LocalFirstConfig {
   partykitHost: string;
   partykitRoom: string;
+  syncMode?: SyncMode;
 }
 
 export interface SyncMessage {
@@ -17,14 +20,16 @@ export interface SyncMessage {
 
 export class SyncManager {
   private db: LocalFirstDatabase;
-  private ws: PartySocket;
+  private ws: PartySocket | null;
   private clientId: string;
   private subscriptions: Map<string, Set<Function>> = new Map();
   private pendingSyncs: Map<string, any> = new Map();
   private isSyncing: boolean = false;
+  private syncMode: SyncMode;
 
   constructor(config: SyncConfig) {
     this.clientId = this.generateClientId();
+    this.syncMode = config.syncMode || 'full';
     
     this.db = new LocalFirstDatabase({
       projectId: config.projectId,
@@ -33,12 +38,16 @@ export class SyncManager {
       schema: config.schema,
     });
 
-    this.ws = new PartySocket({
+    this.ws = this.syncMode === 'local-only' ? null : new PartySocket({
       host: config.partykitHost,
       room: config.partykitRoom,
     });
 
-    this.setupWebSocketHandlers();
+    if (this.ws) {
+      this.setupWebSocketHandlers();
+    } else {
+      console.log('[SyncManager] Running in local-only mode, no WebSocket connection');
+    }
   }
 
   private generateClientId(): string {
@@ -46,11 +55,11 @@ export class SyncManager {
   }
 
   private setupWebSocketHandlers() {
-    this.ws.addEventListener('open', () => {
+    this.ws!.addEventListener('open', () => {
       console.log('[SyncManager] Connected to PartyKit server');
     });
 
-    this.ws.addEventListener('message', async (event: MessageEvent) => {
+    this.ws!.addEventListener('message', async (event: MessageEvent) => {
       try {
         const message: SyncMessage = JSON.parse(event.data);
         await this.handleIncomingMessage(message);
@@ -59,11 +68,11 @@ export class SyncManager {
       }
     });
 
-    this.ws.addEventListener('close', () => {
+    this.ws!.addEventListener('close', () => {
       console.log('[SyncManager] Disconnected from PartyKit server');
     });
 
-    this.ws.addEventListener('error', (error: Event) => {
+    this.ws!.addEventListener('error', (error: Event) => {
       console.error('[SyncManager] WebSocket error:', error);
     });
   }
@@ -71,16 +80,24 @@ export class SyncManager {
   private async handleIncomingMessage(message: SyncMessage) {
     switch (message.type) {
       case 'update':
-        await this.handleUpdate(message);
+        if (this.syncMode !== 'push-only') {
+          await this.handleUpdate(message);
+        }
         break;
       case 'initial':
-        await this.handleInitial(message);
+        if (this.syncMode !== 'push-only') {
+          await this.handleInitial(message);
+        }
         break;
       case 'sync':
-        await this.handleSync(message);
+        if (this.syncMode !== 'push-only') {
+          await this.handleSync(message);
+        }
         break;
       case 'ack':
-        await this.handleAck(message);
+        if (this.syncMode !== 'pull-only') {
+          await this.handleAck(message);
+        }
         break;
       default:
         console.warn('[SyncManager] Unknown message type:', message.type);
@@ -221,14 +238,19 @@ export class SyncManager {
 
   async connect() {
     await this.db.connect();
-    await new Promise<void>((resolve) => {
-      this.ws.addEventListener('open', () => resolve(), { once: true });
-    });
+    
+    if (this.ws) {
+      await new Promise<void>((resolve) => {
+        this.ws!.addEventListener('open', () => resolve(), { once: true });
+      });
+    }
   }
 
   async disconnect() {
     await this.db.disconnect();
-    this.ws.close();
+    if (this.ws) {
+      this.ws.close();
+    }
   }
 
   async insert(collection: string, data: any) {
@@ -314,14 +336,18 @@ export class SyncManager {
   }
 
   private sendSyncMessage(message: SyncMessage) {
-    this.ws.send(JSON.stringify(message));
+    if (this.ws && this.syncMode !== 'pull-only') {
+      this.ws.send(JSON.stringify(message));
+    }
   }
 
   private sendSubscribeMessage(collection: string) {
-    this.ws.send(JSON.stringify({
-      type: 'subscribe',
-      collection,
-    }));
+    if (this.ws && this.syncMode !== 'push-only') {
+      this.ws.send(JSON.stringify({
+        type: 'subscribe',
+        collection,
+      }));
+    }
   }
 
   getDB() {

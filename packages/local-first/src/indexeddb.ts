@@ -1,6 +1,7 @@
 export class IndexedDBWrapper {
   private dbName: string;
   private db: IDBDatabase | null = null;
+  private subscribers: Map<string, Set<(data: any[]) => void>> = new Map();
 
   constructor(dbName: string) {
     this.dbName = dbName;
@@ -47,7 +48,10 @@ export class IndexedDBWrapper {
       const store = transaction.objectStore(collection);
       const request = store.add(data);
 
-      request.onsuccess = () => resolve(data);
+      request.onsuccess = () => {
+        this.notifySubscribers(collection);
+        resolve(data);
+      };
       request.onerror = () => {
         console.error('[IndexedDB] Insert error:', request.error);
         if (request.error) reject(request.error);
@@ -63,7 +67,10 @@ export class IndexedDBWrapper {
       const store = transaction.objectStore(collection);
       const request = store.put({ id, ...data });
 
-      request.onsuccess = () => resolve({ id, ...data });
+      request.onsuccess = () => {
+        this.notifySubscribers(collection);
+        resolve({ id, ...data });
+      };
       request.onerror = () => {
         if (request.error) reject(request.error);
       };
@@ -78,7 +85,10 @@ export class IndexedDBWrapper {
       const store = transaction.objectStore(collection);
       const request = store.delete(id);
 
-      request.onsuccess = () => resolve();
+      request.onsuccess = () => {
+        this.notifySubscribers(collection);
+        resolve();
+      };
       request.onerror = () => {
         if (request.error) reject(request.error);
       };
@@ -118,18 +128,38 @@ export class IndexedDBWrapper {
   subscribe(collection: string, callback: (data: any[]) => void): () => void {
     if (!this.db) throw new Error('Database not connected');
 
-    const transaction = this.db!.transaction([collection], 'readonly');
-    const store = transaction.objectStore(collection);
+    if (!this.subscribers.has(collection)) {
+      this.subscribers.set(collection, new Set());
+    }
+
+    this.subscribers.get(collection)!.add(callback);
 
     const fetchAndNotify = () => {
       this.fetchAll(collection).then(callback);
     };
 
-    const request = store.getAll();
-    request.onsuccess = () => {
-      callback(request.result || []);
-    };
+    fetchAndNotify();
 
-    return () => {};
+    return () => {
+      const collectionSubscribers = this.subscribers.get(collection);
+      if (collectionSubscribers) {
+        collectionSubscribers.delete(callback);
+      }
+    };
+  }
+
+  private notifySubscribers(collection: string) {
+    const collectionSubscribers = this.subscribers.get(collection);
+    if (collectionSubscribers) {
+      this.fetchAll(collection).then((data) => {
+        collectionSubscribers.forEach((callback) => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error('[IndexedDB] Error in subscriber callback:', error);
+          }
+        });
+      });
+    }
   }
 }

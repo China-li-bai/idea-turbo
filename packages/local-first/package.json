@@ -24,6 +24,7 @@
   "devDependencies": {
     "@idea-turbo/eslint-config": "workspace:*",
     "@idea-turbo/typescript-config": "workspace:*",
+    "@types/react": "^18.0.0",
     "eslint": "^8.57.0",
     "typescript": "5.9.2"
   }
