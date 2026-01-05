@@ -11,9 +11,9 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "db:create": "turbo run db:create --filter=cloudflare-d1",
-    "db:migrate": "turbo run db:migrate --filter=cloudflare-d1",
-    "db:local": "turbo run db:local --filter=cloudflare-d1"
+    "db:create": "turbo run db:create --filter=@idea-turbo/cloudflare-d1",
+    "db:migrate": "turbo run db:migrate --filter=@idea-turbo/cloudflare-d1",
+    "db:local": "turbo run db:local --filter=@idea-turbo/cloudflare-d1"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
