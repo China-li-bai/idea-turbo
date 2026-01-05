@@ -40,6 +40,8 @@ export class IndexedDBWrapper {
   async insert(collection: string, data: any): Promise<any> {
     if (!this.db) throw new Error('Database not connected');
 
+    console.log('[IndexedDB] Inserting data into', collection, ':', JSON.stringify(data, null, 2));
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([collection], 'readwrite');
       const store = transaction.objectStore(collection);
@@ -47,6 +49,7 @@ export class IndexedDBWrapper {
 
       request.onsuccess = () => resolve(data);
       request.onerror = () => {
+        console.error('[IndexedDB] Insert error:', request.error);
         if (request.error) reject(request.error);
       };
     });

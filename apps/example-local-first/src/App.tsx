@@ -1,43 +1,25 @@
 import { useState, useEffect } from 'react';
-import { createSyncManager, SyncManager } from '@idea-turbo/local-first';
-
-interface Todo {
-  id: string;
-  title: string;
-  completed: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import { useQuery, useOptimisticMutation, createSyncManager } from '@idea-turbo/local-first';
+import { todoSchema, type Todo } from '@idea-turbo/local-first';
 
 function App() {
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
-  const [status, setStatus] = useState('Initializing...');
-  const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
+  const [syncManager, setSyncManager] = useState<ReturnType<typeof createSyncManager> | null>(null);
 
   useEffect(() => {
     async function init() {
       try {
         const manager = createSyncManager({
           projectId: 'your-project-id',
-          partykitHost: 'localhost:1999',
+          partykitHost: window.location.hostname + ':1999',
           partykitRoom: 'idea-turbo-sync',
           storage: 'indexeddb',
+          schema: todoSchema,
         });
 
         await manager.connect();
         setSyncManager(manager);
-        setStatus('Connected to sync server');
-
-        const initialTodos = await manager.fetchAll('todos');
-        setTodos(initialTodos);
-
-        manager.subscribe('todos', (data) => {
-          setTodos(data);
-        });
-
       } catch (error) {
-        setStatus(`Error: ${error}`);
         console.error('Error initializing sync manager:', error);
       }
     }
@@ -51,61 +33,60 @@ function App() {
     };
   }, []);
 
+  const db = syncManager?.getDB();
+  const { data: todos, loading, error } = useQuery<Todo>(db!, 'todos');
+  const { mutate: insertTodo, loading: inserting } = useOptimisticMutation<Todo>(db!, 'todos', 'insert');
+
   const addTodo = async () => {
-    if (!input.trim() || !syncManager) return;
+    if (!input.trim()) return;
 
     try {
-      const newTodo: Todo = {
-        id: Date.now().toString(),
+      await insertTodo({
         title: input,
         completed: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      await syncManager.insert('todos', newTodo);
+      });
       setInput('');
-      setStatus('Todo added and synced');
     } catch (error) {
-      setStatus(`Error adding todo: ${error}`);
       console.error('Error adding todo:', error);
     }
   };
 
   const toggleTodo = async (id: string) => {
-    if (!syncManager) return;
+    if (!db) return;
 
-    const todo = todos.find(t => t.id === id);
+    const todo = todos.find((t: Todo) => t.id === id);
     if (!todo) return;
 
     try {
-      await syncManager.update('todos', id, {
+      await db.update('todos', id, {
         completed: !todo.completed,
-        updatedAt: new Date().toISOString(),
       });
-      setStatus('Todo updated and synced');
     } catch (error) {
-      setStatus(`Error updating todo: ${error}`);
       console.error('Error updating todo:', error);
     }
   };
 
   const deleteTodo = async (id: string) => {
-    if (!syncManager) return;
+    if (!db) return;
 
     try {
-      await syncManager.delete('todos', id);
-      setStatus('Todo deleted and synced');
+      await db.delete('todos', id);
     } catch (error) {
-      setStatus(`Error deleting todo: ${error}`);
       console.error('Error deleting todo:', error);
     }
   };
 
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error.message}</div>;
+  }
+
   return (
     <div>
       <h1>Local-First Todo App with Sync</h1>
-      <div className="status">{status}</div>
 
       <div className="todo-input">
         <input
@@ -114,12 +95,15 @@ function App() {
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && addTodo()}
           placeholder="Add a new todo..."
+          disabled={inserting}
         />
-        <button onClick={addTodo}>Add</button>
+        <button onClick={addTodo} disabled={inserting}>
+          {inserting ? 'Adding...' : 'Add'}
+        </button>
       </div>
 
       <ul className="todo-list">
-        {todos.map((todo) => (
+        {todos.map((todo: Todo) => (
           <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
             <input
               type="checkbox"
@@ -138,6 +122,7 @@ function App() {
         <p><strong>Sync Protocol:</strong> PartyKit (WebSocket)</p>
         <p><strong>Conflict Resolution:</strong> Last-Write-Wins (based on updatedAt)</p>
         <p><strong>Offline Support:</strong> Yes - works offline, syncs when reconnected</p>
+        <p><strong>Optimistic UI:</strong> Yes - instant feedback</p>
       </div>
     </div>
   );

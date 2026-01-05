@@ -13,6 +13,14 @@
   "dependencies": {
     "partysocket": "^1.1.10"
   },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@idea-turbo/eslint-config": "workspace:*",
     "@idea-turbo/typescript-config": "workspace:*",
