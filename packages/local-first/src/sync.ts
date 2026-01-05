@@ -30,6 +30,7 @@ export class SyncManager {
       projectId: config.projectId,
       token: config.token,
       storage: config.storage,
+      schema: config.schema,
     });
 
     this.ws = new PartySocket({
