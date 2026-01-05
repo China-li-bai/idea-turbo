@@ -6,7 +6,7 @@ export default {
   },
 
   async onMessage(ws, room, message) {
-    const data = JSON.parse(message as string);
+    const data = JSON.parse(message);
 
     switch (data.type) {
       case 'sync':

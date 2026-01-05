@@ -1,13 +1,10 @@
 {
-  "name": "ideaTurbo",
+  "name": "idea-turbo",
   "private": true,
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:costudy": "turbo run dev --filter=CoStudy",
-    "dev:revcv": "turbo run dev --filter=RevCV",
-    "dev:mirrorCv": "turbo run dev --filter=mirrorCv",
-    "dev:local-first": "turbo run dev --filter=example-local-first",
+    "dev:local-first": "turbo run dev --filter=@idea-turbo/example-local-first",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",

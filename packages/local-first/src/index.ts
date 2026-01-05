@@ -1,4 +1,4 @@
-import { Client } from '@triplit/client';
+import { TriplitClient } from '@triplit/client';
 
 export interface LocalFirstConfig {
   projectId: string;
@@ -7,10 +7,10 @@ export interface LocalFirstConfig {
 }
 
 export class LocalFirstDatabase {
-  private client: Client;
+  private client: TriplitClient;
 
   constructor(config: LocalFirstConfig) {
-    this.client = new Client({
+    this.client = new TriplitClient({
       projectId: config.projectId,
       token: config.token,
       storage: config.storage || 'indexeddb',
