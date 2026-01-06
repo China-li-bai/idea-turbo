@@ -225,6 +225,10 @@ export class SyncManager {
     });
   }
 
+  getDatabase(): LocalFirstDatabase {
+    return this.db;
+  }
+
   async disconnect() {
     await this.db.disconnect();
     this.ws.close();

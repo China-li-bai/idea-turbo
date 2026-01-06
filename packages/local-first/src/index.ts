@@ -55,3 +55,4 @@ export function createLocalFirstDB(config: LocalFirstConfig) {
 }
 
 export * from './sync';
+export * from './hooks';

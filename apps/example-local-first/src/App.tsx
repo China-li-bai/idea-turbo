@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { createSyncManager, SyncManager } from '@idea-turbo/local-first';
+import { useState, useEffect, useCallback } from 'react';
+import { createSyncManager, useLocalFirstCollection } from '@idea-turbo/local-first';
 
 interface Todo {
   id: string;
@@ -9,33 +9,29 @@ interface Todo {
   updatedAt: string;
 }
 
+const syncManager = createSyncManager({
+  projectId: 'your-project-id',
+  partykitHost: 'localhost:1999',
+  partykitRoom: 'idea-turbo-sync',
+  storage: 'indexeddb',
+});
+
 function App() {
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('Initializing...');
-  const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const { data: todos, loading, error } = useLocalFirstCollection<Todo>(
+    syncManager.getDatabase(),
+    'todos'
+  );
 
   useEffect(() => {
     async function init() {
       try {
-        const manager = createSyncManager({
-          projectId: 'your-project-id',
-          partykitHost: '192.168.0.101:1999',
-          partykitRoom: 'idea-turbo-sync',
-          storage: 'indexeddb',
-        });
-
-        await manager.connect();
-        setSyncManager(manager);
+        await syncManager.connect();
+        setIsConnected(true);
         setStatus('Connected to sync server');
-
-        const initialTodos = await manager.fetchAll('todos');
-        setTodos(initialTodos);
-
-        manager.subscribe('todos', (data) => {
-          setTodos(data);
-        });
-
       } catch (error) {
         setStatus(`Error: ${error}`);
         console.error('Error initializing sync manager:', error);
@@ -45,14 +41,12 @@ function App() {
     init();
 
     return () => {
-      if (syncManager) {
-        syncManager.disconnect();
-      }
+      syncManager.disconnect();
     };
   }, []);
 
-  const addTodo = async () => {
-    if (!input.trim() || !syncManager) return;
+  const addTodo = useCallback(async () => {
+    if (!input.trim()) return;
 
     try {
       const newTodo: Todo = {
@@ -70,15 +64,13 @@ function App() {
       setStatus(`Error adding todo: ${error}`);
       console.error('Error adding todo:', error);
     }
-  };
+  }, [input]);
 
-  const toggleTodo = async (id: string) => {
-    if (!syncManager) return;
-
-    const todo = todos.find(t => t.id === id);
-    if (!todo) return;
-
+  const toggleTodo = useCallback(async (id: string) => {
     try {
+      const todo = todos.find((t: Todo) => t.id === id);
+      if (!todo) return;
+
       await syncManager.update('todos', id, {
         completed: !todo.completed,
         updatedAt: new Date().toISOString(),
@@ -88,11 +80,9 @@ function App() {
       setStatus(`Error updating todo: ${error}`);
       console.error('Error updating todo:', error);
     }
-  };
+  }, [todos]);
 
-  const deleteTodo = async (id: string) => {
-    if (!syncManager) return;
-
+  const deleteTodo = useCallback(async (id: string) => {
     try {
       await syncManager.delete('todos', id);
       setStatus('Todo deleted and synced');
@@ -100,26 +90,37 @@ function App() {
       setStatus(`Error deleting todo: ${error}`);
       console.error('Error deleting todo:', error);
     }
-  };
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error.message}</div>;
+  }
 
   return (
     <div>
       <h1>Local-First Todo App with Sync</h1>
       <div className="status">{status}</div>
+      <div className="connection-status">
+        {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+      </div>
 
       <div className="todo-input">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && addTodo()}
+          onKeyDown={(e) => e.key === 'Enter' && addTodo()}
           placeholder="Add a new todo..."
         />
         <button onClick={addTodo}>Add</button>
       </div>
 
       <ul className="todo-list">
-        {todos.map((todo) => (
+        {todos.map((todo: Todo) => (
           <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
             <input
               type="checkbox"
@@ -138,6 +139,7 @@ function App() {
         <p><strong>Sync Protocol:</strong> PartyKit (WebSocket)</p>
         <p><strong>Conflict Resolution:</strong> Last-Write-Wins (based on updatedAt)</p>
         <p><strong>Offline Support:</strong> Yes - works offline, syncs when reconnected</p>
+        <p><strong>State Management:</strong> useSyncExternalStore (database changes trigger UI updates)</p>
       </div>
     </div>
   );

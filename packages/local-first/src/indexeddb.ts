@@ -1,6 +1,8 @@
 export class IndexedDBWrapper {
   private dbName: string;
   private db: IDBDatabase | null = null;
+  private subscribers: Map<string, Set<(data: any[]) => void>> = new Map();
+  private listeners: Map<string, Set<() => void>> = new Map();
 
   constructor(dbName: string) {
     this.dbName = dbName;
@@ -15,6 +17,7 @@ export class IndexedDBWrapper {
       };
       request.onsuccess = () => {
         this.db = request.result;
+        this.setupChangeListeners();
         resolve();
       };
 
@@ -30,17 +33,35 @@ export class IndexedDBWrapper {
     });
   }
 
+  private setupChangeListeners() {
+    if (!this.db) return;
+
+    this.db.addEventListener('close', () => {
+      this.subscribers.clear();
+    });
+  }
+
+  private async notifySubscribers(collection: string) {
+    const subscribers = this.subscribers.get(collection);
+    if (!subscribers || subscribers.size === 0) return;
+
+    const data = await this.fetchAll(collection);
+    subscribers.forEach(callback => callback(data));
+  }
+
   async disconnect(): Promise<void> {
     if (this.db) {
       this.db.close();
       this.db = null;
     }
+    this.subscribers.clear();
+    this.listeners.clear();
   }
 
   async insert(collection: string, data: any): Promise<any> {
     if (!this.db) throw new Error('Database not connected');
 
-    return new Promise((resolve, reject) => {
+    const result = await new Promise<any>((resolve, reject) => {
       const transaction = this.db!.transaction([collection], 'readwrite');
       const store = transaction.objectStore(collection);
       const request = store.add(data);
@@ -50,12 +71,15 @@ export class IndexedDBWrapper {
         if (request.error) reject(request.error);
       };
     });
+
+    await this.notifySubscribers(collection);
+    return result;
   }
 
   async update(collection: string, id: string, data: any): Promise<any> {
     if (!this.db) throw new Error('Database not connected');
 
-    return new Promise((resolve, reject) => {
+    const result = await new Promise<any>((resolve, reject) => {
       const transaction = this.db!.transaction([collection], 'readwrite');
       const store = transaction.objectStore(collection);
       const request = store.put({ id, ...data });
@@ -65,12 +89,15 @@ export class IndexedDBWrapper {
         if (request.error) reject(request.error);
       };
     });
+
+    await this.notifySubscribers(collection);
+    return result;
   }
 
   async delete(collection: string, id: string): Promise<void> {
     if (!this.db) throw new Error('Database not connected');
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([collection], 'readwrite');
       const store = transaction.objectStore(collection);
       const request = store.delete(id);
@@ -80,6 +107,8 @@ export class IndexedDBWrapper {
         if (request.error) reject(request.error);
       };
     });
+
+    await this.notifySubscribers(collection);
   }
 
   async fetchOne(collection: string, id: string): Promise<any | null> {
@@ -113,20 +142,21 @@ export class IndexedDBWrapper {
   }
 
   subscribe(collection: string, callback: (data: any[]) => void): () => void {
-    if (!this.db) throw new Error('Database not connected');
+    if (!this.subscribers.has(collection)) {
+      this.subscribers.set(collection, new Set());
+    }
+    this.subscribers.get(collection)!.add(callback);
 
-    const transaction = this.db!.transaction([collection], 'readonly');
-    const store = transaction.objectStore(collection);
+    this.fetchAll(collection).then(callback);
 
-    const fetchAndNotify = () => {
-      this.fetchAll(collection).then(callback);
+    return () => {
+      const subscribers = this.subscribers.get(collection);
+      if (subscribers) {
+        subscribers.delete(callback);
+        if (subscribers.size === 0) {
+          this.subscribers.delete(collection);
+        }
+      }
     };
-
-    const request = store.getAll();
-    request.onsuccess = () => {
-      callback(request.result || []);
-    };
-
-    return () => {};
   }
 }
