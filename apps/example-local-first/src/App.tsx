@@ -20,7 +20,7 @@ function App() {
       try {
         const manager = createSyncManager({
           projectId: 'your-project-id',
-          partykitHost: 'localhost:1999',
+          partykitHost: '192.168.0.101:1999',
           partykitRoom: 'idea-turbo-sync',
           storage: 'indexeddb',
         });
