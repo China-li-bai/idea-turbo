@@ -10,6 +10,23 @@ export interface SyncMessage {
 }
 
 export default {
+  async onRequest(req, room) {
+    const url = new URL(req.url);
+    const collection = url.searchParams.get('collection');
+
+    if (collection) {
+      const state = await room.storage.get(collection as any);
+      const items = state ? JSON.parse(state as string) : [];
+      return new Response(JSON.stringify({ collection, data: items }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ message: 'PartyKit Sync Server' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
   async onConnect(ws, room) {
     console.log(`[PartyKit] Client connected to room: ${room.id}`);
     ws.send(JSON.stringify({
