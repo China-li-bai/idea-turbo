@@ -11,7 +11,7 @@ interface Todo {
 
 const syncManager = createSyncManager({
   projectId: 'your-project-id',
-  partykitHost: 'localhost:1999',
+  partykitHost: 'idea-turbo-sync.china-li-bai.partykit.dev',
   partykitRoom: 'idea-turbo-sync',
   storage: 'indexeddb',
 });
