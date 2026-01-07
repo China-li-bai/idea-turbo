@@ -337,9 +337,53 @@ This SDK follows a **minimalist design philosophy**:
 
 - ✅ Provide a simple, clean API
 - ✅ Aggregate events from multiple sources
-- ✓ Track state in a convenient way
-- ✓ Handle cleanup properly
-- ✓ Expose the underlying libraries for advanced usage
+- ✅ Track state in a convenient way
+- ✅ Handle cleanup properly
+- ✅ Expose the underlying libraries for advanced usage
+
+### Test Coverage
+
+The SDK is thoroughly tested with **43 test cases** covering:
+
+- ✅ **Initialization** (2 tests): SDK creation and initial state
+- ✅ **Text Operations** (3 tests): Text manipulation and observation
+- ✅ **Array Operations** (3 tests): Array manipulation and observation
+- ✅ **Map Operations** (4 tests): Map manipulation, deletion, and JSON export
+- ✅ **XmlFragment Operations** (1 test): XML fragment access
+- ✅ **Connection Management** (3 tests): Connect, disconnect, and auto-connect
+- ✅ **Event Listening** (4 tests): Status change, change events, and multiple listeners
+- ✅ **State Management** (5 tests): State snapshots, state changes, online/offline tracking
+- ✅ **Configuration Callbacks** (2 tests): Status change and error callbacks
+- ✅ **Resource Cleanup** (2 tests): Instance destruction and listener cleanup
+- ✅ **Awareness** (2 tests): Awareness instance and local state management
+- ✅ **Persistence** (3 tests): Enable/disable persistence and custom keys
+- ✅ **Edge Cases** (4 tests): Empty data handling and duplicate field names
+- ✅ **Type Safety** (3 tests): Type inference for Text, Array, and Map
+
+Run tests with:
+```bash
+npm run test
+```
+
+Run tests with coverage:
+```bash
+npm run test:coverage
+```
+
+Run tests with UI:
+```bash
+npm run test:ui
+```
+
+#### Testing Environment
+
+The test suite uses:
+- **Vitest**: Fast unit testing framework
+- **happy-dom**: Lightweight DOM environment
+- **fake-indexeddb**: IndexedDB polyfill for Node.js
+- **Mock WebSocket**: Custom WebSocket implementation for testing without network
+
+The test setup automatically provides IndexedDB and WebSocket mocks, allowing tests to run in a Node.js environment without requiring a real browser or server connection.
 
 ## Advanced Usage
 
