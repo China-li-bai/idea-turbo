@@ -1,0 +1,53 @@
+{
+  "name": "@idea-turbo/local-first-sdk",
+  "version": "0.1.0",
+  "description": "Local-first SDK for real-time collaborative applications",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.mjs",
+      "require": "./dist/react/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.mjs",
+      "require": "./dist/ui/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "dependencies": {
+    "partysocket": "^1.0.2",
+    "react-quill": "^2.0.0",
+    "quill-cursors": "^4.0.2",
+    "y-indexeddb": "^9.0.12",
+    "y-partykit": "^0.0.32",
+    "y-quill": "^0.1.5",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.4",
+    "@types/react-dom": "^18.3.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.4"
+  }
+}
