@@ -13,6 +13,7 @@ export default class EditorServer implements Party.Server {
 
   getOpts() {
     const opts: YPartyKitOptions = {
+      persist: { mode: "snapshot" },
       callback: { handler: (doc) => this.handleYDocChange(doc) },
     };
     return opts;
