@@ -1,12 +1,14 @@
 import { SyncEngine } from "./core";
 import { PersistenceManager } from "./persistence";
 import { NetworkManager } from "./network";
+import * as awarenessProtocol from 'y-protocols/awareness';
 import type { SyncConfig, SyncState, UserPresence } from "./types";
 
 export class LocalFirstSDK {
   private engine: SyncEngine;
   private persistence: PersistenceManager;
   private network: NetworkManager;
+  private awareness: awarenessProtocol.Awareness;
   private state: SyncState = {
     status: "syncing",
     isOnline: false,
@@ -16,6 +18,7 @@ export class LocalFirstSDK {
     this.engine = new SyncEngine();
     this.persistence = new PersistenceManager(this.engine.getDocument());
     this.network = new NetworkManager(config);
+    this.awareness = new awarenessProtocol.Awareness(this.engine.getDocument());
   }
 
   async initialize(persistenceName?: string): Promise<void> {
@@ -25,7 +28,7 @@ export class LocalFirstSDK {
 
     await this.network.connect(
       this.engine.getDocument(),
-      this.engine.getDocument().awareness
+      this.awareness
     );
 
     this.network.onStateChange((newState) => {
@@ -50,11 +53,11 @@ export class LocalFirstSDK {
   }
 
   setUserPresence(presence: UserPresence): void {
-    this.engine.getDocument().awareness.setLocalStateField("user", presence);
+    this.awareness.setLocalStateField("user", presence);
   }
 
   getUserPresence(): UserPresence | undefined {
-    return this.engine.getDocument().awareness.getLocalState()?.user;
+    return this.awareness.getLocalState()?.user;
   }
 
   onStateChange(callback: (state: SyncState) => void): () => void {

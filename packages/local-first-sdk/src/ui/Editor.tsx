@@ -19,10 +19,11 @@ export function Editor({ sdk, textName = "default", className = "" }: EditorProp
   useEffect(() => {
     const ytext = sdk.getEngine().getText(textName);
     const editor = quill.current!.getEditor();
+    const awareness = (sdk as any).awareness;
     const binding = new QuillBinding(
       ytext,
       editor,
-      sdk.getEngine().getDocument().awareness
+      awareness
     );
 
     return () => {
