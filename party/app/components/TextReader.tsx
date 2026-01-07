@@ -4,6 +4,7 @@ import { TextPreprocessor } from '../../party/modules/preprocessor';
 import { TextSegmenter } from '../../party/modules/segmenter';
 import { ParagraphSegmenter } from '../../party/modules/paragraph';
 import { PlaybackController } from '../../party/modules/playback';
+import { PlaybackControls } from './PlaybackControls';
 import styles from './TextReader.module.css';
 
 interface TextReaderProps {
@@ -19,7 +20,10 @@ export function TextReader({ className }: TextReaderProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackVolume, setPlaybackVolume] = useState(1);
+  const [currentVoice, setCurrentVoice] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const preprocessorRef = useRef<TextPreprocessor>(new TextPreprocessor());
@@ -45,6 +49,7 @@ export function TextReader({ className }: TextReaderProps) {
 
     playbackRef.current = PlaybackController.create({
       defaultSpeed: playbackSpeed,
+      defaultVolume: playbackVolume,
       autoPlay: false,
     });
 
@@ -53,20 +58,76 @@ export function TextReader({ className }: TextReaderProps) {
       scrollToSegment(segment.id);
     });
 
-    playbackRef.current.on('play', () => setIsPlaying(true));
-    playbackRef.current.on('pause', () => setIsPlaying(false));
+    playbackRef.current.on('play', () => {
+      setIsPlaying(true);
+      setIsPaused(false);
+    });
+
+    playbackRef.current.on('pause', () => {
+      setIsPlaying(false);
+      setIsPaused(true);
+    });
+
     playbackRef.current.on('stop', () => {
       setIsPlaying(false);
+      setIsPaused(false);
       setCurrentSegmentId(0);
     });
+
     playbackRef.current.on('error', ({ error }) => {
       setError(error?.message || '播放错误');
+    });
+
+    playbackRef.current.on('complete', () => {
+      setIsPlaying(false);
+      setIsPaused(false);
     });
 
     return () => {
       playbackRef.current?.destroy();
     };
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'KeyS') {
+        e.preventDefault();
+        handleStop();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, isPaused, segments.length]);
+
+  const togglePlayPause = useCallback(async () => {
+    if (!playbackRef.current || segments.length === 0) return;
+
+    try {
+      if (isPlaying && !isPaused) {
+        playbackRef.current.pause();
+      } else if (!isPlaying && isPaused) {
+        playbackRef.current.resume();
+      } else {
+        await playbackRef.current.play();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '播放失败');
+    }
+  }, [isPlaying, isPaused, segments.length]);
 
   const scrollToSegment = useCallback((segmentId: number) => {
     const element = document.getElementById(`segment-${segmentId}`);
@@ -108,13 +169,17 @@ export function TextReader({ className }: TextReaderProps) {
       const newParagraphs = paragraphSegmenter.segment(newSegments, doc);
       setParagraphs(newParagraphs);
 
+      console.log('Text processed:', { segments: newSegments.length, paragraphs: newParagraphs.length });
+
       if (playbackRef.current) {
         playbackRef.current.setContent(newSegments, newParagraphs);
+        console.log('Content set to playback controller');
       }
 
       setCurrentSegmentId(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : '文本处理失败');
+      console.error('Text processing error:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -127,17 +192,30 @@ export function TextReader({ className }: TextReaderProps) {
   };
 
   const handlePlay = async () => {
-    if (!playbackRef.current) return;
+    if (!playbackRef.current) {
+      console.error('Playback controller not initialized');
+      return;
+    }
+
+    if (segments.length === 0) {
+      console.error('No segments to play');
+      setError('没有可播放的内容');
+      return;
+    }
+
+    console.log('Starting playback...', { segments: segments.length, currentSegmentId });
 
     try {
-      if (isPlaying) {
-        playbackRef.current.pause();
-      } else {
-        await playbackRef.current.play();
-      }
+      await playbackRef.current.play();
+      console.log('Playback started successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : '播放失败');
+      console.error('Playback error:', err);
     }
+  };
+
+  const handlePause = () => {
+    playbackRef.current?.pause();
   };
 
   const handleStop = () => {
@@ -150,7 +228,13 @@ export function TextReader({ className }: TextReaderProps) {
     playbackRef.current?.setSpeed(speed);
   };
 
+  const handleVolumeChange = (volume: number) => {
+    setPlaybackVolume(volume);
+    playbackRef.current?.setVolume(volume);
+  };
+
   const handleVoiceChange = (voiceURI: string) => {
+    setCurrentVoice(voiceURI);
     const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
     if (voice) {
       playbackRef.current?.setVoice(voice);
@@ -160,6 +244,18 @@ export function TextReader({ className }: TextReaderProps) {
   const handleSeek = (segmentId: number) => {
     setCurrentSegmentId(segmentId);
     playbackRef.current?.seek(segmentId);
+  };
+
+  const handlePrevious = () => {
+    if (currentSegmentId > 0) {
+      handleSeek(currentSegmentId - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentSegmentId < segments.length - 1) {
+      handleSeek(currentSegmentId + 1);
+    }
   };
 
   return (
@@ -180,6 +276,7 @@ export function TextReader({ className }: TextReaderProps) {
       {error && (
         <div className={styles.error}>
           ⚠️ {error}
+          <button className={styles.errorClose} onClick={() => setError(null)}>×</button>
         </div>
       )}
 
@@ -202,53 +299,25 @@ export function TextReader({ className }: TextReaderProps) {
 
       {segments.length > 0 && (
         <>
-          <div className={styles.controls}>
-            <div className={styles.playbackControls}>
-              <button
-                className={styles.button}
-                onClick={handlePlay}
-                disabled={segments.length === 0}
-              >
-                {isPlaying ? '⏸ 暂停' : '▶ 播放'}
-              </button>
-              <button
-                className={styles.button}
-                onClick={handleStop}
-                disabled={!isPlaying}
-              >
-                ⏹ 停止
-              </button>
-            </div>
-
-            <div className={styles.speedControl}>
-              <label>语速:</label>
-              {[0.5, 0.75, 1, 1.25, 1.5, 2].map(speed => (
-                <button
-                  key={speed}
-                  className={`${styles.speedButton} ${playbackSpeed === speed ? styles.active : ''}`}
-                  onClick={() => handleSpeedChange(speed)}
-                >
-                  {speed}x
-                </button>
-              ))}
-            </div>
-
-            <div className={styles.voiceControl}>
-              <label>语音:</label>
-              <select
-                className={styles.select}
-                onChange={(e) => handleVoiceChange(e.target.value)}
-                defaultValue=""
-              >
-                <option value="">默认语音</option>
-                {availableVoices.map(voice => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name} ({voice.lang})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <PlaybackControls
+            isPlaying={isPlaying}
+            isPaused={isPaused}
+            currentSegmentId={currentSegmentId}
+            totalSegments={segments.length}
+            availableVoices={availableVoices}
+            playbackSpeed={playbackSpeed}
+            playbackVolume={playbackVolume}
+            currentVoice={currentVoice}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onStop={handleStop}
+            onSpeedChange={handleSpeedChange}
+            onVolumeChange={handleVolumeChange}
+            onVoiceChange={handleVoiceChange}
+            onSeek={handleSeek}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+          />
 
           <div className={styles.textContainer} ref={textContainerRef}>
             {paragraphs.map((paragraph) => {
@@ -278,6 +347,7 @@ export function TextReader({ className }: TextReaderProps) {
       {segments.length === 0 && rawText && !isProcessing && (
         <div className={styles.empty}>
           <p>请输入文本后点击播放</p>
+          <p className={styles.hint}>快捷键: 空格(播放/暂停) | S(停止) | ←(上一句) | →(下一句)</p>
         </div>
       )}
     </div>

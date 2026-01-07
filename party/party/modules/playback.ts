@@ -70,6 +70,7 @@ export class PlaybackController {
   }
 
   setContent(segments: TextSegment[], paragraphs: TextParagraph[]): void {
+    console.log('PlaybackController.setContent:', { segments: segments.length, paragraphs: paragraphs.length });
     this.segments = segments;
     this.paragraphs = paragraphs;
     this.state.currentSegmentId = 0;
@@ -116,13 +117,21 @@ export class PlaybackController {
   }
 
   play(): Promise<void> {
+    console.log('PlaybackController.play called', {
+      isPlaying: this.state.isPlaying,
+      segments: this.segments.length,
+      currentSegmentId: this.state.currentSegmentId,
+    });
+
     return new Promise((resolve, reject) => {
       if (this.state.isPlaying) {
+        console.log('Already playing, resolving');
         resolve();
         return;
       }
 
       if (this.segments.length === 0) {
+        console.error('No content to play');
         this.setError('NO_CONTENT', '没有可播放的内容', 0, true);
         reject(new Error('No content to play'));
         return;
@@ -130,11 +139,14 @@ export class PlaybackController {
 
       const currentSegment = this.segments[this.state.currentSegmentId];
       if (!currentSegment) {
+        console.error('Invalid segment at index:', this.state.currentSegmentId);
         this.state.currentSegmentId = 0;
         this.setError('INVALID_SEGMENT', '当前段落无效', this.state.currentSegmentId, true);
         reject(new Error('Invalid segment'));
         return;
       }
+
+      console.log('Playing segment:', currentSegment);
 
       this.state.isPlaying = true;
       this.state.isPaused = false;
@@ -143,10 +155,12 @@ export class PlaybackController {
 
       this.speakSegment(currentSegment)
         .then(() => {
+          console.log('Segment completed');
           this.handleSegmentComplete();
           resolve();
         })
         .catch((error) => {
+          console.error('Segment error:', error);
           this.handlePlaybackError(error);
           reject(error);
         });

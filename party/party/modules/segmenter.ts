@@ -78,10 +78,29 @@ export class TextSegmenter {
   private splitIntoSentences(text: string): string[] {
     try {
       const results = split(text);
-      return results
-        .filter((s: any) => typeof s === 'string' && s.trim())
-        .map((s: any) => String(s));
+      console.log('sentence-splitter results:', results);
+
+      const sentences = results
+        .filter((s: any) => {
+          const isString = typeof s === 'string';
+          const isSentence = s && typeof s === 'object' && 'text' in s;
+          return (isString || isSentence);
+        })
+        .map((s: any) => {
+          if (typeof s === 'string') {
+            return s;
+          }
+          if (s && typeof s === 'object' && 'text' in s) {
+            return s.text;
+          }
+          return '';
+        })
+        .filter((s: string) => s.trim());
+
+      console.log('Filtered sentences:', sentences);
+      return sentences;
     } catch (error) {
+      console.error('sentence-splitter error:', error);
       return this.fallbackSplitSentences(text);
     }
   }

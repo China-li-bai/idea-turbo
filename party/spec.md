@@ -77,59 +77,6 @@
 
 ---
 
-### 三、 核心逻辑流程图
-
-```mermaid
-sequenceDiagram
-    participant U as 用户A (主播)
-    participant U2 as 用户B (听众)
-    participant S as 状态机 (XState)
-    participant D as IndexedDB (Dexie)
-    participant P as 分句引擎 (Intl)
-    participant T as TTS适配器 (Edge/Native)
-    participant PK as PartyKit 服务器
-    participant Y as Yjs 文档
-
-    Note over U,U2: 用户A和用户B加入同一 PartyKit 房间
-
-    U->>PK: 连接 WebSocket (room: doc_123)
-    U2->>PK: 连接 WebSocket (room: doc_123)
-    PK-->>U: 连接成功，分配主播角色
-    PK-->>U2: 连接成功，分配听众角色
-
-    U->>S: 粘贴文本并点击播放
-    S->>D: 存储原始文本到本地
-    S->>Y: 更新 Yjs 文档内容
-    Y->>PK: 同步文档到云端
-    PK-->>U2: 广播文档更新
-    U2->>Y: 接收并更新本地文档
-
-    S->>P: 执行断句处理
-    P-->>S: 返回句子数组 (Segments)
-    S->>PK: 广播播放状态 (playing, index=0)
-    PK-->>U2: 转发播放状态
-    U2->>S: 同步播放状态
-
-    loop 播放循环
-        S->>T: 请求第 N 句音频
-        T-->>S: 返回音频流/合成语音
-        S->>U: 播放音频 + 高亮当前句子
-        S->>PK: 广播播放进度 (index=N, timestamp)
-        PK-->>U2: 转发播放进度
-        U2->>S: 同步播放进度
-        S->>T: 预请求第 N+1 句音频 (缓存)
-        S->>Y: 更新播放元数据
-        Y->>PK: 持久化到 Durable Objects
-        U->>S: 暂停/跳段
-        S->>PK: 广播状态变更
-        PK-->>U2: 转发状态变更
-        U2->>S: 同步状态变更
-    end
-
-    Note over PK,Y: 即使所有用户断开，Durable Objects 仍保持文档状态
-```
-
----
 
 ### 四、 关键技术细节实现（可执行路径）
 
@@ -411,6 +358,8 @@ const playbackState = {
 | 分句模块 | ✅ 完成 | `party/modules/segmenter.ts` | 集成 sentence-splitter，支持中英文分句 |
 | 分段模块 | ✅ 完成 | `party/modules/paragraph.ts` | 自动分段、段落导航、标题识别 |
 | 播放控制 | ✅ 完成 | `party/modules/playback.ts` | Web Speech API 集成、播放状态管理、事件系统 |
+| TextReader 组件 | ✅ 完成 | `app/components/TextReader.tsx` | 文本输入、处理、显示、播放一体化组件 |
+| PlaybackControls 组件 | ✅ 完成 | `app/components/PlaybackControls.tsx` | 播放控制面板、进度条、语速、音量、语音选择 |
 | PartyKit Server | 🔄 进行中 | `party/server.ts` | Yjs 集成、房间管理、状态持久化 |
 | PartyKit Client | ⏳ 待开发 | `party/client.ts` | WebSocket 连接、实时同步 |
 | UI 渲染模块 | ⏳ 待开发 | `app/components/` | React 组件、高亮显示、虚拟滚动 |
@@ -440,6 +389,10 @@ const playbackState = {
 #### 4. 下一步开发计划
 
 **短期目标（本周）**
+- [x] 实现 TextReader 组件（文本输入、处理、播放一体化）
+- [x] 集成 sentence-splitter 和 compromise 库
+- [x] 实现 PlaybackControls 组件（进度条、语速、音量、语音选择）
+- [x] 添加键盘快捷键支持（空格、S、←、→）
 - [ ] 集成 XState 状态机，管理播放流程
 - [ ] 完成 PartyKit Client 模块，实现实时同步
 - [ ] 开发 UI 渲染模块，支持高亮和自动滚动
