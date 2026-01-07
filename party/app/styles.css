@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   color: var(--foreground);
   background-color: var(--background);
@@ -44,4 +44,53 @@ h6 {
   justify-content: stretch;
   align-items: start;
   gap: 4rem;
+}
+
+.app-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+  margin-bottom: 16px;
+}
+
+.mode-switcher {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+.mode-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: #6b7280;
+}
+
+.mode-button:hover {
+  color: #374151;
+}
+
+.mode-button.active {
+  background: white;
+  color: #1a1a1a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 12px 0;
+  }
+
+  .mode-button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 }
