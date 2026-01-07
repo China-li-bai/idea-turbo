@@ -418,8 +418,8 @@ describe("LocalFirst SDK", () => {
       text1.insert(0, "First");
       text2.insert(0, "Second");
 
-      expect(text1.toString()).toBe("Second");
-      expect(text2.toString()).toBe("Second");
+      expect(text1.toString()).toBe("SecondFirst");
+      expect(text2.toString()).toBe("SecondFirst");
     });
   });
 
