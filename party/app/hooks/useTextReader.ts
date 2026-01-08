@@ -110,16 +110,21 @@ export function useTextReader({
     idbPersistence.current = new IndexeddbPersistence(`textreader-${room}`, provider.doc);
 
     idbPersistence.current.on('synced', () => {
+      console.log('IndexedDB synced!');
       setSyncStatus('synced');
       const savedText = ytext.toString();
       const savedSegments = yplaybackState.get('segments') as TextSegment[] | undefined;
       const savedParagraphs = yplaybackState.get('paragraphs') as TextParagraph[] | undefined;
 
+      console.log('From IndexedDB - savedText:', savedText?.substring(0, 50), 'savedSegments:', savedSegments?.length);
       setRawText(savedText);
       if (savedSegments && savedParagraphs) {
+        console.log('Restoring from IndexedDB - segments:', savedSegments.length);
         setSegments(savedSegments);
         setParagraphs(savedParagraphs);
         playbackRef.current?.setContent(savedSegments, savedParagraphs);
+      } else {
+        console.log('No saved segments found in IndexedDB');
       }
     });
 
@@ -134,14 +139,21 @@ export function useTextReader({
     }
 
     const observeText = () => {
-      if (isProcessingRef.current) return;
+      console.log('observeText triggered, isProcessingRef:', isProcessingRef.current);
+      if (isProcessingRef.current) {
+        console.log('Skipping because isProcessingRef is true');
+        return;
+      }
       const text = ytext.toString();
-      if (text) {
+      console.log('observeText text length:', text.length, 'content:', text.substring(0, 100));
+      if (text && text.trim().length > 0) {
         isProcessingRef.current = true;
         setIsProcessing(true);
         setError(null);
         try {
-          const { segments: newSegments, paragraphs: newParagraphs } = processorRef.current.process(text);
+          const result = processorRef.current.process(text);
+          console.log('Process result - segments:', result.segments.length, 'paragraphs:', result.paragraphs.length);
+          const { segments: newSegments, paragraphs: newParagraphs } = result;
           provider.doc.transact(() => {
             yplaybackState.set('segments', newSegments);
             yplaybackState.set('paragraphs', newParagraphs);
@@ -152,12 +164,16 @@ export function useTextReader({
           setParagraphs(newParagraphs);
           playbackRef.current?.setContent(newSegments, newParagraphs);
           setCurrentSegmentId(0);
+          console.log('After setSegments, state segments:', newSegments.length);
         } catch (err) {
+          console.error('Process error:', err);
           setError(err instanceof Error ? err.message : '处理失败');
         } finally {
           isProcessingRef.current = false;
           setIsProcessing(false);
         }
+      } else {
+        console.log('Text is empty or whitespace, skipping');
       }
     };
 
@@ -176,11 +192,14 @@ export function useTextReader({
   }, [room, defaultSpeed, defaultVolume]);
 
   const setText = useCallback((text: string) => {
+    console.log('setText called with:', text.substring(0, 50));
     const ytext = provider.doc.getText('rawText');
+    console.log('Current ytext length:', ytext.length);
     provider.doc.transact(() => {
       ytext.delete(0, ytext.length);
       ytext.insert(0, text);
     });
+    console.log('After insert, ytext:', ytext.toString().substring(0, 50));
   }, [provider]);
 
   return {

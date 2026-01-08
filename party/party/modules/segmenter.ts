@@ -98,11 +98,45 @@ export class TextSegmenter {
         .filter((s: string) => s.trim());
 
       console.log('Filtered sentences:', sentences);
+
+      if (sentences.length === 0 && this.isChineseText(text)) {
+        console.log('No sentences found for Chinese text, using character-based splitting');
+        return this.splitChineseText(text);
+      }
+
       return sentences;
     } catch (error) {
       console.error('sentence-splitter error:', error);
+      if (this.isChineseText(text)) {
+        return this.splitChineseText(text);
+      }
       return this.fallbackSplitSentences(text);
     }
+  }
+
+  private splitChineseText(text: string): string[] {
+    const sentences: string[] = [];
+    const maxChunkLength = 50;
+    let buffer = '';
+    let i = 0;
+
+    while (i < text.length) {
+      buffer += text[i];
+      i++;
+
+      if (buffer.length >= maxChunkLength || this.isChineseSentenceEnding(text[i])) {
+        if (buffer.trim()) {
+          sentences.push(buffer);
+        }
+        buffer = '';
+      }
+    }
+
+    if (buffer.trim()) {
+      sentences.push(buffer);
+    }
+
+    return sentences;
   }
 
   private fallbackSplitSentences(text: string): string[] {
@@ -154,6 +188,14 @@ export class TextSegmenter {
 
   private isSentenceEnding(char: string): boolean {
     return /[.!?。！？]/.test(char);
+  }
+
+  private isChineseSentenceEnding(char: string): boolean {
+    return /[。！？]/.test(char);
+  }
+
+  private isChineseText(text: string): boolean {
+    return /[\u4e00-\u9fa5]/.test(text);
   }
 
   private isAbbreviation(text: string): boolean {

@@ -48,6 +48,7 @@ export function PlaybackControls({
   const progressRef = useRef<HTMLDivElement>(null);
 
   const progress = totalSegments > 0 ? ((currentSegmentId + 1) / totalSegments) * 100 : 0;
+console.log({totalSegments,progress});
 
   useEffect(() => {
     if (!isDragging) {

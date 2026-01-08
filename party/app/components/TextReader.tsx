@@ -34,6 +34,7 @@ export function TextReader({ className, room }: TextReaderProps) {
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [textareaValue, setTextareaValue] = useState('');
   const textContainerRef = useRef<HTMLDivElement>(null);
+console.log({segments});
 
   useEffect(() => {
     setTextareaValue(rawText);
