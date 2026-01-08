@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import useYProvider from 'y-partykit/react';
 import { IndexeddbPersistence } from 'y-indexeddb';
-import type { TextSegment, TextParagraph } from '../../party/types';
-import { TextProcessor } from '../../party/modules/processor';
 import { PlaybackController } from '../../party/modules/playback';
 
 interface UseTextReaderOptions {
@@ -13,14 +11,11 @@ interface UseTextReaderOptions {
 
 interface UseTextReaderReturn {
   rawText: string;
-  segments: TextSegment[];
-  paragraphs: TextParagraph[];
   currentSegmentId: number;
   isProcessing: boolean;
   error: string | null;
   syncStatus: 'synced' | 'syncing' | 'offline';
   playbackController: PlaybackController | null;
-  processor: TextProcessor;
   setText: (text: string) => void;
   setCurrentSegmentId: (id: number) => void;
 }
@@ -31,39 +26,23 @@ export function useTextReader({
   defaultVolume = 1,
 }: UseTextReaderOptions): UseTextReaderReturn {
   const [rawText, setRawText] = useState('');
-  const [segments, setSegments] = useState<TextSegment[]>([]);
-  const [paragraphs, setParagraphs] = useState<TextParagraph[]>([]);
   const [currentSegmentId, setCurrentSegmentId] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
 
-  const processorRef = useRef<TextProcessor>(new TextProcessor());
   const playbackRef = useRef<PlaybackController | null>(null);
   const idbPersistence = useRef<IndexeddbPersistence | null>(null);
   const isProcessingRef = useRef(false);
+  const isInitializedRef = useRef(false);
+  const currentSegmentIdRef = useRef(0);
 
   const provider = useYProvider({ room });
 
-  const processAndStore = useCallback((text: string) => {
-    const processor = processorRef.current;
-    const { processedText, segments: newSegments, paragraphs: newParagraphs } = processor.process(text);
-
-    const yplaybackState = provider.doc.getMap('playbackState');
-    provider.doc.transact(() => {
-      yplaybackState.set('currentSegmentId', 0);
-      yplaybackState.set('updatedAt', Date.now());
-    });
-
-    setSegments(newSegments);
-    setParagraphs(newParagraphs);
-
-    if (playbackRef.current) {
-      playbackRef.current.setContent(newSegments, newParagraphs);
-    }
-
-    setCurrentSegmentId(0);
-  }, [provider]);
+  const handleSeek = useCallback((segmentId: number) => {
+    currentSegmentIdRef.current = segmentId;
+    setCurrentSegmentId(segmentId);
+  }, []);
 
   useEffect(() => {
     const ytext = provider.doc.getText('rawText');
@@ -75,41 +54,17 @@ export function useTextReader({
       autoPlay: false,
     });
 
-    playbackRef.current.on('segmentStart', ({ segment }) => {
-      setCurrentSegmentId(segment.id);
-    });
-
-    playbackRef.current.on('seek', ({ segmentId }) => {
-      setCurrentSegmentId(segmentId);
+    const cleanupSeek = playbackRef.current.on('seek', ({ segmentId }) => {
+      handleSeek(segmentId);
       yplaybackState.set('currentSegmentId', segmentId);
       yplaybackState.set('updatedAt', Date.now());
     });
 
-    playbackRef.current.on('play', () => {
-      yplaybackState.set('isPlaying', true);
-      yplaybackState.set('isPaused', false);
+    const cleanupSegmentStart = playbackRef.current.on('segmentStart', ({ segment }) => {
+      handleSeek(segment.id);
     });
 
-    playbackRef.current.on('pause', () => {
-      yplaybackState.set('isPlaying', false);
-      yplaybackState.set('isPaused', true);
-    });
-
-    playbackRef.current.on('stop', ({ segmentId: lastSegmentId }: { segmentId: number }) => {
-      yplaybackState.set('isPlaying', false);
-      yplaybackState.set('isPaused', false);
-      if (lastSegmentId === 0) {
-        yplaybackState.set('currentSegmentId', 0);
-        setCurrentSegmentId(0);
-      }
-    });
-
-    playbackRef.current.on('complete', () => {
-      yplaybackState.set('isPlaying', false);
-      yplaybackState.set('isPaused', false);
-    });
-
-    playbackRef.current.on('error', ({ error: err }) => {
+    const cleanupError = playbackRef.current.on('error', ({ error: err }) => {
       setError(err?.message || '播放错误');
     });
 
@@ -129,17 +84,16 @@ export function useTextReader({
         setIsProcessing(true);
         setError(null);
         try {
-          const result = processorRef.current.process(savedText);
+          const result = playbackRef.current!.getProcessor().process(savedText);
           console.log('Process result - segments:', result.segments.length, 'paragraphs:', result.paragraphs.length);
-          setSegments(result.segments);
-          setParagraphs(result.paragraphs);
-          playbackRef.current?.setContent(result.segments, result.paragraphs);
+          playbackRef.current!.setContent(result.segments, result.paragraphs);
 
           const restoredId = savedSegmentId || 0;
+          currentSegmentIdRef.current = restoredId;
           setCurrentSegmentId(restoredId);
-          if (playbackRef.current) {
-            playbackRef.current.restoreState(restoredId);
-          }
+          playbackRef.current!.restoreState(restoredId);
+
+          isInitializedRef.current = true;
         } catch (err) {
           console.error('Process error:', err);
           setError(err instanceof Error ? err.message : '处理失败');
@@ -147,8 +101,6 @@ export function useTextReader({
           isProcessingRef.current = false;
           setIsProcessing(false);
         }
-      } else {
-        console.log('Text is empty or whitespace, skipping');
       }
     });
 
@@ -163,31 +115,28 @@ export function useTextReader({
     }
 
     const observeText = () => {
-      console.log('observeText triggered, isProcessingRef:', isProcessingRef.current);
-      if (isProcessingRef.current) {
-        console.log('Skipping because isProcessingRef is true');
-        return;
-      }
+      if (isProcessingRef.current) return;
+
       const text = ytext.toString();
-      console.log('observeText text length:', text.length, 'content:', text.substring(0, 100));
-      if (text && text.trim().length > 0) {
+      if (text && text.trim().length > 0 && text !== rawText) {
         isProcessingRef.current = true;
         setIsProcessing(true);
         setError(null);
+
         try {
-          const result = processorRef.current.process(text);
-          console.log('Process result - segments:', result.segments.length, 'paragraphs:', result.paragraphs.length);
-          const { segments: newSegments, paragraphs: newParagraphs } = result;
-          provider.doc.transact(() => {
-            yplaybackState.set('currentSegmentId', 0);
-            yplaybackState.set('updatedAt', Date.now());
-          });
+          const result = playbackRef.current!.getProcessor().process(text);
+          const { segments, paragraphs } = result;
+
+          playbackRef.current!.setContent(segments, paragraphs);
+
+          yplaybackState.set('currentSegmentId', 0);
+          yplaybackState.set('updatedAt', Date.now());
+
           setRawText(text);
-          setSegments(newSegments);
-          setParagraphs(newParagraphs);
-          playbackRef.current?.setContent(newSegments, newParagraphs);
+          currentSegmentIdRef.current = 0;
           setCurrentSegmentId(0);
-          console.log('After setSegments, state segments:', newSegments.length);
+
+          isInitializedRef.current = true;
         } catch (err) {
           console.error('Process error:', err);
           setError(err instanceof Error ? err.message : '处理失败');
@@ -195,14 +144,15 @@ export function useTextReader({
           isProcessingRef.current = false;
           setIsProcessing(false);
         }
-      } else {
-        console.log('Text is empty or whitespace, skipping');
       }
     };
 
     ytext.observe(observeText);
 
     return () => {
+      cleanupSeek();
+      cleanupSegmentStart();
+      cleanupError();
       playbackRef.current?.destroy();
       idbPersistence.current?.destroy();
       ytext.unobserve(observeText);
@@ -212,29 +162,23 @@ export function useTextReader({
         provider.ws.removeEventListener('error', handleStatusChange);
       }
     };
-  }, [room, defaultSpeed, defaultVolume]);
+  }, [room, defaultSpeed, defaultVolume, provider, rawText, handleSeek]);
 
   const setText = useCallback((text: string) => {
-    console.log('setText called with:', text.substring(0, 50));
     const ytext = provider.doc.getText('rawText');
-    console.log('Current ytext length:', ytext.length);
     provider.doc.transact(() => {
       ytext.delete(0, ytext.length);
       ytext.insert(0, text);
     });
-    console.log('After insert, ytext:', ytext.toString().substring(0, 50));
   }, [provider]);
 
   return {
     rawText,
-    segments,
-    paragraphs,
     currentSegmentId,
     isProcessing,
     error,
     syncStatus,
     playbackController: playbackRef.current,
-    processor: processorRef.current,
     setText,
     setCurrentSegmentId,
   };

@@ -39,12 +39,9 @@ export function PlaybackControls({
       setIsPlaying(false);
       setIsPaused(true);
     };
-    const handleStop = ({ segmentId: lastSegmentId }: { segmentId: number }) => {
+    const handleStop = () => {
       setIsPlaying(false);
       setIsPaused(false);
-      if (lastSegmentId === 0) {
-        setCurrentSegmentId(0);
-      }
     };
     const handleSeek = ({ segmentId }: { segmentId: number }) => {
       onSeek?.(segmentId);

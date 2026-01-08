@@ -7,6 +7,7 @@ import type {
   PlaybackControlOptions,
 } from '../types';
 import { generateId } from '../utils';
+import { TextProcessor } from './processor';
 
 export interface PlaybackConfig {
   defaultSpeed: number;
@@ -39,6 +40,7 @@ export class PlaybackController {
   private speechSynthesis: SpeechSynthesis;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private eventHandlers: Map<string, Set<(data: any) => void>> = new Map();
+  private processor: TextProcessor;
 
   constructor(config: Partial<PlaybackConfig> = {}, options: Partial<PlaybackControlOptions> = {}) {
     this.config = { ...defaultPlaybackConfig, ...config };
@@ -51,6 +53,11 @@ export class PlaybackController {
     };
     this.speechSynthesis = window.speechSynthesis;
     this.state = this.createInitialState();
+    this.processor = TextProcessor.create();
+  }
+
+  getProcessor(): TextProcessor {
+    return this.processor;
   }
 
   private createInitialState(): PlaybackState {

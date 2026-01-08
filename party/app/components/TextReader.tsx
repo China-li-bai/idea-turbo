@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTextReader } from '../hooks/useTextReader';
 import { PlaybackControls } from './PlaybackControls';
 import styles from './TextReader.module.css';
@@ -19,23 +19,29 @@ interface VoiceOption {
 export function TextReader({ className, room }: TextReaderProps) {
   const {
     rawText,
-    segments,
-    paragraphs,
     currentSegmentId,
     isProcessing,
     error,
     syncStatus,
     playbackController,
     setText,
-    setCurrentSegmentId,
   } = useTextReader({ room });
 
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [textareaValue, setTextareaValue] = useState('');
+  const [segments, setSegments] = useState<any[]>([]);
+  const [paragraphs, setParagraphs] = useState<any[]>([]);
 
   useEffect(() => {
     setTextareaValue(rawText);
   }, [rawText]);
+
+  useEffect(() => {
+    if (playbackController) {
+      setSegments(playbackController.getSegments());
+      setParagraphs(playbackController.getParagraphs());
+    }
+  }, [playbackController, currentSegmentId]);
 
   useEffect(() => {
     const loadVoices = () => {
