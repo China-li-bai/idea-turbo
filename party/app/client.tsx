@@ -37,7 +37,7 @@ function App() {
       </div>
 
       {mode === 'reader' ? (
-        <TextReader room={currentRoom} userColor={userColor} key={currentRoom} />
+        <TextReader room={currentRoom} key={currentRoom} />
       ) : (
         <>
           <Editor room={currentRoom} userColor={userColor} key={currentRoom} />

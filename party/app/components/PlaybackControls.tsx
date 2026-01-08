@@ -1,60 +1,125 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { VoiceOption } from '../../party/types';
+import { PlaybackController } from '../../party/modules/playback';
 import styles from './PlaybackControls.module.css';
 
 interface PlaybackControlsProps {
-  isPlaying: boolean;
-  isPaused: boolean;
-  currentSegmentId: number;
-  totalSegments: number;
+  playbackController: PlaybackController | null;
   availableVoices: VoiceOption[];
-  playbackSpeed: number;
-  playbackVolume: number;
-  currentVoice: string;
-  onPlay: () => void;
-  onPause: () => void;
-  onStop: () => void;
-  onSpeedChange: (speed: number) => void;
-  onVolumeChange: (volume: number) => void;
-  onVoiceChange: (voiceURI: string) => void;
-  onSeek: (segmentId: number) => void;
-  onPrevious: () => void;
-  onNext: () => void;
+  onSeek?: (segmentId: number) => void;
   className?: string;
 }
 
 export function PlaybackControls({
-  isPlaying,
-  isPaused,
-  currentSegmentId,
-  totalSegments,
+  playbackController,
   availableVoices,
-  playbackSpeed,
-  playbackVolume,
-  currentVoice,
-  onPlay,
-  onPause,
-  onStop,
-  onSpeedChange,
-  onVolumeChange,
-  onVoiceChange,
   onSeek,
-  onPrevious,
-  onNext,
   className,
 }: PlaybackControlsProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [localProgress, setLocalProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [currentSegmentId, setCurrentSegmentId] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackVolume, setPlaybackVolume] = useState(1);
   const progressRef = useRef<HTMLDivElement>(null);
 
+  const totalSegments = playbackController?.segments.length || 0;
   const progress = totalSegments > 0 ? ((currentSegmentId + 1) / totalSegments) * 100 : 0;
-console.log({totalSegments,progress});
+
+  useEffect(() => {
+    if (!playbackController) return;
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+      setIsPaused(false);
+    };
+    const handlePause = () => {
+      setIsPlaying(false);
+      setIsPaused(true);
+    };
+    const handleStop = () => {
+      setIsPlaying(false);
+      setIsPaused(false);
+    };
+    const handleComplete = () => {
+      setIsPlaying(false);
+      setIsPaused(false);
+    };
+    const handleSegmentStart = ({ segment }: { segment: any }) => {
+      setCurrentSegmentId(segment.id);
+    };
+
+    const unsubscribers = [
+      playbackController.on('play', handlePlay),
+      playbackController.on('pause', handlePause),
+      playbackController.on('stop', handleStop),
+      playbackController.on('complete', handleComplete),
+      playbackController.on('segmentStart', handleSegmentStart),
+    ];
+
+    setPlaybackSpeed(playbackController.speed);
+    setPlaybackVolume(playbackController.volume);
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [playbackController]);
 
   useEffect(() => {
     if (!isDragging) {
       setLocalProgress(progress);
     }
   }, [progress, isDragging]);
+
+  const handlePlay = useCallback(() => {
+    playbackController?.play();
+  }, [playbackController]);
+
+  const handlePause = useCallback(() => {
+    playbackController?.pause();
+  }, [playbackController]);
+
+  const handleStop = useCallback(() => {
+    playbackController?.stop();
+    setCurrentSegmentId(0);
+  }, [playbackController]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentSegmentId > 0) {
+      const newId = currentSegmentId - 1;
+      playbackController?.seek(newId);
+      setCurrentSegmentId(newId);
+      onSeek?.(newId);
+    }
+  }, [currentSegmentId, playbackController, onSeek]);
+
+  const handleNext = useCallback(() => {
+    if (currentSegmentId < totalSegments - 1) {
+      const newId = currentSegmentId + 1;
+      playbackController?.seek(newId);
+      setCurrentSegmentId(newId);
+      onSeek?.(newId);
+    }
+  }, [currentSegmentId, totalSegments, playbackController, onSeek]);
+
+  const handleSpeedChange = useCallback((speed: number) => {
+    playbackController?.setSpeed(speed);
+    setPlaybackSpeed(speed);
+  }, [playbackController]);
+
+  const handleVolumeChange = useCallback((volume: number) => {
+    playbackController?.setVolume(volume);
+    setPlaybackVolume(volume);
+  }, [playbackController]);
+
+  const handleVoiceChange = useCallback((voiceURI: string) => {
+    const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
+    if (voice) {
+      playbackController?.setVoice(voice);
+    }
+  }, [playbackController]);
 
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!progressRef.current || totalSegments === 0) return;
@@ -63,8 +128,11 @@ console.log({totalSegments,progress});
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     const segmentId = Math.floor(percentage * totalSegments);
-    onSeek(Math.min(segmentId, totalSegments - 1));
-  }, [totalSegments, onSeek]);
+    const targetId = Math.min(segmentId, totalSegments - 1);
+    playbackController?.seek(targetId);
+    setCurrentSegmentId(targetId);
+    onSeek?.(targetId);
+  }, [totalSegments, playbackController, onSeek]);
 
   const handleProgressMouseDown = useCallback((e: React.MouseEvent) => {
     setIsDragging(true);
@@ -82,7 +150,10 @@ console.log({totalSegments,progress});
       const x = upEvent.clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, x / rect.width));
       const segmentId = Math.floor(percentage * totalSegments);
-      onSeek(Math.min(segmentId, totalSegments - 1));
+      const targetId = Math.min(segmentId, totalSegments - 1);
+      playbackController?.seek(targetId);
+      setCurrentSegmentId(targetId);
+      onSeek?.(targetId);
       setIsDragging(false);
     };
 
@@ -93,17 +164,17 @@ console.log({totalSegments,progress});
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [totalSegments, onSeek]);
+  }, [totalSegments, playbackController, onSeek]);
 
   const handleSeekByKeyboard = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      onPrevious();
+      handlePrevious();
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      onNext();
+      handleNext();
     }
-  }, [onPrevious, onNext]);
+  }, [handlePrevious, handleNext]);
 
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
 
@@ -142,7 +213,7 @@ console.log({totalSegments,progress});
         <div className={styles.mainControls}>
           <button
             className={styles.button}
-            onClick={onPrevious}
+            onClick={handlePrevious}
             disabled={currentSegmentId === 0}
             title="上一句 (←)"
           >
@@ -151,15 +222,15 @@ console.log({totalSegments,progress});
 
           <button
             className={`${styles.button} ${styles.playButton}`}
-            onClick={isPlaying ? onPause : onPlay}
-            title={isPlaying ? '暂停 (空格)' : '播放 (空格)'}
+            onClick={isPlaying && !isPaused ? handlePause : handlePlay}
+            title={isPlaying && !isPaused ? '暂停 (空格)' : '播放 (空格)'}
           >
             {isPlaying && !isPaused ? '⏸' : '▶'}
           </button>
 
           <button
             className={styles.button}
-            onClick={onStop}
+            onClick={handleStop}
             disabled={!isPlaying && !isPaused}
             title="停止"
           >
@@ -168,7 +239,7 @@ console.log({totalSegments,progress});
 
           <button
             className={styles.button}
-            onClick={onNext}
+            onClick={handleNext}
             disabled={currentSegmentId >= totalSegments - 1}
             title="下一句 (→)"
           >
@@ -184,7 +255,7 @@ console.log({totalSegments,progress});
                 <button
                   key={speed}
                   className={`${styles.speedButton} ${playbackSpeed === speed ? styles.active : ''}`}
-                  onClick={() => onSpeedChange(speed)}
+                  onClick={() => handleSpeedChange(speed)}
                   title={`${speed}x 速度`}
                 >
                   {speed}x
@@ -202,7 +273,7 @@ console.log({totalSegments,progress});
               max="1"
               step="0.1"
               value={playbackVolume}
-              onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
               aria-label="音量"
             />
             <span className={styles.volumeValue}>{Math.round(playbackVolume * 100)}%</span>
@@ -212,8 +283,8 @@ console.log({totalSegments,progress});
             <label className={styles.label}>语音</label>
             <select
               className={styles.voiceSelect}
-              value={currentVoice}
-              onChange={(e) => onVoiceChange(e.target.value)}
+              value={playbackController?.voice?.voiceURI || ''}
+              onChange={(e) => handleVoiceChange(e.target.value)}
               aria-label="选择语音"
             >
               <option value="">默认语音</option>

@@ -6,7 +6,6 @@ import styles from './TextReader.module.css';
 interface TextReaderProps {
   className?: string;
   room: string;
-  userColor: string;
 }
 
 interface VoiceOption {
@@ -33,8 +32,6 @@ export function TextReader({ className, room }: TextReaderProps) {
 
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [textareaValue, setTextareaValue] = useState('');
-  const textContainerRef = useRef<HTMLDivElement>(null);
-console.log({segments});
 
   useEffect(() => {
     setTextareaValue(rawText);
@@ -60,32 +57,10 @@ console.log({segments});
     setText(e.target.value);
   }, [setText]);
 
-  const handleSpeedChange = useCallback((speed: number) => {
-    playbackController?.setSpeed(speed);
-  }, [playbackController]);
-
-  const handleVolumeChange = useCallback((volume: number) => {
-    playbackController?.setVolume(volume);
-  }, [playbackController]);
-
-  const handleVoiceChange = useCallback((voiceURI: string) => {
-    const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
-    if (voice) {
-      playbackController?.setVoice(voice);
-    }
-  }, [playbackController]);
-
   const handleSeek = useCallback((segmentId: number) => {
     setCurrentSegmentId(segmentId);
     playbackController?.seek(segmentId);
   }, [playbackController, setCurrentSegmentId]);
-
-  const scrollToSegment = useCallback((segmentId: number) => {
-    const element = document.getElementById(`segment-${segmentId}`);
-    if (element && textContainerRef.current) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, []);
 
   const handlePlay = useCallback(async () => {
     if (!playbackController || segments.length === 0) return;
@@ -190,23 +165,9 @@ console.log({segments});
 
       <div className={styles.controlPanel}>
         <PlaybackControls
-          isPlaying={playbackController?.isPlaying || false}
-          isPaused={playbackController?.isPaused || false}
-          currentSegmentId={currentSegmentId}
-          totalSegments={segments.length}
+          playbackController={playbackController}
           availableVoices={availableVoices}
-          playbackSpeed={playbackController?.speed || 1}
-          playbackVolume={playbackController?.volume || 1}
-          currentVoice={playbackController?.voice?.voiceURI || ''}
-          onPlay={handlePlay}
-          onPause={handlePause}
-          onStop={handleStop}
-          onSpeedChange={handleSpeedChange}
-          onVolumeChange={handleVolumeChange}
-          onVoiceChange={handleVoiceChange}
           onSeek={handleSeek}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
         />
       </div>
 
@@ -218,7 +179,7 @@ console.log({segments});
       )}
 
       {segments.length > 0 && (
-        <div className={styles.textContainer} ref={textContainerRef}>
+        <div className={styles.textContainer}>
           {paragraphs.map((paragraph) => (
             <div key={paragraph.id} className={styles.paragraph}>
               {segments
