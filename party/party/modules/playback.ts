@@ -251,6 +251,20 @@ export class PlaybackController {
     }
   }
 
+  restoreState(segmentId: number): void {
+    const targetSegment = this.segments[segmentId];
+    if (!targetSegment) {
+      this.state.currentSegmentId = 0;
+      this.state.currentParagraphId = 0;
+      this.state.playbackProgress = 0;
+      return;
+    }
+
+    this.state.currentSegmentId = segmentId;
+    this.state.currentParagraphId = this.getParagraphForSegment(segmentId)?.id ?? 0;
+    this.state.playbackProgress = this.calculateProgress(segmentId);
+  }
+
   nextParagraph(): void {
     const nextParagraph = this.getNextParagraph();
     if (nextParagraph) {

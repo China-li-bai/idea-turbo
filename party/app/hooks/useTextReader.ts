@@ -51,8 +51,7 @@ export function useTextReader({
 
     const yplaybackState = provider.doc.getMap('playbackState');
     provider.doc.transact(() => {
-      yplaybackState.set('segments', newSegments);
-      yplaybackState.set('paragraphs', newParagraphs);
+      yplaybackState.set('currentSegmentId', 0);
       yplaybackState.set('updatedAt', Date.now());
     });
 
@@ -113,18 +112,36 @@ export function useTextReader({
       console.log('IndexedDB synced!');
       setSyncStatus('synced');
       const savedText = ytext.toString();
-      const savedSegments = yplaybackState.get('segments') as TextSegment[] | undefined;
-      const savedParagraphs = yplaybackState.get('paragraphs') as TextParagraph[] | undefined;
+      const savedSegmentId = yplaybackState.get('currentSegmentId') as number | undefined;
 
-      console.log('From IndexedDB - savedText:', savedText?.substring(0, 50), 'savedSegments:', savedSegments?.length);
+      console.log('From IndexedDB - savedText:', savedText?.substring(0, 50));
       setRawText(savedText);
-      if (savedSegments && savedParagraphs) {
-        console.log('Restoring from IndexedDB - segments:', savedSegments.length);
-        setSegments(savedSegments);
-        setParagraphs(savedParagraphs);
-        playbackRef.current?.setContent(savedSegments, savedParagraphs);
+
+      if (savedText && savedText.trim().length > 0) {
+        isProcessingRef.current = true;
+        setIsProcessing(true);
+        setError(null);
+        try {
+          const result = processorRef.current.process(savedText);
+          console.log('Process result - segments:', result.segments.length, 'paragraphs:', result.paragraphs.length);
+          setSegments(result.segments);
+          setParagraphs(result.paragraphs);
+          playbackRef.current?.setContent(result.segments, result.paragraphs);
+
+          const restoredId = savedSegmentId || 0;
+          setCurrentSegmentId(restoredId);
+          if (playbackRef.current) {
+            playbackRef.current.restoreState(restoredId);
+          }
+        } catch (err) {
+          console.error('Process error:', err);
+          setError(err instanceof Error ? err.message : '处理失败');
+        } finally {
+          isProcessingRef.current = false;
+          setIsProcessing(false);
+        }
       } else {
-        console.log('No saved segments found in IndexedDB');
+        console.log('Text is empty or whitespace, skipping');
       }
     });
 
@@ -155,8 +172,7 @@ export function useTextReader({
           console.log('Process result - segments:', result.segments.length, 'paragraphs:', result.paragraphs.length);
           const { segments: newSegments, paragraphs: newParagraphs } = result;
           provider.doc.transact(() => {
-            yplaybackState.set('segments', newSegments);
-            yplaybackState.set('paragraphs', newParagraphs);
+            yplaybackState.set('currentSegmentId', 0);
             yplaybackState.set('updatedAt', Date.now());
           });
           setRawText(text);

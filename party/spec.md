@@ -22,17 +22,10 @@
 
   * **前端**：React + Tailwind CSS
   * **状态机**：[XState](https://github.com/statelyai/xstate)（严谨控制：空闲 -> 解析中 -> 播放中 -> 暂停 -> 错误）
-  * **实时协作层**：[PartyKit](https://docs.partykit.io/)（基于 Cloudflare Durable Objects 的全局分布式实时服务器）
 
-  * **存储**：[Dexie.js](https://github.com/dexie/Dexie.js) (IndexedDB 封装) + PartyKit Durable Objects 持久化
   * **TTS 驱动**：混合模式（原生 Web Speech API + 远程 Edge-TTS 代理）
   * **分句引擎**：`Intl.Segmenter` (浏览器原生高性能分词)
-* **PartyKit 集成优势**：
 
-
-  * **全局分布式**：基于 Cloudflare 边缘网络，全球低延迟访问
-  * **状态持久化**：Durable Objects 保证房间状态永不丢失，即使所有用户断开连接
-  * **按需扩展**：每个文档独立 Party，轻量级启动，自动扩缩容
 
 #### 2. 详细模块设计
 
@@ -54,10 +47,9 @@
   * `cursor_text`：当前渲染到的文字位置。
   * `cursor_audio`：当前音频播放到的位置。
 * **预加载逻辑**：始终保持当前句子后 3 句的音频已进入缓存队列。
-* **实时同步机制**（新增）：
-  * **状态广播**：通过 PartyKit WebSocket 广播播放状态（playing/paused/stopped）、当前播放索引、播放时间戳。
-  * **冲突解决**：使用 XState 状态机 + PartyKit 消息队列，确保多用户操作的一致性。
-  * **主从模式**：第一个加入房间的用户成为"主播"，其他用户为"听众"，主播控制播放，听众实时同步。
+
+
+
 
 ##### C. 播放引擎层（The Consumer / TTS Adapter）
 
