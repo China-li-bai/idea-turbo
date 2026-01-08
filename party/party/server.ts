@@ -60,7 +60,8 @@ export default class EditorServer implements Party.Server {
   private async getYDoc(): Promise<Doc | null> {
     try {
       const opts = this.getOpts();
-      return await this.room.storage.get<Doc>("ydoc");
+      const doc = await this.room.storage.get<Doc>("ydoc");
+      return doc ?? null;
     } catch {
       return null;
     }

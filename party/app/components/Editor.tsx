@@ -51,9 +51,9 @@ export default function Editor({
     };
 
     if (provider.ws) {
-      provider.ws.on("open", () => handleStatusChange("connected"));
-      provider.ws.on("close", () => handleStatusChange("disconnected"));
-      provider.ws.on("error", () => handleStatusChange("disconnected"));
+      provider.ws.addEventListener("open", () => handleStatusChange("connected"));
+      provider.ws.addEventListener("close", () => handleStatusChange("disconnected"));
+      provider.ws.addEventListener("error", () => handleStatusChange("disconnected"));
     }
 
     return () => {

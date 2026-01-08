@@ -45,9 +45,15 @@
   width: 100%;
 }
 
+.inputWrapper {
+  position: relative;
+  width: 100%;
+}
+
 .textarea {
   width: 100%;
   padding: 12px;
+  padding-right: 100px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 16px;
@@ -65,6 +71,48 @@
 
 .textarea::placeholder {
   color: #9ca3af;
+}
+
+.playButton {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #3b82f6;
+  color: white;
+}
+
+.playButton:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.playButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mainPlayButton {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 8px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  background: #10b981;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.mainPlayButton:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.mainPlayButton:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .processing {
@@ -93,58 +141,139 @@
   }
 }
 
-.controls {
+.controlPanel {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 16px;
-  align-items: center;
-  padding: 16px;
+  padding: 20px;
   background: #f9fafb;
-  border-radius: 8px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
 }
 
-.playbackControls {
+.progressSection {
   display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.button {
-  padding: 8px 16px;
+.progressBar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.2s;
+}
+
+.progressBar:hover {
+  background: #d1d5db;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 4px;
+  transition: width 0.15s ease-out;
+}
+
+.progressInfo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.mainControls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.controlButton {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 12px;
+  font-size: 20px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background: #3b82f6;
-  color: white;
+  background: white;
+  color: #374151;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.button:hover:not(:disabled) {
-  background: #2563eb;
+.controlButton:hover:not(:disabled) {
+  background: #f3f4f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.button:disabled {
-  opacity: 0.5;
+.controlButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.controlButton:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.speedControl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.playControlButton {
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.speedControl label {
-  font-size: 14px;
+.playControlButton:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
+
+.secondaryControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.controlLabel {
+  font-size: 13px;
+  font-weight: 600;
   color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.speedButtons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .speedButton {
-  padding: 4px 10px;
+  padding: 6px 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   background: white;
   color: #374151;
@@ -153,38 +282,78 @@
 
 .speedButton:hover {
   background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 .speedButton.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-color: transparent;
   color: white;
 }
 
-.voiceControl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.volumeSlider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
 }
 
-.voiceControl label {
-  font-size: 14px;
-  color: #374151;
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
 }
 
-.select {
-  padding: 6px 10px;
+.volumeSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.volumeSlider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: none;
+}
+
+.volumeValue {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.voiceSelect {
+  width: 100%;
+  padding: 10px 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   background: white;
   cursor: pointer;
-  min-width: 150px;
+  transition: all 0.2s;
+  color: #374151;
 }
 
-.select:focus {
+.voiceSelect:hover {
+  border-color: #d1d5db;
+}
+
+.voiceSelect:focus {
   outline: none;
   border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .textContainer {

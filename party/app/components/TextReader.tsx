@@ -258,6 +258,16 @@ export function TextReader({ className }: TextReaderProps) {
     }
   };
 
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (segments.length === 0) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const segmentId = Math.floor(percentage * segments.length);
+    handleSeek(Math.min(segmentId, segments.length - 1));
+  };
+
   return (
     <div className={`${styles.container} ${className || ''}`}>
       <div className={styles.header}>
@@ -281,13 +291,134 @@ export function TextReader({ className }: TextReaderProps) {
       )}
 
       <div className={styles.inputSection}>
-        <textarea
-          className={styles.textarea}
-          placeholder="在这里粘贴或输入文本..."
-          value={rawText}
-          onChange={handleTextChange}
-          rows={6}
-        />
+        <div className={styles.inputWrapper}>
+          <textarea
+            className={styles.textarea}
+            placeholder="在这里粘贴或输入文本..."
+            value={rawText}
+            onChange={handleTextChange}
+            rows={6}
+          />
+          <button
+            className={`${styles.playButton} ${styles.mainPlayButton}`}
+            onClick={handlePlay}
+            disabled={segments.length === 0 || isProcessing}
+            title="播放 (空格)"
+          >
+            {isProcessing ? '处理中...' : '▶ 播放'}
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.controlPanel}>
+        <div className={styles.progressSection}>
+          <div
+            className={styles.progressBar}
+            onClick={handleProgressClick}
+            role="slider"
+            aria-label="播放进度"
+            aria-valuenow={segments.length > 0 ? Math.round(((currentSegmentId + 1) / segments.length) * 100) : 0}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className={styles.progressFill}
+              style={{ width: `${segments.length > 0 ? ((currentSegmentId + 1) / segments.length) * 100 : 0}%` }}
+            />
+          </div>
+          <div className={styles.progressInfo}>
+            <span>{segments.length > 0 ? `${currentSegmentId + 1} / ${segments.length}` : '0 / 0'}</span>
+            <span>{segments.length > 0 ? Math.round(((currentSegmentId + 1) / segments.length) * 100) : 0}%</span>
+          </div>
+        </div>
+
+        <div className={styles.mainControls}>
+          <button
+            className={styles.controlButton}
+            onClick={handlePrevious}
+            disabled={currentSegmentId === 0}
+            title="上一句 (←)"
+          >
+            ⏮
+          </button>
+
+          <button
+            className={`${styles.controlButton} ${styles.playControlButton}`}
+            onClick={isPlaying && !isPaused ? handlePause : handlePlay}
+            disabled={segments.length === 0}
+            title={isPlaying && !isPaused ? '暂停 (空格)' : '播放 (空格)'}
+          >
+            {isPlaying && !isPaused ? '⏸' : '▶'}
+          </button>
+
+          <button
+            className={styles.controlButton}
+            onClick={handleStop}
+            disabled={!isPlaying && !isPaused}
+            title="停止 (S)"
+          >
+            ⏹
+          </button>
+
+          <button
+            className={styles.controlButton}
+            onClick={handleNext}
+            disabled={currentSegmentId >= segments.length - 1}
+            title="下一句 (→)"
+          >
+            ⏭
+          </button>
+        </div>
+
+        <div className={styles.secondaryControls}>
+          <div className={styles.controlGroup}>
+            <label className={styles.controlLabel}>语速</label>
+            <div className={styles.speedButtons}>
+              {[0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3].map(speed => (
+                <button
+                  key={speed}
+                  className={`${styles.speedButton} ${playbackSpeed === speed ? styles.active : ''}`}
+                  onClick={() => handleSpeedChange(speed)}
+                  title={`${speed}x 速度`}
+                >
+                  {speed}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.controlGroup}>
+            <label className={styles.controlLabel}>音量</label>
+            <input
+              type="range"
+              className={styles.volumeSlider}
+              min="0"
+              max="1"
+              step="0.1"
+              value={playbackVolume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+              aria-label="音量"
+            />
+            <span className={styles.volumeValue}>{Math.round(playbackVolume * 100)}%</span>
+          </div>
+
+          <div className={styles.controlGroup}>
+            <label className={styles.controlLabel}>语音</label>
+            <select
+              className={styles.voiceSelect}
+              value={currentVoice}
+              onChange={(e) => handleVoiceChange(e.target.value)}
+              aria-label="选择语音"
+            >
+              <option value="">默认语音</option>
+              {availableVoices.map(voice => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} ({voice.lang})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {isProcessing && (
@@ -298,28 +429,7 @@ export function TextReader({ className }: TextReaderProps) {
       )}
 
       {segments.length > 0 && (
-        <>
-          <PlaybackControls
-            isPlaying={isPlaying}
-            isPaused={isPaused}
-            currentSegmentId={currentSegmentId}
-            totalSegments={segments.length}
-            availableVoices={availableVoices}
-            playbackSpeed={playbackSpeed}
-            playbackVolume={playbackVolume}
-            currentVoice={currentVoice}
-            onPlay={handlePlay}
-            onPause={handlePause}
-            onStop={handleStop}
-            onSpeedChange={handleSpeedChange}
-            onVolumeChange={handleVolumeChange}
-            onVoiceChange={handleVoiceChange}
-            onSeek={handleSeek}
-            onPrevious={handlePrevious}
-            onNext={handleNext}
-          />
-
-          <div className={styles.textContainer} ref={textContainerRef}>
+        <div className={styles.textContainer} ref={textContainerRef}>
             {paragraphs.map((paragraph) => {
               const paragraphSegments = segments.filter(
                 s => s.paragraphId === paragraph.id
@@ -341,7 +451,6 @@ export function TextReader({ className }: TextReaderProps) {
               );
             })}
           </div>
-        </>
       )}
 
       {segments.length === 0 && rawText && !isProcessing && (
