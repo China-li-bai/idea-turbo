@@ -25,7 +25,7 @@ export function PlaybackControls({
   const [playbackVolume, setPlaybackVolume] = useState(1);
   const progressRef = useRef<HTMLDivElement>(null);
 
-  const totalSegments = playbackController?.segments.length || 0;
+  const totalSegments = playbackController?.getSegments().length || 0;
   const progress = totalSegments > 0 ? ((currentSegmentId + 1) / totalSegments) * 100 : 0;
 
   useEffect(() => {

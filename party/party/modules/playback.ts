@@ -128,6 +128,14 @@ export class PlaybackController {
     return this.state.voice;
   }
 
+  getSegments(): TextSegment[] {
+    return this.segments;
+  }
+
+  getParagraphs(): TextParagraph[] {
+    return this.paragraphs;
+  }
+
   get isPlaying(): boolean {
     return this.state.isPlaying;
   }

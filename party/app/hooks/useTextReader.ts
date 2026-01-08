@@ -128,8 +128,8 @@ export function useTextReader({
       }
     });
 
-    const handleStatusChange = (status: 'connected' | 'disconnected') => {
-      setSyncStatus(status === 'connected' ? 'synced' : 'offline');
+    const handleStatusChange = () => {
+      setSyncStatus(provider.synced ? 'synced' : 'offline');
     };
 
     if (provider.ws) {

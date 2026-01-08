@@ -1,5 +1,5 @@
 import type { TextSegment, TextParagraph, TextDocument } from '../types';
-import { generateId } from '../utils';
+
 
 export interface ParagraphSegmentationOptions {
   maxCharsPerParagraph: number;
