@@ -77,7 +77,12 @@ export function useTextReader({
 
     playbackRef.current.on('segmentStart', ({ segment }) => {
       setCurrentSegmentId(segment.id);
-      yplaybackState.set('currentSegmentId', segment.id);
+    });
+
+    playbackRef.current.on('seek', ({ segmentId }) => {
+      setCurrentSegmentId(segmentId);
+      yplaybackState.set('currentSegmentId', segmentId);
+      yplaybackState.set('updatedAt', Date.now());
     });
 
     playbackRef.current.on('play', () => {

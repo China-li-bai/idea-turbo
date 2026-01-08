@@ -45,7 +45,6 @@ export function PlaybackControls({
       setCurrentSegmentId(0);
     };
     const handleSeek = ({ segmentId }: { segmentId: number }) => {
-      setCurrentSegmentId(segmentId);
       onSeek?.(segmentId);
     };
     const handleComplete = () => {
@@ -133,7 +132,6 @@ export function PlaybackControls({
     const segmentId = Math.floor(percentage * totalSegments);
     const targetId = Math.min(segmentId, totalSegments - 1);
     playbackController?.seek(targetId);
-    setCurrentSegmentId(targetId);
     onSeek?.(targetId);
   }, [totalSegments, playbackController, onSeek]);
 
@@ -155,7 +153,6 @@ export function PlaybackControls({
       const segmentId = Math.floor(percentage * totalSegments);
       const targetId = Math.min(segmentId, totalSegments - 1);
       playbackController?.seek(targetId);
-      setCurrentSegmentId(targetId);
       onSeek?.(targetId);
       setIsDragging(false);
     };

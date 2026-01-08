@@ -58,9 +58,8 @@ export function TextReader({ className, room }: TextReaderProps) {
   }, [setText]);
 
   const handleSeek = useCallback((segmentId: number) => {
-    setCurrentSegmentId(segmentId);
     playbackController?.seek(segmentId);
-  }, [playbackController, setCurrentSegmentId]);
+  }, [playbackController]);
 
   const handlePlay = useCallback(async () => {
     if (!playbackController || segments.length === 0) return;
