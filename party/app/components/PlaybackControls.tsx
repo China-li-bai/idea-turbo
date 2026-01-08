@@ -39,9 +39,14 @@ export function PlaybackControls({
       setIsPlaying(false);
       setIsPaused(true);
     };
-    const handleStop = () => {
+    const handleStop = ({ segmentId }: { segmentId: number }) => {
       setIsPlaying(false);
       setIsPaused(false);
+      setCurrentSegmentId(0);
+    };
+    const handleSeek = ({ segmentId }: { segmentId: number }) => {
+      setCurrentSegmentId(segmentId);
+      onSeek?.(segmentId);
     };
     const handleComplete = () => {
       setIsPlaying(false);
@@ -50,13 +55,18 @@ export function PlaybackControls({
     const handleSegmentStart = ({ segment }: { segment: any }) => {
       setCurrentSegmentId(segment.id);
     };
+    const handleSegmentComplete = ({ segmentId }: { segmentId: number }) => {
+      setCurrentSegmentId(segmentId + 1);
+    };
 
     const unsubscribers = [
       playbackController.on('play', handlePlay),
       playbackController.on('pause', handlePause),
       playbackController.on('stop', handleStop),
+      playbackController.on('seek', handleSeek),
       playbackController.on('complete', handleComplete),
       playbackController.on('segmentStart', handleSegmentStart),
+      playbackController.on('segmentComplete', handleSegmentComplete),
     ];
 
     setPlaybackSpeed(playbackController.speed);
@@ -83,26 +93,19 @@ export function PlaybackControls({
 
   const handleStop = useCallback(() => {
     playbackController?.stop();
-    setCurrentSegmentId(0);
   }, [playbackController]);
 
   const handlePrevious = useCallback(() => {
     if (currentSegmentId > 0) {
-      const newId = currentSegmentId - 1;
-      playbackController?.seek(newId);
-      setCurrentSegmentId(newId);
-      onSeek?.(newId);
+      playbackController?.seek(currentSegmentId - 1);
     }
-  }, [currentSegmentId, playbackController, onSeek]);
+  }, [currentSegmentId, playbackController]);
 
   const handleNext = useCallback(() => {
     if (currentSegmentId < totalSegments - 1) {
-      const newId = currentSegmentId + 1;
-      playbackController?.seek(newId);
-      setCurrentSegmentId(newId);
-      onSeek?.(newId);
+      playbackController?.seek(currentSegmentId + 1);
     }
-  }, [currentSegmentId, totalSegments, playbackController, onSeek]);
+  }, [currentSegmentId, totalSegments, playbackController]);
 
   const handleSpeedChange = useCallback((speed: number) => {
     playbackController?.setSpeed(speed);

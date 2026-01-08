@@ -77,7 +77,9 @@ export class TextSegmenter {
   private splitIntoSentences(text: string): string[] {
     try {
       const results = split(text);
-      const sentences = results.map((s: any) => s.text || s).filter((s: string) => s.trim());
+      const sentences = results
+        .map((s: any) => s.raw || s.value || '')
+        .filter((s: string) => s.trim());
 
       if (sentences.length === 0 && this.isChineseText(text)) {
         return this.splitChineseText(text);

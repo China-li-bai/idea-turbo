@@ -224,7 +224,10 @@ export class PlaybackController {
     this.state.startTime = 0;
     this.state.pausedAt = 0;
 
-    this.emit('stop', { timestamp: Date.now() });
+    const lastSegmentId = this.state.currentSegmentId;
+    this.state.currentSegmentId = 0;
+
+    this.emit('stop', { timestamp: Date.now(), segmentId: lastSegmentId });
   }
 
   seek(segmentId: number): void {
@@ -313,7 +316,10 @@ export class PlaybackController {
   }
 
   private handleSegmentComplete(): void {
-    const nextSegmentId = this.state.currentSegmentId + 1;
+    const completedSegmentId = this.state.currentSegmentId;
+    const nextSegmentId = completedSegmentId + 1;
+
+    this.emit('segmentComplete', { segmentId: completedSegmentId });
 
     if (nextSegmentId >= this.segments.length) {
       if (this.options.loop) {
