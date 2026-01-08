@@ -4,7 +4,8 @@
   "main": "party/server.ts",
   "compatibilityDate": "2026-01-07",
   "parties": {
-    "rooms": "party/rooms.ts"
+    "rooms": "party/rooms.ts",
+    "textreader": "party/textreader-server.ts"
   },
   "serve": {
     "path": "public",

@@ -116,6 +116,26 @@ export class PlaybackController {
     }
   }
 
+  get speed(): number {
+    return this.state.speed;
+  }
+
+  get volume(): number {
+    return this.state.volume;
+  }
+
+  get voice(): SpeechSynthesisVoice | null {
+    return this.state.voice;
+  }
+
+  get isPlaying(): boolean {
+    return this.state.isPlaying;
+  }
+
+  get isPaused(): boolean {
+    return this.state.isPaused;
+  }
+
   play(): Promise<void> {
     console.log('PlaybackController.play called', {
       isPlaying: this.state.isPlaying,
