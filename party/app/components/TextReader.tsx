@@ -72,8 +72,7 @@ export function TextReader({ className, room }: TextReaderProps) {
 
   const handleStop = useCallback(() => {
     playbackController?.stop();
-    setCurrentSegmentId(0);
-  }, [playbackController, setCurrentSegmentId]);
+  }, [playbackController]);
 
   const handlePrevious = useCallback(() => {
     if (currentSegmentId > 0) {

@@ -215,7 +215,7 @@ export class PlaybackController {
     this.emit('resume', { timestamp: Date.now() });
   }
 
-  stop(): void {
+  stop(resetPosition: boolean = true): void {
     this.speechSynthesis.cancel();
     this.currentUtterance = null;
 
@@ -225,7 +225,9 @@ export class PlaybackController {
     this.state.pausedAt = 0;
 
     const lastSegmentId = this.state.currentSegmentId;
-    this.state.currentSegmentId = 0;
+    if (resetPosition) {
+      this.state.currentSegmentId = 0;
+    }
 
     this.emit('stop', { timestamp: Date.now(), segmentId: lastSegmentId });
   }
@@ -238,7 +240,7 @@ export class PlaybackController {
     }
 
     const wasPlaying = this.state.isPlaying;
-    this.stop();
+    this.stop(false);
 
     this.state.currentSegmentId = segmentId;
     this.state.currentParagraphId = this.getParagraphForSegment(segmentId)?.id ?? 0;

@@ -95,11 +95,13 @@ export function useTextReader({
       yplaybackState.set('isPaused', true);
     });
 
-    playbackRef.current.on('stop', () => {
+    playbackRef.current.on('stop', ({ segmentId: lastSegmentId }: { segmentId: number }) => {
       yplaybackState.set('isPlaying', false);
       yplaybackState.set('isPaused', false);
-      yplaybackState.set('currentSegmentId', 0);
-      setCurrentSegmentId(0);
+      if (lastSegmentId === 0) {
+        yplaybackState.set('currentSegmentId', 0);
+        setCurrentSegmentId(0);
+      }
     });
 
     playbackRef.current.on('complete', () => {
