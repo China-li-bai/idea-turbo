@@ -46,3 +46,6 @@ apps/listen-book/public/sherpa-onnx-wasm-main-asr.wasm
 # ONNX model files
 apps/listen-book/public/models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/*.onnx
 apps/listen-book/public/models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/*.int8.onnx
+
+# Temporary sherpa models directory (for deployment)
+temp-sherpa-models/
