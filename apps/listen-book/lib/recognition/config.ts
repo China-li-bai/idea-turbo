@@ -1,7 +1,9 @@
 import { RecognitionConfig, RemoteResourceConfig } from './engine';
 
+const CDN_BASE_URL = process.env.NEXT_PUBLIC_SHERPA_ONNX_CDN || 'https://cdn.jsdelivr.net/gh/China-li-bai/sherpa-onnx-models@1.0.0';
+
 export const DEFAULT_REMOTE_CONFIG: RemoteResourceConfig = {
-  baseUrl: 'https://your-cdn.com/sherpa-onnx',
+  baseUrl: CDN_BASE_URL,
   files: {
     wasm: 'sherpa-onnx-wasm-main-asr.wasm',
     data: 'sherpa-onnx-wasm-main-asr.data',
@@ -11,7 +13,7 @@ export const DEFAULT_REMOTE_CONFIG: RemoteResourceConfig = {
     decoderInt8: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/decoder-epoch-99-avg-1.int8.onnx',
     joiner: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/joiner-epoch-99-avg-1.onnx',
     joinerInt8: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/joiner-epoch-99-avg-1.int8.onnx',
-    tokens: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/tokens.txt'
+    tokens: 'models/sherpa-onnx-streaming-zh-14M-2023-02-23/tokens.txt'
   }
 };
 
