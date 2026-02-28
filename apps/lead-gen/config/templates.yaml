@@ -1,0 +1,386 @@
+templates:
+  vietnam:
+    language: "vi"
+    channel: "zalo"
+    
+    first_contact:
+      name: "首次联系"
+      purpose: "介绍公司和产品，引起兴趣"
+      
+      template: |
+        Chào anh/chị {{name}},
+        
+        Tôi là {{sender_name}} từ Reecho (Thâm Quyến, Trung Quốc) - nhà sản xuất SSD chuyên nghiệp.
+        
+        Chúng tôi chuyên cung cấp:
+        • SSD YMTC/三星/美光 chip
+        • Bảo hành 3 năm
+        • Giá cạnh tranh cho đại lý
+        
+        Rất mong được hợp tác với {{company}}. Anh/chị có thể xem thêm tại: {{website}}
+        
+        Trân trọng!
+
+      template_en: |
+        Chào anh/chị {{name}},
+        
+        Tôi là {{sender_name}} từ Reecho (Thâm Quyến) - nhà sản xuất SSD chuyên nghiệp với 10 năm kinh nghiệm.
+        
+        Sản phẩm của chúng tôi:
+        • SSD YMTC/三星/美光 chip
+        • Bảo hành 3 năm
+        • Giá tốt cho đại lý wholesale
+        
+        Anh/chị có quan tâm nhận mẫu test không ạ?
+        
+        Trân trọng!
+
+      tips:
+        - "使用 'anh/chị' 表示尊重"
+        - "直接说明产品优势"
+        - "结尾询问是否需要样品"
+    
+    follow_up_1:
+      name: "第一次跟进"
+      purpose: "提醒客户，提供更多信息"
+      days_after: 3
+      
+      template: |
+        Chào anh/chị {{name}},
+        
+        Tôi xin gửi thêm thông tin về sản phẩm SSD của Reecho:
+        
+        📦 Dòng sản phẩm:
+        • SATA SSD: 128GB - 2TB
+        • NVMe SSD: 256GB - 4TB
+        
+        💰 Giá tham khảo (FOB Thâm Quyến):
+        • 256GB NVMe: $XX
+        • 512GB NVMe: $XX
+        
+        Anh/chị có thể cho tôi biết nhu cầu cụ thể không ạ?
+        
+        Trân trọng!
+
+    follow_up_2:
+      name: "第二次跟进"
+      purpose: "提供优惠或紧迫感"
+      days_after: 7
+      
+      template: |
+        Chào anh/chị {{name}},
+        
+        Hiện tại chúng tôi đang có chương trình hỗ trợ khách hàng mới:
+        
+        ✅ Miễn phí gửi mẫu test (1-2 chiếc)
+        ✅ Giảm 5% cho đơn hàng đầu tiên
+        ✅ Hỗ trợ vận chuyển
+        
+        Chương trình kết thúc vào cuối tháng này. Anh/chị có muốn tận dụng không ạ?
+        
+        Trân trọng!
+
+    sample_request:
+      name: "样品申请确认"
+      purpose: "确认样品寄送信息"
+      
+      template: |
+        Chào anh/chị {{name}},
+        
+        Cảm ơn anh/chị quan tâm đến sản phẩm SSD Reecho!
+        
+        Để gửi mẫu test, tôi cần xác nhận:
+        
+        📋 Thông tin cần thiết:
+        • Địa chỉ nhận hàng
+        • Số điện thoại liên hệ
+        • Dòng sản phẩm muốn test (SATA/NVMe, dung lượng)
+        
+        📦 Thời gian giao hàng: 5-7 ngày làm việc
+        
+        Anh/chị vui lòng cung cấp thông tin trên nhé!
+
+  russia:
+    language: "ru"
+    channel: "telegram"
+    
+    first_contact:
+      name: "Первый контакт"
+      purpose: "Знакомство и представление компании"
+      
+      template: |
+        Здравствуйте, {{name}}!
+        
+        Меня зовут {{sender_name}}, компания Reecho (Шэньчжэнь, Китай).
+        
+        Мы производитель SSD накопителей:
+        • Чипы YMTC/Samsung/Micron
+        • Гарантия 3 года
+        • Конкурентные цены для оптовиков
+        
+        Будем рады сотрудничеству! Подробнее: {{website}}
+        
+        С уважением,
+        {{sender_name}}
+
+      template_en: |
+        Здравствуйте!
+        
+        Компания Reecho - производитель SSD из Китая.
+        
+        Предлагаем:
+        • SSD NVMe/SATA 128GB-4TB
+        • Гарантия 3 года
+        • Оптовые цены
+        
+        Интересно сотрудничество? Могу выслать прайс-лист.
+
+      tips:
+        - "使用正式称呼 (Вы)"
+        - "直接说明产品规格"
+        - "提供网站链接增加可信度"
+    
+    follow_up_1:
+      name: "Первое напоминание"
+      purpose: "Предложить прайс-лист"
+      days_after: 3
+      
+      template: |
+        Здравствуйте, {{name}}!
+        
+        Хотел(а) бы предложить прайс-лист на нашу продукцию:
+        
+        💾 NVMe SSD:
+        • 256GB - $XX
+        • 512GB - $XX
+        • 1TB - $XX
+        
+        💾 SATA SSD:
+        • 256GB - $XX
+        • 512GB - $XX
+        
+        Готов(а) выслать подробную спецификацию. Интересует?
+
+    follow_up_2:
+      name: "Предложение образцов"
+      purpose: "Предложить тестовые образцы"
+      days_after: 7
+      
+      template: |
+        Здравствуйте, {{name}}!
+        
+        Хотим предложить вам тестовые образцы SSD:
+        
+        ✅ Бесплатно 1-2 образца
+        ✅ Доставка за наш счёт (первый раз)
+        ✅ Техническая поддержка
+        
+        Для оформления нужны:
+        • Адрес доставки
+        • Контактный телефон
+        • Желаемые модели
+        
+        Готовы обсудить?
+
+  indonesia:
+    language: "id"
+    channel: "whatsapp"
+    
+    first_contact:
+      name: "Kontak Pertama"
+      purpose: "Perkenalan dan penawaran"
+      
+      template: |
+        Halo {{name}} 👋
+        
+        Saya {{sender_name}} dari Reecho (Shenzhen, China) - produsen SSD profesional.
+        
+        Kami menyediakan:
+        💾 SSD NVMe & SATA
+        🔧 Chip YMTC/Samsung/Micron
+        ✅ Garansi 3 tahun
+        💰 Harga grosir kompetitif
+        
+        Tertarik untuk kerjasama? Bisa request sample gratis!
+        
+        Website: {{website}}
+
+      tips:
+        - "Gunakan emoji untuk tampilan friendly"
+        - "Bahasa santai tapi profesional"
+        - "Langsung tawarkan sample"
+    
+    follow_up_1:
+      name: "Follow Up 1"
+      purpose: "Kirim informasi harga"
+      days_after: 3
+      
+      template: |
+        Halo {{name}} 👋
+        
+        Ini saya kirimkan info harga SSD Reecho:
+        
+        💾 NVMe SSD (FOB Shenzhen):
+        • 256GB: $XX
+        • 512GB: $XX
+        • 1TB: $XX
+        
+        💾 SATA SSD:
+        • 256GB: $XX
+        • 512GB: $XX
+        
+        MOQ: 50 pcs
+        
+        Ada kebutuhan spesifik?
+
+    follow_up_2:
+      name: "Follow Up 2"
+      purpose: "Tawarkan promo"
+      days_after: 7
+      
+      template: |
+        Halo {{name}}! 👋
+        
+        Ada promo khusus untuk customer baru:
+        
+        🎁 FREE sample (1-2 pcs)
+        🚚 Gratis ongkir order pertama
+        💰 Diskon 5% order pertama
+        
+        Promo berlaku sampai akhir bulan ini.
+        Tertarik?
+
+  thailand:
+    language: "th"
+    channel: "line"
+    
+    first_contact:
+      name: "การติดต่อครั้งแรก"
+      purpose: "แนะนำบริษัทและผลิตภัณฑ์"
+      
+      template: |
+        สวัสดีครับ/ค่ะ {{name}} 👋
+        
+        ผม/ดิฉัน {{sender_name}} จาก Reecho (เซินเจิ้น, จีน) ผู้ผลิต SSD มืออาชีพ
+        
+        ผลิตภัณฑ์ของเรา:
+        💾 SSD NVMe & SATA
+        🔧 Chip YMTC/Samsung/Micron
+        ✅ รับประกัน 3 ปี
+        💰 ราคาส่งสำหรับตัวแทน
+        
+        สนใจรับตัวอย่างสินค้าฟรีไหมครับ/คะ?
+        
+        เว็บไซต์: {{website}}
+
+      tips:
+        - "ใช้คำลงท้ายที่สุภาพ (ครับ/ค่ะ)"
+        - "ใช้อีโมจิให้เป็นมิตร"
+        - "เสนอตัวอย่างสินค้าฟรี"
+    
+    follow_up_1:
+      name: "ติดตามครั้งที่ 1"
+      purpose: "ส่งราคา"
+      days_after: 3
+      
+      template: |
+        สวัสดีครับ/ค่ะ {{name}} 👋
+        
+        นี่คือราคา SSD Reecho ครับ/คะ:
+        
+        💾 NVMe SSD (FOB เซินเจิ้น):
+        • 256GB: $XX
+        • 512GB: $XX
+        • 1TB: $XX
+        
+        💾 SATA SSD:
+        • 256GB: $XX
+        • 512GB: $XX
+        
+        MOQ: 50 ชิ้น
+        
+        สนใจรายละเอียดเพิ่มเติมไหมครับ/คะ?
+
+  malaysia:
+    language: "en"
+    channel: "whatsapp"
+    
+    first_contact:
+      name: "First Contact"
+      purpose: "Introduction and offer"
+      
+      template: |
+        Hi {{name}} 👋
+        
+        I'm {{sender_name}} from Reecho (Shenzhen, China) - a professional SSD manufacturer.
+        
+        We offer:
+        💾 NVMe & SATA SSDs
+        🔧 YMTC/Samsung/Micron chips
+        ✅ 3-year warranty
+        💰 Competitive wholesale prices
+        
+        Interested in a free sample?
+        
+        Website: {{website}}
+
+      tips:
+        - "English is widely used in Malaysia"
+        - "Keep it professional but friendly"
+        - "Offer samples directly"
+    
+    follow_up_1:
+      name: "Follow Up 1"
+      purpose: "Send price list"
+      days_after: 3
+      
+      template: |
+        Hi {{name}} 👋
+        
+        Here's our SSD price list (FOB Shenzhen):
+        
+        💾 NVMe SSD:
+        • 256GB: $XX
+        • 512GB: $XX
+        • 1TB: $XX
+        
+        💾 SATA SSD:
+        • 256GB: $XX
+        • 512GB: $XX
+        
+        MOQ: 50 pcs
+        
+        Any specific requirements?
+
+variables:
+  "{{name}}": "客户姓名或公司名"
+  "{{sender_name}}": "发送者姓名"
+  "{{company}}": "客户公司名"
+  "{{website}}": "公司网站"
+  "{{phone}}": "联系电话"
+
+best_practices:
+  timing:
+    best_days: ["Tuesday", "Wednesday", "Thursday"]
+    avoid_days: ["Monday", "Friday", "Weekend"]
+    best_hours: ["09:00-11:00", "14:00-16:00"]
+    
+  anti_spam:
+    - "每条消息间隔 30-120 秒"
+    - "每个账号每天不超过 50 条"
+    - "使用多个账号轮换"
+    - "新账号需要养号 7 天"
+    
+  response_handling:
+    positive:
+      - "立即回复"
+      - "发送详细报价"
+      - "安排样品"
+    negative:
+      - "礼貌感谢"
+      - "询问原因"
+      - "保持联系"
+    no_response:
+      - "3天后第一次跟进"
+      - "7天后第二次跟进"
+      - "14天后最后一次跟进"

@@ -1,0 +1,60 @@
+targets:
+  vietnam:
+    cities:
+      - name: "Ho Chi Minh City"
+        coords: "10.8231,106.6297"
+      - name: "Hanoi"
+        coords: "21.0285,105.8542"
+      - name: "Da Nang"
+        coords: "16.0471,108.2068"
+    keywords:
+      - "Cửa hàng máy tính"
+      - "Sửa chữa laptop"
+      - "Linh kiện máy tính"
+      - "Computer store"
+      - "PC shop"
+      - "SSD shop"
+
+  russia:
+    cities:
+      - name: "Moscow"
+        coords: "55.7558,37.6173"
+      - name: "Saint Petersburg"
+        coords: "59.9311,30.3609"
+    keywords:
+      - "Компьютерный магазин"
+      - "Сервисный центр ПК"
+      - "Магазин комплектующих"
+      - "Computer store"
+      - "PC parts shop"
+
+  indonesia:
+    cities:
+      - name: "Jakarta"
+        coords: "-6.2088,106.8456"
+      - name: "Surabaya"
+        coords: "-7.2575,112.7521"
+    keywords:
+      - "Toko Komputer"
+      - "Toko Laptop"
+      - "Service Komputer"
+      - "Computer store"
+
+  thailand:
+    cities:
+      - name: "Bangkok"
+        coords: "13.7563,100.5018"
+      - name: "Chiang Mai"
+        coords: "18.7883,98.9853"
+    keywords:
+      - "ร้านคอมพิวเตอร์"
+      - "ร้านซ่อมคอม"
+      - "Computer shop"
+      - "PC store"
+
+settings:
+  max_results_per_search: 50
+  min_reviews: 10
+  delay_between_requests: 2
+  use_proxy: false
+  proxy_list: []

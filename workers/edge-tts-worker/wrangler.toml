@@ -1,0 +1,16 @@
+name = "edge-tts-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "59c9fd4b88f64fa2b1a03ec5e5f93ba3"
+preview_id = "144bbf8f2f3f4d62bbd5f2c2317c83e6"
+
+[[routes]]
+pattern = "https://shu.66666618.xyz/*"
+zone_name = "66666618.xyz"

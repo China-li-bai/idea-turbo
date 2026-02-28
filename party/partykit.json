@@ -1,0 +1,14 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "party",
+  "main": "party/server.ts",
+  "compatibilityDate": "2026-01-07",
+  "parties": {
+    "rooms": "party/rooms.ts",
+    "textreader": "party/textreader-server.ts"
+  },
+  "serve": {
+    "path": "public",
+    "build": "app/client.tsx"
+  }
+}

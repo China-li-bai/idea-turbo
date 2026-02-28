@@ -1,0 +1,64 @@
+{
+  "name": "@idea-turbo/local-first-sdk",
+  "version": "0.1.0",
+  "description": "Local-first SDK for collaborative applications with Yjs, PartyKit, and IndexedDB",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "check-types": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "partysocket": "^1.0.2",
+    "y-indexeddb": "^9.0.12",
+    "y-partykit": "^0.0.32",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.0",
+    "@vitest/ui": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "happy-dom": "^15.0.0",
+    "fake-indexeddb": "^6.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "local-first",
+    "offline-first",
+    "crdt",
+    "yjs",
+    "partykit",
+    "collaborative",
+    "realtime"
+  ],
+  "author": "Idea Turbo",
+  "license": "MIT"
+}

@@ -1,0 +1,120 @@
+name: CI/CD Deploy to VPS (listen-book)
+
+on:
+  push:
+    branches: ["listen"]
+    paths:
+      - "apps/listen-book/**"
+      - "packages/local-first-sdk/**"
+      - ".github/workflows/deploy-listen-book.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-listen
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Install dependencies in monorepo
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build local-first-sdk package
+        run: pnpm --filter @idea-turbo/local-first-sdk build
+
+      - name: Build listen-book app
+        run: pnpm --filter listen-book build
+
+      - name: Archive dist as tar.gz
+        working-directory: apps/listen-book
+        run: tar -czf dist.tar.gz -C dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-tarball
+          path: apps/listen-book/dist.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-tarball
+          path: .
+
+      - name: Copy dist tarball to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "dist.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy on VPS (extract + Nginx config + reload)
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            APP_NAME="listen-book"
+            
+            WEBROOT="${{ secrets.WEBROOT }}"
+            if [ -z "$WEBROOT" ]; then
+              WEBROOT="/var/www/${APP_NAME}/dist"
+            fi
+
+            TAR="/tmp/dist.tar.gz"
+            APP_DIR=$(dirname "$WEBROOT")
+
+            echo "[INFO] Deploying to: $WEBROOT"
+            sudo mkdir -p "$WEBROOT"
+            sudo mkdir -p "$APP_DIR/backup"
+
+            if [ -n "$(ls -A "$WEBROOT" 2>/dev/null)" ]; then
+              TS=$(date +%Y%m%d-%H%M%S)
+              sudo tar -czf "$APP_DIR/backup/${APP_NAME}-${TS}.tar.gz" -C "$WEBROOT" . || true
+              echo "[INFO] Backed up current version to ${APP_DIR}/backup/${APP_NAME}-${TS}.tar.gz"
+            fi
+
+            sudo tar -xzf "$TAR" -C "$WEBROOT"
+            echo "[INFO] Files extracted successfully"
+
+            sudo chown -R www-data:www-data "$WEBROOT"
+            sudo chmod -R 755 "$WEBROOT"
+
+            if [ -f "$WEBROOT/index.html" ]; then
+              echo "[INFO] ✅ Next.js static files deployed successfully"
+            else
+              echo "[ERROR] index.html not found in $WEBROOT"
+              ls -la "$WEBROOT" || true
+              exit 1
+            fi
+
+            rm -f "$TAR"
+
+            sudo nginx -t && sudo systemctl reload nginx
+            echo "[INFO] Nginx reloaded successfully"
+
+            echo "[INFO] Deployment completed successfully!"
+            echo "[INFO] 📚 Listen-book Application Deployed!"
+            echo "[INFO] Access your app at: http://listen-book.66666618.xyz"
