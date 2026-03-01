@@ -64,6 +64,29 @@ export class SherpaOnnxEngine extends RecognitionEngine {
     }
   }
 
+  private loadScript(src: string): Promise<void> {
+    const scriptName = src.split('/').pop() || src;
+    
+    if (SherpaOnnxEngine.loadedScripts.has(scriptName)) {
+      console.log(`Script ${scriptName} already loaded, skipping`);
+      return Promise.resolve();
+    }
+    
+    console.log(`Loading script: ${src}`);
+    
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => {
+        SherpaOnnxEngine.loadedScripts.add(scriptName);
+        console.log(`Script loaded successfully: ${scriptName}`);
+        resolve();
+      };
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
   async initialize(): Promise<void> {
     try {
       if (typeof window === 'undefined') {
