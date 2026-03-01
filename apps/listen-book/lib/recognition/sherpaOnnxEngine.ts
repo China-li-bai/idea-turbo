@@ -120,9 +120,14 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = typeof input === 'string' ? input : input.toString();
         
-        if (url.includes('sherpa-onnx-wasm-main-asr.data') || 
-            url.includes('sherpa-onnx-wasm-main-asr.wasm')) {
-          
+        const isSherpaFile = url.includes('sherpa-onnx-wasm-main-asr.data') || 
+                             url.includes('sherpa-onnx-wasm-main-asr.wasm') ||
+                             url.includes('encoder-epoch-99-avg-1') ||
+                             url.includes('decoder-epoch-99-avg-1') ||
+                             url.includes('joiner-epoch-99-avg-1') ||
+                             url.includes('tokens.txt');
+        
+        if (isSherpaFile) {
           console.log(`[SherpaOnnx] Intercepted fetch for: ${url}`);
           
           try {
@@ -144,18 +149,14 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         
         const response = await originalFetch(input, init);
         
-        if (url.includes('sherpa-onnx-wasm-main-asr.data') || 
-            url.includes('sherpa-onnx-wasm-main-asr.wasm')) {
+        if (isSherpaFile && response.ok) {
+          const clonedResponse = response.clone();
+          const data = await clonedResponse.arrayBuffer();
           
-          if (response.ok) {
-            const clonedResponse = response.clone();
-            const data = await clonedResponse.arrayBuffer();
-            
-            console.log(`[SherpaOnnx] Caching model: ${(data.byteLength / 1024 / 1024).toFixed(2)}MB`);
-            modelCacheManager.cacheModel(url, data).catch(error => {
-              console.warn('[SherpaOnnx] Failed to cache model:', error);
-            });
-          }
+          console.log(`[SherpaOnnx] Caching model: ${(data.byteLength / 1024 / 1024).toFixed(2)}MB`);
+          modelCacheManager.cacheModel(url, data).catch(error => {
+            console.warn('[SherpaOnnx] Failed to cache model:', error);
+          });
         }
         
         return response;
@@ -180,11 +181,19 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         locateFile: (path: string, scriptDirectory: string = '') => {
           console.log(`locateFile: ${path}, scriptDirectory: ${scriptDirectory}`);
           
+          const remoteConfig = modelCacheManager.getRemoteConfig();
+          
           if (path.endsWith('.wasm')) {
+            if (remoteConfig) {
+              return `${remoteConfig.baseUrl}/${remoteConfig.files.wasm}`;
+            }
             return '/sherpa-onnx-wasm-main-asr.wasm';
           }
           
           if (path.endsWith('.data')) {
+            if (remoteConfig) {
+              return `${remoteConfig.baseUrl}/${remoteConfig.files.data}`;
+            }
             return '/sherpa-onnx-wasm-main-asr.data';
           }
           
