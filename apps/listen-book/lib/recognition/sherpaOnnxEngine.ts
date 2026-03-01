@@ -124,11 +124,15 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       XMLHttpRequest.prototype.open = function(method: string, url: string | URL, async: boolean = true, username?: string | null, password?: string | null) {
         const urlString = url.toString();
         
+        console.log(`[SherpaOnnx] XHR.open called: ${urlString}`);
+        
         if (urlString.includes('sherpa-onnx-wasm-main-asr.data') || 
             urlString.includes('sherpa-onnx-wasm-main-asr.wasm')) {
           console.log(`[SherpaOnnx] XHR open intercepted: ${urlString}`);
           
           const rc = modelCacheManager.getRemoteConfig();
+          console.log(`[SherpaOnnx] remoteConfig:`, rc);
+          
           if (rc) {
             const fileName = urlString.split('/').pop() || '';
             let newUrl = urlString;
