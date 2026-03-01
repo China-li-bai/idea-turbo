@@ -64,16 +64,21 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   private loadedScripts: Set<string> = new Set();
 
   private loadScript(src: string): Promise<void> {
-    if (this.loadedScripts.has(src)) {
-      console.log(`Script ${src} already loaded, skipping`);
+    const scriptName = src.split('/').pop() || src;
+    
+    if (this.loadedScripts.has(scriptName)) {
+      console.log(`Script ${scriptName} already loaded, skipping`);
       return Promise.resolve();
     }
+    
+    console.log(`Loading script: ${src}`);
     
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src;
       script.onload = () => {
-        this.loadedScripts.add(src);
+        this.loadedScripts.add(scriptName);
+        console.log(`Script loaded successfully: ${scriptName}`);
         resolve();
       };
       script.onerror = () => reject(new Error(`Failed to load ${src}`));
@@ -166,6 +171,68 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         }
         
         return response;
+      };
+
+      const originalXHROpen = XMLHttpRequest.prototype.open;
+      const originalXHRSend = XMLHttpRequest.prototype.send;
+      
+      XMLHttpRequest.prototype.open = function(method: string, url: string | URL, async: boolean = true, username?: string | null, password?: string | null) {
+        const urlString = url.toString();
+        
+        if (urlString.includes('sherpa-onnx-wasm-main-asr.data') || 
+            urlString.includes('sherpa-onnx-wasm-main-asr.wasm')) {
+          console.log(`[SherpaOnnx] Intercepted XHR open for: ${urlString}`);
+          
+          const remoteConfig = modelCacheManager.getRemoteConfig();
+          if (remoteConfig && !urlString.startsWith('http')) {
+            const fileName = urlString.split('/').pop() || '';
+            let newUrl = urlString;
+            
+            if (fileName.includes('.data')) {
+              newUrl = `${remoteConfig.baseUrl}/${remoteConfig.files.data}`;
+            } else if (fileName.includes('.wasm')) {
+              newUrl = `${remoteConfig.baseUrl}/${remoteConfig.files.wasm}`;
+            }
+            
+            console.log(`[SherpaOnnx] Redirecting XHR to: ${newUrl}`);
+            return originalXHROpen.call(this, method, newUrl, async, username, password);
+          }
+        }
+        
+        return originalXHROpen.call(this, method, url, async, username, password);
+      };
+      
+      XMLHttpRequest.prototype.send = async function(body?: Document | XMLHttpRequestBodyInit | null) {
+        const url = this.responseURL || (this as any)._url;
+        
+        if (url && (url.includes('sherpa-onnx-wasm-main-asr.data') || 
+                    url.includes('sherpa-onnx-wasm-main-asr.wasm'))) {
+          console.log(`[SherpaOnnx] Intercepted XHR send for: ${url}`);
+          
+          try {
+            const cached = await modelCacheManager.getCachedModel(url);
+            if (cached) {
+              console.log(`[SherpaOnnx] Returning cached data via XHR: ${(cached.byteLength / 1024 / 1024).toFixed(2)}MB`);
+              
+              Object.defineProperty(this, 'response', { value: cached });
+              Object.defineProperty(this, 'responseText', { value: '' });
+              Object.defineProperty(this, 'status', { value: 200 });
+              Object.defineProperty(this, 'readyState', { value: 4 });
+              
+              if (this.onload) {
+                this.onload(new ProgressEvent('load'));
+              }
+              if (this.onreadystatechange) {
+                this.onreadystatechange(new ProgressEvent('readystatechange'));
+              }
+              return;
+            }
+          } catch (error) {
+            console.warn('[SherpaOnnx] XHR cache lookup failed:', error);
+          }
+        }
+        
+        return originalXHRSend.call(this, body);
       };
 
       // 临时覆盖 console.log 来避免 Next.js 客户端日志记录器崩溃
