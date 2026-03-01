@@ -103,9 +103,15 @@ export class SherpaOnnxEngine extends RecognitionEngine {
 
       await modelCacheManager.init();
 
-      // 使用 jsDelivr CDN（支持 GitHub Release）
-      // URL 格式: https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/{file}
-      const JSDELIVR_CDN = 'https://cdn.jsdelivr.net/gh/China-li-bai/sherpa-onnx-models@1.0.0';
+      // 使用 jsDelivr CDN - 但需要先把文件上传到 GitHub 仓库
+      // 临时解决方案：使用 cloudflare worker 代理或直接使用本地文件
+      // 
+      // 正确的解决方案：
+      // 1. 把模型文件上传到 GitHub 仓库（不是 Release）
+      // 2. 然后使用 jsDelivr CDN 访问
+      //
+      // 当前先尝试 jsDelivr（如果仓库有文件的话）
+      const JSDELIVR_CDN = 'https://cdn.jsdelivr.net/gh/China-li-bai/sherpa-onnx-models@main';
       
       const forcedRemoteConfig: RemoteResourceConfig = {
         baseUrl: JSDELIVR_CDN,
@@ -116,7 +122,7 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       };
       
       modelCacheManager.setRemoteConfig(forcedRemoteConfig);
-      console.log('[SherpaOnnx] Using jsDelivr CDN:', JSDELIVR_CDN);
+      console.log('[SherpaOnnx] Using jsDelivr CDN (仓库):', JSDELIVR_CDN);
 
       const remoteConfig = modelCacheManager.getRemoteConfig();
 
