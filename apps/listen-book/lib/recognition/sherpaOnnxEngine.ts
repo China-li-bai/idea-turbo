@@ -97,8 +97,14 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         console.log('[SherpaOnnx] Using remote resources:', this.config.remoteResources.baseUrl);
       }
 
-      const wasmUrl = '/sherpa-onnx-wasm-main-asr.wasm';
-      const dataUrl = '/sherpa-onnx-wasm-main-asr.data';
+      const remoteConfig = modelCacheManager.getRemoteConfig();
+      
+      const wasmUrl = remoteConfig 
+        ? `${remoteConfig.baseUrl}/${remoteConfig.files.wasm}`
+        : '/sherpa-onnx-wasm-main-asr.wasm';
+      const dataUrl = remoteConfig 
+        ? `${remoteConfig.baseUrl}/${remoteConfig.files.data}`
+        : '/sherpa-onnx-wasm-main-asr.data';
 
       const wasmOutdated = await modelCacheManager.checkVersion(wasmUrl);
       const dataOutdated = await modelCacheManager.checkVersion(dataUrl);
@@ -181,8 +187,6 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         locateFile: (path: string, scriptDirectory: string = '') => {
           console.log(`locateFile: ${path}, scriptDirectory: ${scriptDirectory}`);
           
-          const remoteConfig = modelCacheManager.getRemoteConfig();
-          
           if (path.endsWith('.wasm')) {
             if (remoteConfig) {
               return `${remoteConfig.baseUrl}/${remoteConfig.files.wasm}`;
@@ -256,8 +260,13 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         }
       };
 
-      await this.loadScript('/sherpa-onnx-asr.js');
-      await this.loadScript('/sherpa-onnx-wasm-main-asr.js');
+      if (remoteConfig) {
+        await this.loadScript(`${remoteConfig.baseUrl}/sherpa-onnx-asr.js`);
+        await this.loadScript(`${remoteConfig.baseUrl}/sherpa-onnx-wasm-main-asr.js`);
+      } else {
+        await this.loadScript('/sherpa-onnx-asr.js');
+        await this.loadScript('/sherpa-onnx-wasm-main-asr.js');
+      }
 
       console.log('Sherpa-onnx initialized successfully');
     } catch (error) {
