@@ -103,11 +103,12 @@ export class SherpaOnnxEngine extends RecognitionEngine {
 
       await modelCacheManager.init();
 
-      // 强制使用 GitHub Release 下载链接
-      const GITHUB_RELEASE_URL = 'https://github.com/China-li-bai/sherpa-onnx-models/releases/download/1.0.0';
+      // 使用 jsDelivr CDN（支持 GitHub Release）
+      // URL 格式: https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/{file}
+      const JSDELIVR_CDN = 'https://cdn.jsdelivr.net/gh/China-li-bai/sherpa-onnx-models@1.0.0';
       
       const forcedRemoteConfig: RemoteResourceConfig = {
-        baseUrl: GITHUB_RELEASE_URL,
+        baseUrl: JSDELIVR_CDN,
         files: {
           wasm: 'sherpa-onnx-wasm-main-asr.wasm',
           data: 'sherpa-onnx-wasm-main-asr.data',
@@ -115,7 +116,7 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       };
       
       modelCacheManager.setRemoteConfig(forcedRemoteConfig);
-      console.log('[SherpaOnnx] Using GitHub Release:', GITHUB_RELEASE_URL);
+      console.log('[SherpaOnnx] Using jsDelivr CDN:', JSDELIVR_CDN);
 
       const remoteConfig = modelCacheManager.getRemoteConfig();
 
