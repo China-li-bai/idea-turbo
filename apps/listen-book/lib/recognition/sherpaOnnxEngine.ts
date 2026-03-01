@@ -103,10 +103,19 @@ export class SherpaOnnxEngine extends RecognitionEngine {
 
       await modelCacheManager.init();
 
-      if (this.config.remoteResources) {
-        modelCacheManager.setRemoteConfig(this.config.remoteResources);
-        console.log('[SherpaOnnx] Using remote resources:', this.config.remoteResources.baseUrl);
-      }
+      // 强制使用 GitHub Release 下载链接
+      const GITHUB_RELEASE_URL = 'https://github.com/China-li-bai/sherpa-onnx-models/releases/download/1.0.0';
+      
+      const forcedRemoteConfig: RemoteResourceConfig = {
+        baseUrl: GITHUB_RELEASE_URL,
+        files: {
+          wasm: 'sherpa-onnx-wasm-main-asr.wasm',
+          data: 'sherpa-onnx-wasm-main-asr.data',
+        }
+      };
+      
+      modelCacheManager.setRemoteConfig(forcedRemoteConfig);
+      console.log('[SherpaOnnx] Using GitHub Release:', GITHUB_RELEASE_URL);
 
       const remoteConfig = modelCacheManager.getRemoteConfig();
 
