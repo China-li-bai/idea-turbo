@@ -33,9 +33,6 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   private resultList: string[] = [];
   private originalConsole: { log: any; error: any; warn: any } | null = null;
 
-  private static isInitialized: boolean = false;
-  private static loadedScripts: Set<string> = new Set();
-
   constructor(config: RecognitionConfig, callbacks: RecognitionCallbacks) {
     super(config, callbacks);
   }
@@ -67,7 +64,7 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   private loadScript(src: string): Promise<void> {
     const scriptName = src.split('/').pop() || src;
     
-    if (SherpaOnnxEngine.loadedScripts.has(scriptName)) {
+    if ((window as any).__sherpaLoadedScripts?.has(scriptName)) {
       console.log(`Script ${scriptName} already loaded, skipping`);
       return Promise.resolve();
     }
@@ -78,7 +75,10 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       const script = document.createElement('script');
       script.src = src;
       script.onload = () => {
-        SherpaOnnxEngine.loadedScripts.add(scriptName);
+        if (!(window as any).__sherpaLoadedScripts) {
+          (window as any).__sherpaLoadedScripts = new Set();
+        }
+        (window as any).__sherpaLoadedScripts.add(scriptName);
         console.log(`Script loaded successfully: ${scriptName}`);
         resolve();
       };
@@ -94,7 +94,7 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         return;
       }
 
-      if (SherpaOnnxEngine.isInitialized) {
+      if ((window as any).__sherpaInitialized) {
         console.log('Sherpa-onnx already initialized, skipping');
         return;
       }
@@ -117,6 +117,39 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       };
 
       const originalConsole = this.originalConsole;
+
+      const originalXHROpen = XMLHttpRequest.prototype.open;
+      const originalXHRSend = XMLHttpRequest.prototype.send;
+      
+      XMLHttpRequest.prototype.open = function(method: string, url: string | URL, async: boolean = true, username?: string | null, password?: string | null) {
+        const urlString = url.toString();
+        
+        if (urlString.includes('sherpa-onnx-wasm-main-asr.data') || 
+            urlString.includes('sherpa-onnx-wasm-main-asr.wasm')) {
+          console.log(`[SherpaOnnx] XHR open intercepted: ${urlString}`);
+          
+          const rc = modelCacheManager.getRemoteConfig();
+          if (rc) {
+            const fileName = urlString.split('/').pop() || '';
+            let newUrl = urlString;
+            
+            if (fileName.includes('.data')) {
+              newUrl = `${rc.baseUrl}/${rc.files.data}`;
+            } else if (fileName.includes('.wasm')) {
+              newUrl = `${rc.baseUrl}/${rc.files.wasm}`;
+            }
+            
+            console.log(`[SherpaOnnx] XHR redirect to: ${newUrl}`);
+            return originalXHROpen.call(this, method, newUrl, async, username, password);
+          }
+        }
+        
+        return originalXHROpen.call(this, method, url, async, username, password);
+      };
+      
+      XMLHttpRequest.prototype.send = async function(body?: Document | XMLHttpRequestBodyInit | null) {
+        return originalXHRSend.call(this, body);
+      };
 
       const originalFetch = window.fetch;
       window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -243,7 +276,7 @@ export class SherpaOnnxEngine extends RecognitionEngine {
             console.error = originalConsole.error;
             console.warn = originalConsole.warn;
             
-            SherpaOnnxEngine.isInitialized = true;
+            (window as any).__sherpaInitialized = true;
           } catch (error) {
             console.log = originalConsole.log;
             console.error = originalConsole.error;
