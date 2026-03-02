@@ -8,15 +8,7 @@ export interface RecognitionResult {
 export interface RemoteResourceConfig {
   baseUrl: string;
   files: {
-    wasm: string;
     data: string;
-    encoder?: string;
-    encoderInt8?: string;
-    decoder?: string;
-    decoderInt8?: string;
-    joiner?: string;
-    joinerInt8?: string;
-    tokens?: string;
   };
 }
 

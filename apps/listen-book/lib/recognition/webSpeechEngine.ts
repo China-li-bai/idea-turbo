@@ -1,4 +1,4 @@
-import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from './engine';
+import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from '@idea-turbo/sherpa-onnx';
 
 interface WebSpeechConfig extends RecognitionConfig {
   maxAlternatives: number;

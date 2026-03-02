@@ -1,8 +1,7 @@
-import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from './engine';
+import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult, SherpaOnnxEngine } from '@idea-turbo/sherpa-onnx';
 import { WebSpeechEngine } from './webSpeechEngine';
-import { SherpaOnnxEngine } from './sherpaOnnxEngine';
 
-export type { RecognitionConfig, RecognitionResult } from './engine';
+export type { RecognitionConfig, RecognitionResult } from '@idea-turbo/sherpa-onnx';
 
 export interface RecognitionManagerCallbacks extends RecognitionCallbacks {
   onEngineChange?: (engine: 'webspeech' | 'sherpa-onnx') => void;

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SherpaOnnxEngine } from '../lib/recognition/sherpaOnnxEngine';
-import { RecognitionConfig, RecognitionCallbacks, RecognitionResult } from '../lib/recognition/engine';
+import { SherpaOnnxEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from '@idea-turbo/sherpa-onnx';
 import { AIConversationService } from '../lib/aiConversationService';
 import { HybridTTSService } from '../lib/speechService';
 import { useI18n } from '../lib/i18n/context';
@@ -145,15 +144,7 @@ export function VoiceConversation() {
         remoteResources: process.env.NEXT_PUBLIC_SHERPA_ONNX_CDN ? {
           baseUrl: process.env.NEXT_PUBLIC_SHERPA_ONNX_CDN,
           files: {
-            wasm: 'sherpa-onnx-wasm-main-asr.wasm',
             data: 'sherpa-onnx-wasm-main-asr.data',
-            encoder: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/encoder-epoch-99-avg-1.onnx',
-            encoderInt8: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/encoder-epoch-99-avg-1.int8.onnx',
-            decoder: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/decoder-epoch-99-avg-1.onnx',
-            decoderInt8: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/decoder-epoch-99-avg-1.int8.onnx',
-            joiner: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/joiner-epoch-99-avg-1.onnx',
-            joinerInt8: 'models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/joiner-epoch-99-avg-1.int8.onnx',
-            tokens: 'models/sherpa-onnx-streaming-zh-14M-2023-02-23/tokens.txt'
           }
         } : undefined
       };
