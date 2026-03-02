@@ -68,6 +68,7 @@ Idea-Turbo 是一个基于 Turborepo + pnpm 的 monorepo 项目，专注于 AI �
 - [x] 确定使用 `sherpa-onnx-wasm-main-asr.data` (bilingual-zh-en, 190MB)
 - [x] 支持中英混读 (Code-switching)
 - [x] 移除冗余的 .onnx 动态加载逻辑
+- [x] 清理未使用的 zh-14M 模型文件 (~78MB)
 
 #### ✅ Sherpa-ONNX 缓存优化
 - [x] 实现 IndexedDB 缓存 (`.data` 文件)
@@ -76,11 +77,9 @@ Idea-Turbo 是一个基于 Turborepo + pnpm 的 monorepo 项目，专注于 AI �
 - [x] 添加 `forceUpdateModel()` / `clearModelCache()` 方法
 
 #### ✅ CDN 策略简化
-- [x] 只缓存 `.data` 文件 (~1MB)
-- [x] 其他文件使用本地资源:
-  - `.wasm` → `public/sherpa-wasm/`
-  - `.onnx` 模型 → `public/models/`
-  - `.js` 加载器 → `public/`
+- [x] 只缓存 `.data` 文件 (bilingual 模型已嵌入)
+- [x] `.wasm` 和 `.js` 使用本地资源
+- [x] 移除动态 `.onnx` 加载 (模型已打包在 .data 中)
 
 #### ✅ 代码整合
 - [x] 将 `lib/recognition` 核心逻辑移入 `packages/sherpa-onnx`
