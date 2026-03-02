@@ -122,6 +122,21 @@ Use this skill when:
 - Debugging complex issues that require root cause analysis
 - Making architectural decisions or technology choices
 
+### Domain Routing (领域路由)
+
+当遇到以下特定领域问题时，可以自动触发对应的专业 skill：
+
+| 问题领域 | 触发关键词 | 建议 Skill |
+|----------|------------|-------------|
+| **WebAssembly** | wasm, .wasm, locateFile, Emscripten, .data 文件 | [webassembly-debugger](../webassembly-debugger/SKILL.md) |
+| **浏览器缓存** | indexedDB, cache, Blob URL, 重复下载 | [webassembly-debugger](../webassembly-debugger/SKILL.md) |
+| **Monorepo 项目** | turborepo, pnpm workspace, monorepo, workspace:* | [monorepo-manager](../monorepo-manager/SKILL.md) |
+| **CDN 配置** | CDN, 静态资源, public 目录, 资源分发 | [monorepo-manager](../monorepo-manager/SKILL.md) |
+| **音频处理** | audioContext, microphone, speech recognition, TTS | (待创建) |
+| **OCR/图像识别** | tesseract, canvas, image processing | (待创建) |
+
+**使用方式**: 当用户问题涉及上述领域时，自动触发对应的专业 skill 进行深度分析。
+
 ## Key Guidelines
 
 ### Golden Rules

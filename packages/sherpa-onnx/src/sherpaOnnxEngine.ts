@@ -1,5 +1,5 @@
 import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from './types';
-import { setupCacheInterceptor, modelCacheManager, MODEL_FILES, REMOTE_CONFIG } from './modelCacheManager';
+import { setupCacheInterceptor, modelCacheManager, REMOTE_CONFIG } from './modelCacheManager';
 
 interface SherpaOnnxModule {
   locateFile: (path: string, scriptDirectory?: string) => string;
@@ -125,41 +125,22 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       locateFile: (path: string, scriptDirectory: string = '') => {
         console.log('[SherpaOnnx] locateFile:', path);
         
-        let url: string;
-        
         if (path.endsWith('.data')) {
-          url = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
-        } else {
-          const fileName = path.split('/').pop() || '';
-          const modelPath = MODEL_FILES.modelPath;
-          
-          if (fileName.includes('encoder-')) {
-            url = `${modelPath}/encoder-epoch-99-avg-1.onnx`;
-          } else if (fileName.includes('decoder-')) {
-            url = `${modelPath}/decoder-epoch-99-avg-1.onnx`;
-          } else if (fileName.includes('joiner-')) {
-            url = `${modelPath}/joiner-epoch-99-avg-1.onnx`;
-          } else if (fileName.includes('tokens.txt')) {
-            url = `${modelPath}/tokens.txt`;
-          } else if (path.endsWith('.wasm')) {
-            url = path;
-          } else {
-            url = scriptDirectory + path;
-          }
-        }
-        
-        if (path.endsWith('.data')) {
+          const url = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
           const cachedBlobUrl = modelCacheManager.getBlobUrlSync(url);
           if (cachedBlobUrl) {
             console.log('[SherpaOnnx] Using cached blob URL for:', path);
             return cachedBlobUrl;
           }
           console.log('[SherpaOnnx] Using CDN URL for:', path);
-        } else {
-          console.log('[SherpaOnnx] Using local path for:', path);
+          return url;
         }
         
-        return url;
+        if (path.endsWith('.wasm')) {
+          return path;
+        }
+        
+        return scriptDirectory + path;
       },
       setStatus: (status: string) => {
         if (!status || !status.trim()) return;
