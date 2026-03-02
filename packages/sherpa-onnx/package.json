@@ -1,0 +1,37 @@
+{
+  "name": "@idea-turbo/sherpa-onnx",
+  "version": "0.1.0",
+  "description": "Sherpa-ONNX speech recognition engine for browser with model caching",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.4"
+  },
+  "keywords": [
+    "sherpa",
+    "onnx",
+    "speech-recognition",
+    "asr",
+    "webassembly",
+    "wasm"
+  ],
+  "author": "Idea Turbo",
+  "license": "MIT"
+}
