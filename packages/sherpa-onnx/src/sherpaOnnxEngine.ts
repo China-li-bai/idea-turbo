@@ -204,8 +204,8 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       }
     };
 
-    await this.loadScript(`${REMOTE_CONFIG.baseUrl}/sherpa-onnx-asr.js`);
-    await this.loadScript(`${REMOTE_CONFIG.baseUrl}/sherpa-onnx-wasm-main-asr.js`);
+    await this.loadScript('/sherpa-onnx-asr.js');
+    await this.loadScript('/sherpa-onnx-wasm-main-asr.js');
   }
 
   private restoreConsole(): void {
