@@ -1,7 +1,7 @@
 {
-  "name": "@idea-turbo/sherpa-onnx",
+  "name": "@idea-turbo/sherpa-onnx-tts",
   "version": "0.1.0",
-  "description": "Sherpa-ONNX speech recognition engine for browser with model caching",
+  "description": "Kokoro TTS engine with kokoro-js for browser",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
   "types": "./src/index.ts",
@@ -17,22 +17,28 @@
     "static"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "lint": "eslint src --ext .ts",
     "check-types": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "dependencies": {
+    "kokoro-js": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
     "typescript": "^5.5.4"
   },
   "keywords": [
-    "sherpa",
-    "onnx",
-    "speech-recognition",
-    "asr",
+    "tts",
+    "kokoro",
+    "kokoro-js",
+    "speech-synthesis",
     "webassembly",
-    "wasm"
+    "wasm",
+    "transformers.js"
   ],
   "author": "Idea Turbo",
   "license": "MIT"

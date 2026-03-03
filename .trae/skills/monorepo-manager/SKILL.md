@@ -67,26 +67,68 @@ packages:
 }
 ```
 
-#### 包 package.json
+#### 包 package.json（两种模式）
+
+**模式一：源文件直接导出（推荐开发时使用）**
+
+无需构建，Next.js/Turbopack 自动编译 TypeScript。适合开发阶段快速迭代。
 
 ```json
 {
   "name": "@myorg/some-package",
   "version": "0.1.0",
   "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  }
+}
+```
+
+**模式二：构建后导出（发布时使用）**
+
+需要先构建，适合发布到 npm 或生产环境。
+
+```json
+{
+  "name": "@myorg/some-package",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   }
 }
 ```
+
+**选择建议**：
+| 场景 | 推荐模式 | 原因 |
+|------|----------|------|
+| 内部 monorepo 开发 | 源文件导出 | 无需构建，热更新快 |
+| 发布到 npm | 构建后导出 | 兼容性好，用户无需 TS |
+| 包含复杂构建步骤 | 构建后导出 | 如需要 babel、rollup 等 |
 
 ### 3. turbo.json 配置
 
@@ -413,17 +455,55 @@ const CACHE_STRATEGY = {
 
 **错误**: `Module not found: Can't resolve '@idea-turbo/sherpa-onnx'`
 
-**解决**:
+**根本原因分析**:
+1. 包的 `exports` 指向 `dist/` 但未构建
+2. pnpm workspace 链接未正确建立
+3. 包名或路径配置错误
+
+**解决方案（按推荐顺序）**:
+
+**方案 A：源文件直接导出（开发阶段推荐）**
+
+修改 `packages/xxx/package.json`：
+```json
+{
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"]
+}
+```
+
+然后重新安装：
 ```bash
-# 1. 确保包已构建
+pnpm install
+```
+
+**方案 B：构建后使用**
+```bash
+# 构建指定包
 pnpm run build --filter=@idea-turbo/sherpa-onnx
 
-# 2. 重新安装依赖
-rm -rf node_modules
-pnpm install
+# 或构建所有
+pnpm run build
+```
 
-# 3. 清理 Turborepo 缓存
+**方案 C：完全重置**
+```bash
+# 清理所有缓存
+rm -rf node_modules
+rm -rf **/node_modules
+rm pnpm-lock.yaml
 turbo clean
+
+# 重新安装
+pnpm install
 ```
 
 ### 2. 类型定义丢失
