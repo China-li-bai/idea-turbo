@@ -1,7 +1,7 @@
 {
   "name": "@idea-turbo/sherpa-onnx-tts",
-  "version": "0.1.0",
-  "description": "Kokoro TTS engine with kokoro-js for browser",
+  "version": "0.2.0",
+  "description": "High-performance Kokoro TTS engine with ONNX Runtime WebGPU acceleration",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
   "types": "./src/index.ts",
@@ -13,32 +13,36 @@
     }
   },
   "files": [
-    "src",
-    "static"
+    "src"
   ],
   "scripts": {
     "check-types": "tsc --noEmit"
   },
+  "dependencies": {
+    "onnxruntime-web": "^1.21.0-dev.20250206-d981b153d3"
+  },
   "peerDependencies": {
     "react": ">=18.0.0"
   },
-  "dependencies": {
-    "kokoro-js": "^1.0.0"
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/react": "^19.0.0",
-    "react": "^19.0.0",
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
     "typescript": "^5.5.4"
   },
   "keywords": [
     "tts",
     "kokoro",
-    "kokoro-js",
+    "onnx",
+    "webgpu",
     "speech-synthesis",
-    "webassembly",
-    "wasm",
-    "transformers.js"
+    "text-to-speech",
+    "ai-voice"
   ],
   "author": "Idea Turbo",
   "license": "MIT"

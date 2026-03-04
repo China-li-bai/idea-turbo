@@ -1,42 +1,48 @@
 'use client';
 
 import { useState } from 'react';
-import { useKokoroTts, KOKORO_SPEAKERS } from '@idea-turbo/sherpa-onnx-tts';
+import { useKokoroTts, voicesByLang, defaultVoice } from '@idea-turbo/sherpa-onnx-tts';
 
 export function KokoroTtsDemo() {
-  const [text, setText] = useState('你好，这是一个 Kokoro TTS 测试。Hello, this is a Kokoro TTS test.');
-  const [selectedSpeaker, setSelectedSpeaker] = useState(47);
-  
+  const [text, setText] = useState('Hello, this is a test of Kokoro TTS. 你好，这是一个测试。');
+  const [selectedVoiceId, setSelectedVoiceId] = useState(defaultVoice.id);
+
   const {
     isReady,
     isLoading,
     loadProgress,
     error,
-    speakers,
-    currentSpeaker,
-    generateAndPlay,
-    setSpeaker,
+    voices,
+    currentVoice,
+    languages,
+    speak,
+    setVoice,
     initialize,
+    destroy,
   } = useKokoroTts({
-    defaultSpeakerId: selectedSpeaker,
+    defaultVoice: selectedVoiceId,
+    autoInit: false,
+    acceleration: 'auto',
+    dtype: 'q8f16',
     debug: true,
   });
-
-  const chineseSpeakers = speakers.filter((s: { language: string }) => s.language === 'zh');
 
   const handlePlay = async () => {
     if (!text.trim()) return;
     try {
-      await generateAndPlay(text, selectedSpeaker, 1.0);
+      await speak(text, selectedVoiceId, 1.0);
     } catch (err) {
       console.error('TTS error:', err);
     }
   };
 
+  const chineseVoices = voicesByLang['cmn'] || [];
+  const englishVoices = [...(voicesByLang['en-us'] || []), ...(voicesByLang['en-gb'] || [])];
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Kokoro TTS Demo</h2>
-      
+      <h2 className="text-2xl font-bold mb-4">Kokoro TTS Demo (WebGPU Accelerated)</h2>
+
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-2">Text to speak</label>
@@ -49,25 +55,47 @@ export function KokoroTtsDemo() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Speaker</label>
+          <label className="block text-sm font-medium mb-2">Voice</label>
           <select
-            value={selectedSpeaker}
+            value={selectedVoiceId}
             onChange={(e) => {
-              const id = parseInt(e.target.value);
-              setSelectedSpeaker(id);
-              setSpeaker(id);
+              setSelectedVoiceId(e.target.value);
+              setVoice(e.target.value);
             }}
             className="w-full p-2 border rounded"
           >
-            {chineseSpeakers.map((speaker: { id: number; name: string; description?: string }) => (
-              <option key={speaker.id} value={speaker.id}>
-                {speaker.name} - {speaker.description}
-              </option>
-            ))}
+            <optgroup label="English (US)">
+              {voicesByLang['en-us']?.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} ({voice.gender}) - Grade: {voice.overallGrade}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="English (GB)">
+              {voicesByLang['en-gb']?.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} ({voice.gender}) - Grade: {voice.overallGrade}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Chinese">
+              {chineseVoices.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} ({voice.gender})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Japanese">
+              {voicesByLang['ja']?.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} ({voice.gender})
+                </option>
+              ))}
+            </optgroup>
           </select>
-          {currentSpeaker && (
+          {currentVoice && (
             <p className="text-sm text-gray-500 mt-1">
-              Current: {currentSpeaker.name} ({currentSpeaker.gender})
+              Current: {currentVoice.name} ({currentVoice.lang.name}, {currentVoice.gender})
             </p>
           )}
         </div>
@@ -81,21 +109,29 @@ export function KokoroTtsDemo() {
               Initialize TTS Engine
             </button>
           )}
-          
+
           {isLoading && (
             <div className="flex items-center gap-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              <span>Loading... {Math.round(loadProgress)}%</span>
+              <span>Loading... {Math.round(loadProgress * 100)}%</span>
             </div>
           )}
-          
+
           {isReady && (
-            <button
-              onClick={handlePlay}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-            >
-              Play
-            </button>
+            <>
+              <button
+                onClick={handlePlay}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Play
+              </button>
+              <button
+                onClick={destroy}
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Destroy
+              </button>
+            </>
           )}
         </div>
 
@@ -107,7 +143,7 @@ export function KokoroTtsDemo() {
 
         {isReady && (
           <div className="p-3 bg-green-100 text-green-700 rounded">
-            TTS Engine ready! Model loaded successfully.
+            TTS Engine ready! Model loaded with WebGPU acceleration.
           </div>
         )}
       </div>
