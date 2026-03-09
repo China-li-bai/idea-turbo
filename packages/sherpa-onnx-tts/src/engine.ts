@@ -232,24 +232,46 @@ export async function generate(text: string, options: GenerateOptions = {}): Pro
     if (chunk.type === 'text' && chunk.tokens && chunk.tokens.length > 0) {
       console.log('[KokoroTTS] Text chunk:', chunk.content, 'tokens:', chunk.tokens.length);
       
-      const tokens = chunk.tokens;
-      const ref_s = voiceData[tokens.length - 1][0];
-      const paddedTokens = [0, ...tokens, 0];
+      try {
+        const tokens = chunk.tokens;
+        const voiceIndex = tokens.length - 1;
+        
+        if (voiceIndex >= voiceData.length) {
+          console.error('[KokoroTTS] Voice index out of bounds:', voiceIndex, 'voiceData.length:', voiceData.length);
+          continue;
+        }
+        
+        const ref_s = voiceData[voiceIndex][0];
+        const paddedTokens = [0, ...tokens, 0];
 
-      const input_ids = new ort.Tensor('int64', paddedTokens, [1, paddedTokens.length]);
-      const style = new ort.Tensor('float32', ref_s, [1, ref_s.length]);
-      const speedTensor = new ort.Tensor('float32', [1], [1]);
+        console.log('[KokoroTTS] Creating tensors...');
+        const input_ids = new ort.Tensor('int64', paddedTokens, [1, paddedTokens.length]);
+        const style = new ort.Tensor('float32', ref_s, [1, ref_s.length]);
+        const speedTensor = new ort.Tensor('float32', [1], [1]);
 
-      const result = await session.run({ input_ids, style, speed: speedTensor });
-      let waveform = result.waveform.data as Float32Array;
-      
-      console.log('[KokoroTTS] Raw waveform length:', waveform.length, 'max:', Math.max(...waveform));
-      
-      waveform = trimWaveform(waveform);
-      console.log('[KokoroTTS] Trimmed waveform length:', waveform.length);
+        console.log('[KokoroTTS] Running inference...');
+        const result = await session.run({ input_ids, style, speed: speedTensor });
+        
+        console.log('[KokoroTTS] Inference complete, outputs:', Object.keys(result));
+        let waveform: Float32Array;
+        
+        if (result.waveform.data) {
+          waveform = result.waveform.data as Float32Array;
+        } else {
+          waveform = await result.waveform.getData() as Float32Array;
+        }
+        
+        console.log('[KokoroTTS] Raw waveform length:', waveform.length, 'max:', Math.max(...waveform));
+        
+        waveform = trimWaveform(waveform);
+        console.log('[KokoroTTS] Trimmed waveform length:', waveform.length);
 
-      waveforms.push(waveform);
-      waveformsLen += waveform.length;
+        waveforms.push(waveform);
+        waveformsLen += waveform.length;
+      } catch (error) {
+        console.error('[KokoroTTS] Error processing chunk:', error);
+        throw error;
+      }
     }
   }
 
