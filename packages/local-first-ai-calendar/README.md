@@ -1,12 +1,17 @@
 # Local-First AI Calendar
 
-A privacy-first, local-first AI calendar with WebGPU-powered embeddings and RAG.
+A privacy-first, local-first AI calendar with WebGPU-powered embeddings, RAG, and EdgeVec vector database.
 
 ## Features
 
 - **100% Local Data Storage**: All data stays in your browser via IndexedDB
 - **WebGPU Embeddings**: Generate embeddings locally using Transformers.js
-- **Vector Search**: Fast similarity search with cosine similarity
+- **EdgeVec Vector Database**: High-performance WASM-native vector database with:
+  - HNSW + FlatIndex for fast similarity search
+  - Binary quantization for 32x memory reduction
+  - Metadata filtering with SQL-like expressions
+  - Sub-millisecond search latency
+- **Vector Search**: Fast cosine similarity search powered by EdgeVec
 - **RAG Integration**: Ask questions about your calendar with AI assistance
 - **Offline-First**: Works completely offline, no cloud required
 - **Privacy-First**: Your data never leaves your device unless you explicitly choose to use RAG
@@ -82,10 +87,40 @@ Creates a new calendar instance.
 This package follows a modular architecture:
 
 1. **Storage Layer** (`storage.ts`): IndexedDB persistence via localforage
-2. **Vector DB** (`vectorDB.ts`): In-memory vector database with cosine similarity
+2. **Vector DB** (`vectorDB.ts`): EdgeVec WASM-native vector database with high-performance search
 3. **Embedding Engine** (`embeddingEngine.ts`): Transformers.js for local embeddings
 4. **RAG Engine** (`ragEngine.ts`): Remote LLM integration for AI queries
 5. **Main Class** (`index.ts`): Orchestrates all components
+
+## EdgeVec Integration
+
+### Key Features
+
+EdgeVec is a WASM-native vector database built in Rust, providing:
+
+- **High Performance**: Sub-millisecond search latency with HNSW index
+- **Memory Efficiency**: Binary quantization reduces memory usage by 32x
+- **Metadata Filtering**: SQL-like filter expressions for precise queries
+- **Soft Delete**: Mark vectors as deleted without immediate removal
+- **Persistence**: IndexedDB persistence support (coming soon)
+
+### Performance Benefits
+
+| Feature | Benefit |
+|---------|---------|
+| WASM Native | Near-native performance in the browser |
+| HNSW Index | Fast approximate nearest neighbor search |
+| Binary Quantization | 32x memory reduction with ~95% recall |
+| SIMD Optimization | 2x+ faster vector operations on modern browsers |
+
+## Changelog
+
+### v0.1.0
+- Initial release
+- Integrated EdgeVec as the vector database
+- WebGPU-powered embeddings via Transformers.js
+- RAG integration for AI queries
+- IndexedDB persistence
 
 ## License
 
