@@ -1,5 +1,6 @@
 import { tokenize } from './tokenizer';
 import type { TextProcessorChunk } from './types';
+import { pinyin } from 'pinyin-pro';
 
 const phonemeMap: Record<string, string> = {
   a: 'ɑ',
@@ -46,6 +47,69 @@ const phonemeMap: Record<string, string> = {
   ur: 'ɜːr',
 };
 
+const pinyinToIpa: Record<string, string> = {
+  a: 'ɑ',
+  ai: 'aɪ',
+  an: 'an',
+  ang: 'ɑŋ',
+  ao: 'aʊ',
+  b: 'p',
+  c: 'tsʰ',
+  ch: 'tʂʰ',
+  d: 't',
+  e: 'ɤ',
+  ei: 'eɪ',
+  en: 'ən',
+  eng: 'ɤŋ',
+  er: 'ɚ',
+  f: 'f',
+  g: 'k',
+  h: 'x',
+  i: 'i',
+  ia: 'iɑ',
+  ian: 'iɛn',
+  iang: 'iɑŋ',
+  iao: 'iaʊ',
+  ie: 'iɛ',
+  in: 'in',
+  ing: 'iŋ',
+  iong: 'iʊŋ',
+  iu: 'iou',
+  j: 'tɕ',
+  k: 'kʰ',
+  l: 'l',
+  m: 'm',
+  n: 'n',
+  ng: 'ŋ',
+  o: 'ɔ',
+  ong: 'ʊŋ',
+  ou: 'oʊ',
+  p: 'pʰ',
+  q: 'tɕʰ',
+  r: 'ʐ',
+  s: 's',
+  sh: 'ʂ',
+  t: 'tʰ',
+  u: 'u',
+  ua: 'uɑ',
+  uai: 'uaɪ',
+  uan: 'uan',
+  uang: 'uɑŋ',
+  ue: 'yɛ',
+  ui: 'ueɪ',
+  un: 'un',
+  uo: 'uɔ',
+  v: 'y',
+  van: 'yɛn',
+  ve: 'yɛ',
+  vn: 'yn',
+  w: 'w',
+  x: 'ɕ',
+  y: 'j',
+  z: 'ts',
+  zh: 'tʂ',
+};
+
 function normalizeText(text: string): string {
   return text
     .replaceAll('\u2018', "'")
@@ -66,7 +130,31 @@ function normalizeText(text: string): string {
     .trim();
 }
 
-export async function phonemize(text: string, _langId: string): Promise<string> {
+export async function phonemize(text: string, langId: string): Promise<string> {
+  const normalized = normalizeText(text);
+  
+  if (langId === 'cmn') {
+    return phonemizeChinese(text);
+  }
+  
+  return phonemizeEnglish(text);
+}
+
+function phonemizeChinese(text: string): string {
+  const py = pinyin(text, { toneType: 'symbol', pattern: 'num' });
+  const ipaParts: string[] = [];
+  
+  for (const part of py) {
+    const pinyinStr = pinyinToIpa[part] || pinyinToIpa[part];
+    if (pinyinToIpa[part]) {
+      ipaParts.push(pinyinToIpa[part]);
+    }
+  }
+  
+  return ipaParts.join(' ');
+}
+
+function phonemizeEnglish(text: string): string {
   const normalized = normalizeText(text);
   const words = normalized.toLowerCase().split(/\s+/);
   const phonemes: string[] = [];

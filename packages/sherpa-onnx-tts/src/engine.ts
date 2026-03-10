@@ -261,7 +261,12 @@ export async function generate(text: string, options: GenerateOptions = {}): Pro
           waveform = await result.waveform.getData() as Float32Array;
         }
         
-        console.log('[KokoroTTS] Raw waveform length:', waveform.length, 'max:', Math.max(...waveform));
+        let maxVal = 0;
+        for (let i = 0; i < waveform.length; i++) {
+          const absVal = Math.abs(waveform[i]);
+          if (absVal > maxVal) maxVal = absVal;
+        }
+        console.log('[KokoroTTS] Raw waveform length:', waveform.length, 'max:', maxVal);
         
         waveform = trimWaveform(waveform);
         console.log('[KokoroTTS] Trimmed waveform length:', waveform.length);
