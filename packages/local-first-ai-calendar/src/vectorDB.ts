@@ -1,10 +1,12 @@
-import init, { EdgeVec as EdgeVecWasm } from "edgevec";
+import init, { EdgeVec as EdgeVecWasm, EdgeVecConfig } from "edgevec";
 import { VectorEntry, SearchResult, VectorDBConfig, CalendarEvent } from "./types";
 
 export class VectorDB {
   private db: EdgeVecWasm | null = null;
   private config: VectorDBConfig;
   private initialized: boolean = false;
+  private idToVectorId: Map<string, number> = new Map();
+  private vectorIdToEntry: Map<number, VectorEntry> = new Map();
 
   constructor(config: VectorDBConfig) {
     this.config = config;
@@ -16,7 +18,8 @@ export class VectorDB {
     }
 
     await init();
-    this.db = new EdgeVecWasm({ dimensions: this.config.dimension });
+    const config = new EdgeVecConfig(this.config.dimension);
+    this.db = new EdgeVecWasm(config);
     this.initialized = true;
   }
 
@@ -36,19 +39,29 @@ export class VectorDB {
     }
 
     const vector = new Float32Array(entry.vector);
-    this.db!.insertWithMetadata(vector, {
+    const vectorId = this.db!.insertWithMetadata(vector, {
       id: entry.id,
       title: entry.metadata.title,
       startTime: entry.metadata.startTime.toISOString(),
       endTime: entry.metadata.endTime.toISOString(),
       metadata: JSON.stringify(entry.metadata),
     });
+
+    this.idToVectorId.set(entry.id, vectorId);
+    this.vectorIdToEntry.set(vectorId, entry);
   }
 
   removeEntry(id: string): boolean {
     this.ensureInitialized();
+    const vectorId = this.idToVectorId.get(id);
+    if (vectorId === undefined) {
+      return false;
+    }
+
     try {
-      this.db!.delete(id);
+      this.db!.softDelete(vectorId);
+      this.idToVectorId.delete(id);
+      this.vectorIdToEntry.delete(vectorId);
       return true;
     } catch {
       return false;
@@ -56,11 +69,15 @@ export class VectorDB {
   }
 
   getEntry(id: string): VectorEntry | undefined {
-    return undefined;
+    const vectorId = this.idToVectorId.get(id);
+    if (vectorId === undefined) {
+      return undefined;
+    }
+    return this.vectorIdToEntry.get(vectorId);
   }
 
   getAllEntries(): VectorEntry[] {
-    return [];
+    return Array.from(this.vectorIdToEntry.values());
   }
 
   loadEntries(entries: VectorEntry[]): void {
@@ -70,7 +87,10 @@ export class VectorDB {
 
   clear(): void {
     this.ensureInitialized();
-    this.db = new EdgeVecWasm({ dimensions: this.config.dimension });
+    const config = new EdgeVecConfig(this.config.dimension);
+    this.db = new EdgeVecWasm(config);
+    this.idToVectorId.clear();
+    this.vectorIdToEntry.clear();
   }
 
   search(queryVector: number[], topK: number = this.config.topK): SearchResult[] {
@@ -85,13 +105,18 @@ export class VectorDB {
     const query = new Float32Array(queryVector);
     const results = this.db!.search(query, topK);
 
-    return results.map((result: any) => {
-      const metadata = JSON.parse(result.metadata.metadata);
-      return {
-        event: metadata as CalendarEvent,
-        score: 1 - result.distance,
-      };
-    });
+    return results
+      .map((result: any) => {
+        const entry = this.vectorIdToEntry.get(result.id);
+        if (!entry) {
+          return null;
+        }
+        return {
+          event: entry.metadata as CalendarEvent,
+          score: 1 - result.distance,
+        };
+      })
+      .filter((result: SearchResult | null): result is SearchResult => result !== null);
   }
 
   searchWithTimeFilter(
@@ -109,19 +134,26 @@ export class VectorDB {
 
     try {
       const results = this.db!.searchWithFilter(query, filter, topK);
-      return results.map((result: any) => {
-        const metadata = JSON.parse(result.metadata.metadata);
-        return {
-          event: metadata as CalendarEvent,
-          score: 1 - result.distance,
-        };
-      });
+      return results
+        .map((result: any) => {
+          const entry = this.vectorIdToEntry.get(result.id);
+          if (!entry) {
+            return null;
+          }
+          return {
+            event: entry.metadata as CalendarEvent,
+            score: 1 - result.distance,
+          };
+        })
+        .filter((result: SearchResult | null): result is SearchResult => result !== null);
     } catch {
       const allResults = this.search(queryVector, this.config.topK * 10);
-      return allResults.filter(
-        (result) =>
-          result.event.startTime < endTime && result.event.endTime > startTime
-      ).slice(0, topK);
+      return allResults
+        .filter(
+          (result) =>
+            result.event.startTime < endTime && result.event.endTime > startTime
+        )
+        .slice(0, topK);
     }
   }
 }
