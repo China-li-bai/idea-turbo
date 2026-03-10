@@ -1,20 +1,23 @@
-import { Storage } from "./storage";
-import { VectorDB } from "./vectorDB";
-import { EmbeddingEngine } from "./embeddingEngine";
-import { RAGEngine } from "./ragEngine";
+import { Storage } from "./storage.js";
+import { VectorDB } from "./vectorDB.js";
+import { EmbeddingEngine } from "./embeddingEngine.js";
+import { RAGEngine } from "./ragEngine.js";
 import {
   CalendarEvent,
   CalendarConfig,
   SearchResult,
   DEFAULT_CALENDAR_CONFIG,
   VectorEntry,
-} from "./types";
+  FilterOptions,
+  CompactionResult,
+  MemoryPressure,
+} from "./types.js";
 
-export * from "./types";
-export { Storage } from "./storage";
-export { VectorDB } from "./vectorDB";
-export { EmbeddingEngine } from "./embeddingEngine";
-export { RAGEngine } from "./ragEngine";
+export * from "./types.js";
+export { Storage } from "./storage.js";
+export { VectorDB } from "./vectorDB.js";
+export { EmbeddingEngine } from "./embeddingEngine.js";
+export { RAGEngine } from "./ragEngine.js";
 
 export class LocalFirstAICalendar {
   private config: CalendarConfig;
@@ -184,6 +187,66 @@ export class LocalFirstAICalendar {
   async clearAll(): Promise<void> {
     await this.storage.clearAll();
     this.vectorDB.clear();
+  }
+
+  async searchEventsWithFilter(
+    query: string,
+    options: FilterOptions,
+    topK?: number
+  ): Promise<SearchResult[]> {
+    await this.ensureInitialized();
+
+    const queryEmbedding = await this.embeddingEngine.generateQueryEmbedding(query);
+    return this.vectorDB.searchWithFilter(queryEmbedding, options, topK);
+  }
+
+  async searchEventsBQ(query: string, topK?: number): Promise<SearchResult[]> {
+    await this.ensureInitialized();
+
+    const queryEmbedding = await this.embeddingEngine.generateQueryEmbedding(query);
+    return this.vectorDB.searchBQ(queryEmbedding, topK);
+  }
+
+  needsCompaction(): boolean {
+    return this.vectorDB.needsCompaction();
+  }
+
+  getCompactionWarning(): string | undefined {
+    return this.vectorDB.getCompactionWarning();
+  }
+
+  compact(): CompactionResult {
+    return this.vectorDB.compact();
+  }
+
+  getMemoryPressure(): MemoryPressure {
+    return this.vectorDB.getMemoryPressure();
+  }
+
+  getStats(): {
+    liveCount: number;
+    deletedCount: number;
+    tombstoneRatio: number;
+    totalMetadataCount: number;
+  } {
+    return this.vectorDB.getStats();
+  }
+
+  async saveDatabase(name: string): Promise<void> {
+    await this.vectorDB.save(name);
+  }
+
+  static async loadDatabase(
+    name: string,
+    config: Partial<CalendarConfig> = {}
+  ): Promise<LocalFirstAICalendar> {
+    const fullConfig = { ...DEFAULT_CALENDAR_CONFIG, ...config };
+    const instance = new LocalFirstAICalendar(config);
+    
+    instance.vectorDB = await VectorDB.load(name, fullConfig.vectorDB);
+    instance.initialized = true;
+    
+    return instance;
   }
 
   private async ensureInitialized(): Promise<void> {

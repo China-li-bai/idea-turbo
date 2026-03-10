@@ -1,5 +1,5 @@
 import { pipeline, env } from "@xenova/transformers";
-import { EmbeddingConfig, CalendarEvent } from "./types";
+import { EmbeddingConfig, CalendarEvent } from "./types.js";
 
 env.allowLocalModels = true;
 env.useBrowserCache = true;
@@ -11,6 +11,14 @@ export class EmbeddingEngine {
 
   constructor(config: EmbeddingConfig) {
     this.config = config;
+    
+    if (config.localModelPath) {
+      env.localModelPath = config.localModelPath;
+    }
+    
+    if (config.allowRemoteModels !== undefined) {
+      env.allowRemoteModels = config.allowRemoteModels;
+    }
   }
 
   async initialize(): Promise<void> {

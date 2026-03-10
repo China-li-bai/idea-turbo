@@ -1,5 +1,5 @@
 import localforage from "localforage";
-import { CalendarEvent, VectorEntry } from "./types";
+import { CalendarEvent, VectorEntry } from "./types.js";
 
 export class Storage {
   private eventStore: LocalForage;

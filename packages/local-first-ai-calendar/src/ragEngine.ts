@@ -1,4 +1,4 @@
-import { RAGConfig, CalendarEvent, SearchResult } from "./types";
+import { RAGConfig, CalendarEvent, SearchResult } from "./types.js";
 
 export class RAGEngine {
   private config: RAGConfig;

@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地化 Embedding 测试 - Transformers.js + WebGPU</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    
+    .status {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border-left: 4px solid #28a745;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+    }
+    
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border-left: 4px solid #17a2b8;
+    }
+    
+    .status.loading {
+      background: #fff3cd;
+      color: #856404;
+      border-left: 4px solid #ffc107;
+    }
+    
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #856404;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .progress {
+      margin-top: 12px;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 24px;
+      background: #e9ecef;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .section {
+      margin-bottom: 32px;
+    }
+    
+    h2 {
+      color: #444;
+      font-size: 20px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #667eea;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+      margin: 4px;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .log {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    
+    .log-entry.error {
+      color: #ff6b6b;
+    }
+    
+    .log-entry.info {
+      color: #4ecdc4;
+    }
+    
+    .log-entry.warn {
+      color: #ffd93d;
+    }
+    
+    .log-entry.success {
+      color: #69db7c;
+    }
+    
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    
+    .metric-card {
+      background: #f8f9fa;
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .metric-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+    
+    .metric-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .test-results {
+      margin-top: 16px;
+    }
+    
+    .result-item {
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .result-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    
+    .result-meta {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .result-vector {
+      font-family: monospace;
+      font-size: 11px;
+      color: #667eea;
+      background: white;
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    
+    .similarity-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .similarity-item {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .similarity-score {
+      font-size: 24px;
+      font-weight: 700;
+      color: #28a745;
+    }
+    
+    .similarity-label {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #555;
+    }
+    
+    input, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 2px solid #e9ecef;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .info-box {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 12px;
+      border-radius: 4px;
+      margin: 16px 0;
+      font-size: 13px;
+      color: #0c5460;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧠 本地化 Embedding 测试</h1>
+    <p class="subtitle">Transformers.js + WebGPU | 完全在浏览器中运行的 AI 向量化引擎</p>
+    
+    <div id="status" class="status info">
+      <span>准备就绪，点击下方按钮开始测试</span>
+    </div>
+    
+    <div id="progressSection" class="section" style="display: none;">
+      <div class="progress">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill" style="width: 0%">0%</div>
+        </div>
+        <p id="progressText" style="margin-top: 8px; font-size: 14px; color: #666; text-align: center;"></p>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>🚀 步骤 1: 初始化模型</h2>
+      <div class="btn-group">
+        <button id="initBtn" class="btn btn-primary" onclick="initializeModel()">
+          初始化 Embedding 模型
+        </button>
+        <button id="checkCacheBtn" class="btn btn-success" onclick="checkCache()">
+          检查缓存状态
+        </button>
+      </div>
+      
+      <div class="info-box">
+        <strong>模型信息：</strong><br>
+        • 模型名称: Xenova/multilingual-e5-small<br>
+        • 向量维度: 384<br>
+        • 支持语言: 多语言（包括中文）<br>
+        • 首次下载: 约 100-150MB<br>
+        • 缓存位置: 浏览器 Cache API
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>📊 步骤 2: 性能测试</h2>
+      <div class="btn-group">
+        <button id="testBtn" class="btn btn-primary" onclick="runPerformanceTest()" disabled>
+          运行性能测试
+        </button>
+      </div>
+      
+      <div id="metricsSection" style="display: none;">
+        <div class="metrics">
+          <div class="metric-card">
+            <div class="metric-value" id="avgTime">-</div>
+            <div class="metric-label">平均生成时间</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="totalTime">-</div>
+            <div class="metric-label">总耗时</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="vectorDim">384</div>
+            <div class="metric-label">向量维度</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="testCount">0</div>
+            <div class="metric-label">测试次数</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>🎯 步骤 3: 向量相似度测试</h2>
+      <div class="btn-group">
+        <button id="similarityBtn" class="btn btn-primary" onclick="testSimilarity()" disabled>
+          测试相似度计算
+        </button>
+      </div>
+      
+      <div id="similarityResults" style="display: none;">
+        <div class="similarity-matrix" id="similarityMatrix"></div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>📅 步骤 4: 日历事件搜索测试</h2>
+      <div class="form-group">
+        <label for="searchQuery">搜索查询</label>
+        <input type="text" id="searchQuery" placeholder="例如：团队会议、产品设计、技术分享">
+      </div>
+      <div class="btn-group">
+        <button id="searchBtn" class="btn btn-success" onclick="searchEvents()" disabled>
+          搜索事件
+        </button>
+      </div>
+      
+      <div id="searchResults" class="test-results" style="display: none;"></div>
+    </div>
+    
+    <div class="section">
+      <h2>📝 运行日志</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+    
+    let extractor = null;
+    let isLoading = false;
+    let testEvents = [];
+    let eventEmbeddings = new Map();
+    
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${time}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(`[${type.toUpperCase()}]`, message);
+    }
+    
+    function setStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('status');
+      statusDiv.className = `status ${type}`;
+      
+      if (type === 'loading') {
+        statusDiv.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+      } else {
+        statusDiv.innerHTML = `<span>${message}</span>`;
+      }
+    }
+    
+    function updateProgress(progress, text) {
+      const progressSection = document.getElementById('progressSection');
+      const progressFill = document.getElementById('progressFill');
+      const progressText = document.getElementById('progressText');
+      
+      progressSection.style.display = 'block';
+      progressFill.style.width = `${progress}%`;
+      progressFill.textContent = `${progress}%`;
+      progressText.textContent = text;
+    }
+    
+    async function initializeModel() {
+      if (extractor || isLoading) {
+        log('模型已经在加载或已加载', 'warn');
+        return;
+      }
+      
+      isLoading = true;
+      const initBtn = document.getElementById('initBtn');
+      initBtn.disabled = true;
+      
+      try {
+        log('开始初始化 Embedding 模型...', 'info');
+        setStatus('正在初始化模型...', 'loading');
+        
+        env.allowLocalModels = true;
+        env.allowRemoteModels = true;
+        env.useBrowserCache = true;
+        
+        log('✓ 配置已设置: allowRemoteModels=true, useBrowserCache=true', 'success');
+        log('正在下载/加载模型: Xenova/multilingual-e5-small', 'info');
+        log('首次加载需要下载约 100-150MB，请耐心等待...', 'warn');
+        
+        const startTime = performance.now();
+        
+        extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', {
+          quantized: true,
+          progress_callback: (progress) => {
+            if (progress.status === 'downloading') {
+              const percentage = progress.progress ? Math.round(progress.progress * 100) : 0;
+              updateProgress(percentage, `下载进度: ${percentage}% - ${progress.file || '模型文件'}`);
+              if (percentage % 10 === 0) {
+                log(`下载进度: ${percentage}%`, 'info');
+              }
+            } else if (progress.status === 'loading') {
+              updateProgress(95, '正在加载模型到内存...');
+              log('正在加载模型到内存...', 'info');
+            }
+          }
+        });
+        
+        const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+        
+        updateProgress(100, '模型加载完成！');
+        log(`✓ 模型初始化成功！加载耗时: ${loadTime}s`, 'success');
+        setStatus(`模型已就绪 ✓ 加载耗时: ${loadTime}s`, 'success');
+        
+        document.getElementById('testBtn').disabled = false;
+        document.getElementById('similarityBtn').disabled = false;
+        document.getElementById('searchBtn').disabled = false;
+        
+        initTestEvents();
+        
+      } catch (error) {
+        log(`✗ 初始化失败: ${error.message}`, 'error');
+        setStatus(`初始化失败: ${error.message}`, 'error');
+        console.error(error);
+        initBtn.disabled = false;
+      } finally {
+        isLoading = false;
+      }
+    }
+    
+    async function checkCache() {
+      log('正在检查缓存状态...', 'info');
+      
+      try {
+        const cacheNames = await caches.keys();
+        
+        if (cacheNames.length === 0) {
+          log('缓存状态: 暂无缓存，首次使用需要下载模型', 'warn');
+          setStatus('缓存为空，需要下载模型', 'info');
+          return;
+        }
+        
+        let totalSize = 0;
+        let fileCount = 0;
+        
+        for (const cacheName of cacheNames) {
+          const cache = await caches.open(cacheName);
+          const keys = await cache.keys();
+          fileCount += keys.length;
+          
+          for (const request of keys) {
+            const response = await cache.match(request);
+            const blob = await response.blob();
+            totalSize += blob.size;
+          }
+        }
+        
+        const totalMB = (totalSize / 1024 / 1024).toFixed(2);
+        log(`✓ 缓存检查完成: ${fileCount} 个文件，总大小 ${totalMB} MB`, 'success');
+        setStatus(`缓存: ${fileCount} 个文件，${totalMB} MB`, 'success');
+        
+      } catch (error) {
+        log(`✗ 缓存检查失败: ${error.message}`, 'error');
+      }
+    }
+    
+    async function generateEmbedding(text, isQuery = false) {
+      if (!extractor) {
+        throw new Error('模型未初始化');
+      }
+      
+      // E5 模型需要特殊前缀
+      // 查询使用 "query: " 前缀
+      // 文档使用 "passage: " 前缀
+      const prefixedText = isQuery ? `query: ${text}` : `passage: ${text}`;
+      
+      const output = await extractor(prefixedText, { pooling: 'mean', normalize: true });
+      return Array.from(output.data);
+    }
+    
+    async function runPerformanceTest() {
+      if (!extractor) {
+        log('请先初始化模型', 'error');
+        return;
+      }
+      
+      log('开始性能测试...', 'info');
+      setStatus('正在运行性能测试...', 'loading');
+      
+      const testTexts = [
+        '这是一个简单的测试文本。',
+        '团队周会 - 讨论本周工作进度和下周计划',
+        '产品设计评审 - 新功能设计方案评审',
+        '技术分享 - WebGPU 和向量数据库技术分享',
+        '客户会议 - 产品演示和需求讨论',
+        '代码审查 - Pull Request 评审',
+        '项目规划 - Q2 季度目标制定',
+        '培训课程 - 新员工入职培训'
+      ];
+      
+      const times = [];
+      let totalStartTime = performance.now();
+      
+      for (let i = 0; i < testTexts.length; i++) {
+        const text = testTexts[i];
+        const startTime = performance.now();
+        
+        // 使用 passage 前缀
+        const embedding = await generateEmbedding(text, false);
+        
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        times.push(duration);
+        
+        log(`测试 ${i + 1}/${testTexts.length}: ${duration.toFixed(2)}ms - "${text.substring(0, 30)}..."`, 'info');
+      }
+      
+      const totalEndTime = performance.now();
+      const totalTime = totalEndTime - totalStartTime;
+      const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+      
+      document.getElementById('metricsSection').style.display = 'block';
+      document.getElementById('avgTime').textContent = `${avgTime.toFixed(0)}ms`;
+      document.getElementById('totalTime').textContent = `${(totalTime / 1000).toFixed(2)}s`;
+      document.getElementById('testCount').textContent = testTexts.length;
+      
+      log(`✓ 性能测试完成！平均耗时: ${avgTime.toFixed(2)}ms`, 'success');
+      setStatus(`性能测试完成 ✓ 平均: ${avgTime.toFixed(0)}ms`, 'success');
+    }
+    
+    async function testSimilarity() {
+      if (!extractor) {
+        log('请先初始化模型', 'error');
+        return;
+      }
+      
+      log('开始相似度测试...', 'info');
+      setStatus('正在计算向量相似度...', 'loading');
+      
+      const texts = [
+        { id: 1, text: '团队周会', desc: '讨论工作进度' },
+        { id: 2, text: '团队会议', desc: '讨论项目进展' },
+        { id: 3, text: '产品设计', desc: '新功能设计' },
+        { id: 4, text: '技术分享', desc: '技术交流' }
+      ];
+      
+      const embeddings = [];
+      
+      for (const item of texts) {
+        // 使用 passage 前缀生成文档向量
+        const embedding = await generateEmbedding(item.text, false);
+        embeddings.push({ ...item, embedding });
+        log(`已生成向量: "${item.text}"`, 'info');
+      }
+      
+      function cosineSimilarity(a, b) {
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+        
+        for (let i = 0; i < a.length; i++) {
+          dotProduct += a[i] * b[i];
+          normA += a[i] * a[i];
+          normB += b[i] * b[i];
+        }
+        
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+      }
+      
+      const similarityMatrix = [];
+      for (let i = 0; i < embeddings.length; i++) {
+        for (let j = i + 1; j < embeddings.length; j++) {
+          const similarity = cosineSimilarity(embeddings[i].embedding, embeddings[j].embedding);
+          similarityMatrix.push({
+            text1: embeddings[i].text,
+            text2: embeddings[j].text,
+            similarity: similarity
+          });
+        }
+      }
+      
+      similarityMatrix.sort((a, b) => b.similarity - a.similarity);
+      
+      const resultsDiv = document.getElementById('similarityResults');
+      const matrixDiv = document.getElementById('similarityMatrix');
+      matrixDiv.innerHTML = '';
+      
+      for (const item of similarityMatrix) {
+        const percentage = (item.similarity * 100).toFixed(1);
+        const div = document.createElement('div');
+        div.className = 'similarity-item';
+        div.innerHTML = `
+          <div class="similarity-score">${percentage}%</div>
+          <div class="similarity-label">${item.text1} ↔ ${item.text2}</div>
+        `;
+        matrixDiv.appendChild(div);
+        
+        log(`相似度: ${item.text1} ↔ ${item.text2} = ${percentage}%`, 'info');
+      }
+      
+      resultsDiv.style.display = 'block';
+      log('✓ 相似度测试完成！', 'success');
+      setStatus('相似度测试完成 ✓', 'success');
+    }
+    
+    function initTestEvents() {
+      const now = new Date();
+      const oneHour = 60 * 60 * 1000;
+      const oneDay = 24 * oneHour;
+      
+      testEvents = [
+        {
+          id: '1',
+          title: '团队周会',
+          description: '讨论本周工作进度和下周计划',
+          startTime: new Date(now.getTime() + oneHour),
+          endTime: new Date(now.getTime() + oneHour * 2),
+          location: '会议室 A',
+          tags: ['工作', '会议']
+        },
+        {
+          id: '2',
+          title: '产品设计评审',
+          description: '新功能设计方案评审',
+          startTime: new Date(now.getTime() + oneDay),
+          endTime: new Date(now.getTime() + oneDay + oneHour * 1.5),
+          location: '设计工作室',
+          tags: ['设计', '评审']
+        },
+        {
+          id: '3',
+          title: '技术分享',
+          description: 'WebGPU 和向量数据库技术分享',
+          startTime: new Date(now.getTime() + oneDay * 2),
+          endTime: new Date(now.getTime() + oneDay * 2 + oneHour),
+          location: '线上会议',
+          tags: ['技术', '分享']
+        },
+        {
+          id: '4',
+          title: '客户会议',
+          description: '产品演示和需求讨论',
+          startTime: new Date(now.getTime() + oneDay * 3),
+          endTime: new Date(now.getTime() + oneDay * 3 + oneHour * 2),
+          location: '客户办公室',
+          tags: ['客户', '会议']
+        },
+        {
+          id: '5',
+          title: '代码审查',
+          description: 'Pull Request 评审和代码质量检查',
+          startTime: new Date(now.getTime() + oneDay * 4),
+          endTime: new Date(now.getTime() + oneDay * 4 + oneHour),
+          location: '线上',
+          tags: ['开发', '审查']
+        }
+      ];
+      
+      log(`已初始化 ${testEvents.length} 个测试事件`, 'info');
+    }
+    
+    async function searchEvents() {
+      if (!extractor) {
+        log('请先初始化模型', 'error');
+        return;
+      }
+      
+      const query = document.getElementById('searchQuery').value.trim();
+      if (!query) {
+        log('请输入搜索查询', 'error');
+        return;
+      }
+      
+      log(`开始搜索: "${query}"`, 'info');
+      setStatus('正在搜索事件...', 'loading');
+      
+      if (eventEmbeddings.size === 0) {
+        log('正在生成事件向量...', 'info');
+        for (const event of testEvents) {
+          const text = `${event.title} - ${event.description}`;
+          // 事件文档使用 passage 前缀
+          const embedding = await generateEmbedding(text, false);
+          eventEmbeddings.set(event.id, embedding);
+        }
+        log('✓ 事件向量生成完成', 'success');
+      }
+      
+      // 查询使用 query 前缀
+      const queryEmbedding = await generateEmbedding(query, true);
+      log('✓ 查询向量生成完成', 'success');
+      
+      function cosineSimilarity(a, b) {
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+        
+        for (let i = 0; i < a.length; i++) {
+          dotProduct += a[i] * b[i];
+          normA += a[i] * a[i];
+          normB += b[i] * b[i];
+        }
+        
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+      }
+      
+      const results = [];
+      for (const event of testEvents) {
+        const eventEmbedding = eventEmbeddings.get(event.id);
+        const similarity = cosineSimilarity(queryEmbedding, eventEmbedding);
+        results.push({ event, similarity });
+      }
+      
+      results.sort((a, b) => b.similarity - a.similarity);
+      
+      const resultsDiv = document.getElementById('searchResults');
+      resultsDiv.innerHTML = '';
+      
+      for (let i = 0; i < results.length; i++) {
+        const { event, similarity } = results[i];
+        const percentage = (similarity * 100).toFixed(1);
+        
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        div.innerHTML = `
+          <div class="result-title">
+            ${i + 1}. ${event.title} 
+            <span style="color: #28a745; font-weight: 700; margin-left: 8px;">${percentage}%</span>
+          </div>
+          <div class="result-meta">
+            📅 ${event.startTime.toLocaleString()} | 📍 ${event.location} | 🏷️ ${event.tags.join(', ')}
+          </div>
+          <div class="result-meta">${event.description}</div>
+        `;
+        resultsDiv.appendChild(div);
+        
+        log(`搜索结果 ${i + 1}: ${event.title} (${percentage}%)`, 'info');
+      }
+      
+      resultsDiv.style.display = 'block';
+      log('✓ 搜索完成！', 'success');
+      setStatus(`搜索完成 ✓ 找到 ${results.length} 个相关事件`, 'success');
+    }
+    
+    window.initializeModel = initializeModel;
+    window.checkCache = checkCache;
+    window.runPerformanceTest = runPerformanceTest;
+    window.testSimilarity = testSimilarity;
+    window.searchEvents = searchEvents;
+    
+    log('本地化 Embedding 测试页面已加载', 'info');
+    log('模型: Xenova/multilingual-e5-small (384 维向量)', 'info');
+    log('支持 WebGPU 加速（如果浏览器支持）', 'info');
+  </script>
+</body>
+</html>
