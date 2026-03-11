@@ -196,7 +196,9 @@ export class VectorDB {
 
   loadEntries(entries: VectorEntry[]): void {
     this.ensureInitialized();
-    this.addEntriesBatch(entries);
+    if (entries.length > 0) {
+      this.addEntriesBatch(entries);
+    }
   }
 
   clear(): void {
