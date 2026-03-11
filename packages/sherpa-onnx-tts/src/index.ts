@@ -1,38 +1,4 @@
-export * from './types';
-export * from './constants';
-
-export { voices, voicesMap, voicesByLang, defaultVoice } from './voices';
-export { languages, languagesMap } from './languages';
-export { models, modelsMap, defaultModel } from './models';
-export { modelCacheManager } from './cache';
-
-export {
-  initialize,
-  generate,
-  speak,
-  destroy,
-  isReady,
-  getAcceleration,
-  clearCache,
-} from './engine';
-
-export { useKokoroTts } from './hook';
-
-export { tokenize, vocab } from './tokenizer';
-export {
-  phonemize,
-  sanitizeText,
-  segmentText,
-  preprocessText,
-  isSilenceMarker,
-  extractSilenceDuration,
-} from './textProcessor';
-
-export {
-  trimWaveform,
-  createWavBuffer,
-  createAudioBuffer,
-  playAudioBuffer,
-  detectWebGPU,
-  checkWebGPUSupport,
-} from './utils';
+export { KokoroTTS, env, TextSplitterStream } from './kokoro-core/kokoro.js';
+export { VOICES, getVoiceData, getVoiceDataUrl, setVoiceDataUrl } from './kokoro-core/voices.js';
+export { phonemize, is_chinese_voice } from './kokoro-core/phonemize.js';
+export { split, TextSplitterStream as TextSplitter } from './kokoro-core/splitter.js';
