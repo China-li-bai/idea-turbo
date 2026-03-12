@@ -1,127 +1,185 @@
 # Local-First AI Calendar
 
-A privacy-first, local-first AI calendar with WebGPU-powered embeddings, RAG, and EdgeVec vector database.
+> **计算下沉到端，数据永不上云**
 
-## Features
+基于 EdgeVec + Transformers.js 的本地化向量搜索方案。
 
-- **100% Local Data Storage**: All data stays in your browser via IndexedDB
-- **WebGPU Embeddings**: Generate embeddings locally using Transformers.js
-- **EdgeVec Vector Database**: High-performance WASM-native vector database with:
-  - HNSW + FlatIndex for fast similarity search
-  - Binary quantization for 32x memory reduction
-  - Metadata filtering with SQL-like expressions
-  - Sub-millisecond search latency
-- **Vector Search**: Fast cosine similarity search powered by EdgeVec
-- **RAG Integration**: Ask questions about your calendar with AI assistance
-- **Offline-First**: Works completely offline, no cloud required
-- **Privacy-First**: Your data never leaves your device unless you explicitly choose to use RAG
+## 核心特性
 
-## Installation
+- **100% 本地运行** - 数据永不上云，隐私安全
+- **浏览器原生** - 无需后端服务，纯前端实现
+- **多语言支持** - 使用 multilingual-e5-small 模型，支持中文
+- **高性能** - EdgeVec WASM 向量数据库，毫秒级搜索
+
+## 快速开始
 
 ```bash
-npm install @idea-turbo/local-first-ai-calendar
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
+pnpm dev
+
+# 打开浏览器访问 http://localhost:3000
 ```
 
-## Quick Start
+## 项目结构
 
-```typescript
-import { createLocalFirstAICalendar } from "@idea-turbo/local-first-ai-calendar";
-
-// Create a calendar instance
-const calendar = createLocalFirstAICalendar();
-
-// Initialize
-await calendar.initialize();
-
-// Add an event
-const event = await calendar.addEvent({
-  title: "Team Standup",
-  description: "Daily sync with the team",
-  startTime: new Date(Date.now() + 3600000),
-  endTime: new Date(Date.now() + 7200000),
-  location: "Zoom",
-  attendees: ["Alice", "Bob", "Charlie"],
-  tags: ["work", "meeting"],
-});
-
-// Search for events
-const results = await calendar.searchEvents("team meetings");
-
-// Optional: Enable RAG for AI queries
-const calendarWithRAG = createLocalFirstAICalendar({
-  rag: {
-    apiEndpoint: "https://api.deepseek.com/v1/chat/completions",
-    apiKey: "your-api-key",
-    model: "deepseek-chat",
-    maxContextLength: 1000,
-  },
-});
-
-await calendarWithRAG.initialize();
-const answer = await calendarWithRAG.askAI("What meetings do I have with Alice?");
+```
+local-first-ai-calendar/
+├── src/
+│   ├── index.js              # 核心模块 (EdgeVec + Embedding)
+│   └── embedding-worker.js   # Web Worker 处理 embedding
+├── public/
+│   └── data.json             # 官方测试数据 (1000条文档 + 10个查询)
+├── index.html                # 测试页面
+├── package.json              # 依赖配置
+├── vite.config.js           # Vite 配置
+└── README.md
 ```
 
-## API Reference
+## 依赖版本
 
-### `createLocalFirstAICalendar(config?)`
+| 包 | 版本 | 说明 |
+|----|------|------|
+| edgevec | 0.9.0 | WASM 向量数据库 |
+| @xenova/transformers | 2.17.2 | Embedding 模型 |
+| vite | ^5.x | 构建工具 |
 
-Creates a new calendar instance.
+## API 使用
 
-### `LocalFirstAICalendar` Methods
+### LocalAIStore (推荐)
 
-- `initialize()` - Initialize the calendar and load data
-- `addEvent(event)` - Add a new calendar event
-- `updateEvent(id, updates)` - Update an existing event
-- `deleteEvent(id)` - Delete an event
-- `getEvent(id)` - Get an event by ID
-- `getAllEvents()` - Get all events
-- `getEventsByTimeRange(start, end)` - Get events in a time range
-- `searchEvents(query, topK?)` - Search events by similarity
-- `searchEventsWithTimeFilter(query, start, end, topK?)` - Search with time filter
-- `askAI(query)` - Ask AI about your calendar (requires RAG config)
-- `askAIWithTimeFilter(query, start, end)` - Ask AI with time filter
-- `clearAll()` - Clear all data
+一站式封装，开箱即用：
 
-## Architecture
+```javascript
+import LocalAIStore from './src/index.js';
 
-This package follows a modular architecture:
+const store = new LocalAIStore();
 
-1. **Storage Layer** (`storage.ts`): IndexedDB persistence via localforage
-2. **Vector DB** (`vectorDB.ts`): EdgeVec WASM-native vector database with high-performance search
-3. **Embedding Engine** (`embeddingEngine.ts`): Transformers.js for local embeddings
-4. **RAG Engine** (`ragEngine.ts`): Remote LLM integration for AI queries
-5. **Main Class** (`index.ts`): Orchestrates all components
+// 初始化（首次会下载模型）
+await store.initialize();
 
-## EdgeVec Integration
+// 添加文档
+const docs = [
+    { id: 1, text: "Hello world" },
+    { id: 2, text: "你好世界" }
+];
+for (const doc of docs) {
+    await store.add(doc.text, doc.id);
+}
 
-### Key Features
+// 搜索
+const results = await store.search("Hello", 5);
+console.log(results);
+```
 
-EdgeVec is a WASM-native vector database built in Rust, providing:
+### 构造函数选项
 
-- **High Performance**: Sub-millisecond search latency with HNSW index
-- **Memory Efficiency**: Binary quantization reduces memory usage by 32x
-- **Metadata Filtering**: SQL-like filter expressions for precise queries
-- **Soft Delete**: Mark vectors as deleted without immediate removal
-- **Persistence**: IndexedDB persistence support (coming soon)
+```javascript
+const store = new LocalAIStore({
+    dimensions: 384,              // 向量维度 (默认: 384)
+    modelName: 'Xenova/multilingual-e5-small'  // 模型名称
+});
+```
 
-### Performance Benefits
+### 方法
 
-| Feature | Benefit |
-|---------|---------|
-| WASM Native | Near-native performance in the browser |
-| HNSW Index | Fast approximate nearest neighbor search |
-| Binary Quantization | 32x memory reduction with ~95% recall |
-| SIMD Optimization | 2x+ faster vector operations on modern browsers |
+| 方法 | 说明 | 返回值 |
+|------|------|--------|
+| `initialize(onProgress)` | 初始化 store 和模型 | `Promise<void>` |
+| `add(text, id)` | 添加文档 | `Promise<number>` |
+| `search(query, k)` | 搜索 | `Promise<SearchResult[]>` |
+| `saveIndex()` | 保存索引到 IndexedDB | `Promise<void>` |
+| `loadIndex()` | 从 IndexedDB 加载索引 | `Promise<void>` |
+| `clear()` | 清空所有数据 | `Promise<void>` |
 
-## Changelog
+### SearchResult 结构
 
-### v0.1.0
-- Initial release
-- Integrated EdgeVec as the vector database
-- WebGPU-powered embeddings via Transformers.js
-- RAG integration for AI queries
-- IndexedDB persistence
+```javascript
+{
+    id: number,      // 文档 ID
+    score: number,  // 相似度分数 (0-1, 越高越相似)
+    text: string     // 文档原文
+}
+```
 
-## License
+## 官方测试数据
 
-MIT
+项目包含 EdgeVec 官方的测试数据：
+
+- **文档数量**: 1000 条 (来自 SQuAD 数据集)
+- **查询数量**: 10 个预定义查询
+
+### 加载官方数据
+
+在测试页面点击「加载官方数据 (1000条)」按钮即可加载。
+
+### 官方预定义查询
+
+使用以下查询可以获得与官方一致的结果：
+
+1. Who is Beyoncé and what are her biggest achievements?
+2. When did Chopin move to Paris and what was his life like?
+3. How does solar energy work and what are its applications?
+4. What is the history of New York City?
+5. What are the core beliefs and practices of Buddhism?
+6. What caused the Wenchuan earthquake and its aftermath?
+7. Who is Kanye West and how did he start his career?
+8. What is the plot of To Kill a Mockingbird?
+9. When was the iPod released and how did it evolve?
+10. How did American Idol impact the music industry?
+
+## 常见问题
+
+### Q: EdgeVecIndex 导出错误
+
+**错误**: `does not provide an export named 'EdgeVecIndex'`
+
+**解决**: 使用正确的导入方式：
+
+```javascript
+import init from 'edgevec';
+import EdgeVecIndex from 'edgevec/edgevec-wrapper.js';
+
+await init();  // 先初始化 WASM
+const index = new EdgeVecIndex({ dimensions: 384 });
+```
+
+### Q: 搜索结果 Score 含义
+
+EdgeVec 返回的是**向量距离**，需要转换为**相似度**：
+
+```javascript
+const similarity = 1.0 - result.score;  // 距离转相似度
+```
+
+### Q: Web Worker 路径错误
+
+**错误**: `Unexpected token '<'` JSON 解析错误
+
+**解决**: 确保 Worker 路径正确：
+
+```javascript
+this.worker = new Worker('/src/embedding-worker.js', { type: 'module' });
+```
+
+## 开发相关
+
+### 构建
+
+```bash
+pnpm build
+```
+
+### 依赖更新
+
+```bash
+pnpm update
+```
+
+## 参考资料
+
+- [EdgeVec 官方文档](https://github.com/edgevec/edgevec)
+- [EdgeVec API 文档](./edgevec/docs/api/TYPESCRIPT_API.md)
+- [官方 Demo](./edgevec/docs/demo/entity-rag/index.html)

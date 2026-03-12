@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local-First AI Calendar - 官方数据测试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #eee;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            background: linear-gradient(90deg, #4a9eff, #6c5ce7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            margin-bottom: 16px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #4a9eff;
+            padding-bottom: 8px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #4a9eff 0%, #6c5ce7 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value { font-size: 2em; font-weight: bold; }
+        .stat-label { font-size: 0.85em; opacity: 0.9; margin-top: 4px; }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #4a9eff 0%, #6c5ce7 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(74,158,255,0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        button.secondary {
+            background: linear-gradient(135deg, #636e72 0%, #2d3436 100%);
+        }
+        
+        button.success {
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4a9eff, #6c5ce7);
+            transition: width 0.3s;
+            width: 0%;
+        }
+        
+        .progress-text {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 8px;
+        }
+        
+        .log {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+            height: 250px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .log-entry { margin-bottom: 4px; }
+        .log-info { color: #58a6ff; }
+        .log-success { color: #3fb950; }
+        .log-error { color: #f85149; }
+        .log-warn { color: #d29922; }
+        
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #eee;
+            font-size: 14px;
+        }
+        
+        .input-group textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .results-grid {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .result-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .result-score {
+            font-weight: bold;
+            color: #4a9eff;
+        }
+        
+        .result-text {
+            font-size: 14px;
+            color: #ccc;
+            line-height: 1.5;
+            max-height: 100px;
+            overflow: hidden;
+        }
+        
+        .result-meta {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+        }
+        
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: inline-block;
+        }
+        
+        .status.ready { background: #3fb950; color: #000; }
+        .status.loading { background: #d29922; color: #000; }
+        .status.error { background: #f85149; color: #fff; }
+        
+        .data-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .data-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .data-item-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        
+        .data-item-text {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.4;
+        }
+        
+        .data-item-embedding {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        .two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 900px) {
+            .two-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📅 Local-First AI Calendar - 官方数据测试</h1>
+        
+        <div class="card">
+            <h2>系统状态</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="status">-</div>
+                    <div class="stat-label">状态</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="docCount">0</div>
+                    <div class="stat-label">文档数量</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="dimension">384</div>
+                    <div class="stat-label">向量维度</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="vectorCount">0</div>
+                    <div class="stat-label">向量数量</div>
+                </div>
+            </div>
+            <div class="progress-container">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text" id="progressText">准备初始化...</div>
+            </div>
+        </div>
+        
+        <div class="two-columns">
+            <div class="card">
+                <h2>操作</h2>
+                <div class="controls">
+                    <button id="loadOfficialDataBtn" disabled>加载官方数据 (1000条)</button>
+                    <button id="saveBtn" class="secondary" disabled>保存索引</button>
+                    <button id="loadBtn" class="secondary" disabled>加载索引</button>
+                    <button id="clearBtn" class="secondary" disabled>清空数据</button>
+                </div>
+                
+                <h3>搜索</h3>
+                <div class="input-group">
+                    <label>查询</label>
+                    <input id="queryText" type="text" placeholder="输入搜索内容...">
+                </div>
+                <div class="controls">
+                    <button id="searchBtn" disabled>搜索</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>数据库数据</h2>
+                <div class="controls">
+                    <button id="viewDataBtn" class="success" disabled>查看已存储数据</button>
+                </div>
+                <div class="data-list" id="dataList">
+                    <p style="color: #666; text-align: center;">暂无数据</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>搜索结果</h2>
+            <div class="results-grid" id="results"></div>
+        </div>
+        
+        <div class="card">
+            <h2>日志</h2>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import LocalAIStore from './src/index.js';
+        
+        const store = new LocalAIStore({
+            dimensions: 384,
+            modelName: 'Xenova/multilingual-e5-small'
+        });
+        
+        const elements = {
+            status: document.getElementById('status'),
+            docCount: document.getElementById('docCount'),
+            vectorCount: document.getElementById('vectorCount'),
+            progressBar: document.getElementById('progressBar'),
+            progressText: document.getElementById('progressText'),
+            queryText: document.getElementById('queryText'),
+            results: document.getElementById('results'),
+            dataList: document.getElementById('dataList'),
+            log: document.getElementById('log'),
+            loadOfficialDataBtn: document.getElementById('loadOfficialDataBtn'),
+            addBtn: document.getElementById('addBtn'),
+            addSampleBtn: document.getElementById('addSampleBtn'),
+            searchBtn: document.getElementById('searchBtn'),
+            saveBtn: document.getElementById('saveBtn'),
+            loadBtn: document.getElementById('loadBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            viewDataBtn: document.getElementById('viewDataBtn')
+        };
+        
+        let storedData = [];
+        let officialQueries = [];
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            elements.log.appendChild(entry);
+            elements.log.scrollTop = elements.log.scrollHeight;
+        }
+        
+        function updateProgress(current, total) {
+            const percent = (current / total) * 100;
+            elements.progressBar.style.width = `${percent}%`;
+            elements.progressText.textContent = `${current} / ${total}`;
+        }
+        
+        function updateUI(ready) {
+            elements.loadOfficialDataBtn.disabled = !ready;
+            elements.searchBtn.disabled = !ready;
+            elements.saveBtn.disabled = !ready;
+            elements.loadBtn.disabled = !ready;
+            elements.clearBtn.disabled = !ready;
+            elements.viewDataBtn.disabled = !ready;
+        }
+        
+        async function init() {
+            try {
+                elements.status.innerHTML = '<span class="status loading">初始化中...</span>';
+                log('开始初始化 LocalAIStore...');
+                
+                await store.initialize((current, total) => {
+                    updateProgress(current, total);
+                });
+                
+                elements.status.innerHTML = '<span class="status ready">就绪</span>';
+                elements.docCount.textContent = store.count;
+                elements.vectorCount.textContent = store.count;
+                updateUI(true);
+                log('初始化完成!', 'success');
+                
+            } catch (error) {
+                elements.status.innerHTML = '<span class="status error">错误</span>';
+                log(`初始化失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        elements.loadOfficialDataBtn.addEventListener('click', async () => {
+            try {
+                log('正在加载官方数据...', 'warn');
+                elements.loadOfficialDataBtn.disabled = true;
+                
+                const response = await fetch('/data.json');
+                const data = await response.json();
+                
+                log(`加载到 ${data.documents.length} 条文档`, 'info');
+                storedData = [];
+                
+                if (data.queries) {
+                    officialQueries = data.queries;
+                    log(`加载到 ${officialQueries.length} 个官方查询`, 'info');
+                }
+                
+                const batchSize = 50;
+                for (let i = 0; i < data.documents.length; i += batchSize) {
+                    const batch = data.documents.slice(i, i + batchSize);
+                    
+                    for (const doc of batch) {
+                        const vector = new Float32Array(doc.embedding);
+                        const id = store.store.add(vector, {
+                            id: doc.id,
+                            text: doc.text
+                        });
+                        storedData.push({ id: doc.id, text: doc.text, embedding: doc.embedding });
+                    }
+                    
+                    updateProgress(i + batch.length, data.documents.length);
+                    elements.docCount.textContent = store.count;
+                    elements.vectorCount.textContent = store.count;
+                    
+                    await new Promise(r => setTimeout(r, 10));
+                }
+                
+                log(`✅ 成功加载 ${storedData.length} 条官方数据到数据库!`, 'success');
+                elements.loadOfficialDataBtn.disabled = true;
+                
+            } catch (error) {
+                log(`加载失败: ${error.message}`, 'error');
+                console.error(error);
+                elements.loadOfficialDataBtn.disabled = false;
+            }
+        });
+        
+        elements.searchBtn.addEventListener('click', async () => {
+            const queryText = elements.queryText.value.trim();
+            if (!queryText) return;
+            
+            try {
+                log(`搜索: "${queryText}"`);
+                
+                let results;
+                const officialQuery = officialQueries.find(q => q.text === queryText);
+                
+                if (officialQuery && officialQuery.embedding) {
+                    log(`使用官方预计算 embedding`, 'info');
+                    const queryVector = new Float32Array(officialQuery.embedding);
+                    results = await store.store.search(queryVector, 10, { includeMetadata: true });
+                } else {
+                    results = await store.search(queryText, 10, { includeMetadata: true });
+                }
+                
+                elements.results.innerHTML = '';
+                
+                if (results.length === 0) {
+                    elements.results.innerHTML = '<div class="result-item">没有找到结果</div>';
+                    return;
+                }
+                
+                results.forEach((result, i) => {
+                    let text = '';
+                    let displayId = result.id;
+                    
+                    const storedItem = storedData.find(d => d.id === result.id);
+                    if (storedItem) {
+                        text = storedItem.text;
+                        displayId = storedItem.id;
+                    } else if (result.metadata && typeof result.metadata === 'object') {
+                        text = result.metadata.text || '';
+                        displayId = result.metadata.id !== undefined ? result.metadata.id : result.id;
+                    } else if (result.text) {
+                        text = result.text;
+                    }
+                    
+                    const similarity = 1.0 - result.score;
+                    
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.innerHTML = `
+                        <div class="result-header">
+                            <span>#${i + 1} (ID: ${displayId})</span>
+                            <span class="result-score">Score: ${similarity.toFixed(4)}</span>
+                        </div>
+                        <div class="result-text">${text}</div>
+                    `;
+                    elements.results.appendChild(item);
+                });
+                
+                log(`找到 ${results.length} 个结果`, 'success');
+                
+            } catch (error) {
+                log(`搜索失败: ${error.message}`, 'error');
+            }
+        });
+        
+        elements.viewDataBtn.addEventListener('click', () => {
+            if (storedData.length === 0) {
+                elements.dataList.innerHTML = '<p style="color: #666; text-align: center;">数据库为空</p>';
+                return;
+            }
+            
+            const displayCount = 20;
+            let html = `<p style="color: #888; margin-bottom: 12px;">显示前 ${displayCount} 条 (共 ${storedData.length} 条)</p>`;
+            
+            for (let i = 0; i < Math.min(displayCount, storedData.length); i++) {
+                const doc = storedData[i];
+                const embStr = doc.embedding.slice(0, 10).map(v => v.toFixed(3)).join(', ') + '...';
+                html += `
+                    <div class="data-item">
+                        <div class="data-item-header">
+                            <span>ID: ${doc.id}</span>
+                            <span>维度: ${doc.embedding.length}</span>
+                        </div>
+                        <div class="data-item-text">${doc.text.substring(0, 200)}...</div>
+                        <div class="data-item-embedding">向量: [${embStr}]</div>
+                    </div>
+                `;
+            }
+            
+            elements.dataList.innerHTML = html;
+            log(`显示 ${Math.min(displayCount, storedData.length)} 条存储数据`, 'info');
+        });
+        
+        elements.saveBtn.addEventListener('click', async () => {
+            try {
+                log('保存索引到 IndexedDB...');
+                await store.save('calendar-official-index');
+                log('保存成功', 'success');
+            } catch (error) {
+                log(`保存失败: ${error.message}`, 'error');
+            }
+        });
+        
+        elements.loadBtn.addEventListener('click', async () => {
+            try {
+                log('从 IndexedDB 加载索引...');
+                const loadedStore = await LocalAIStore.load('calendar-official-index', { dimensions: 384 });
+                store.store = loadedStore.store;
+                elements.docCount.textContent = store.count;
+                elements.vectorCount.textContent = store.count;
+                
+                storedData = [];
+                log(`加载成功! 共 ${store.count} 条数据`, 'success');
+                
+            } catch (error) {
+                log(`加载失败: ${error.message}`, 'error');
+            }
+        });
+        
+        elements.clearBtn.addEventListener('click', () => {
+            store.clear();
+            storedData = [];
+            elements.docCount.textContent = 0;
+            elements.vectorCount.textContent = 0;
+            elements.results.innerHTML = '';
+            elements.dataList.innerHTML = '<p style="color: #666; text-align: center;">暂无数据</p>';
+            elements.loadOfficialDataBtn.disabled = false;
+            log('数据已清空', 'warn');
+        });
+        
+        init();
+    </script>
+</body>
+</html>

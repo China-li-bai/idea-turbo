@@ -1,53 +1,20 @@
 {
-  "name": "@idea-turbo/local-first-ai-calendar",
-  "version": "0.1.0",
+  "name": "local-first-ai-calendar",
+  "version": "1.0.0",
+  "description": "Local-First AI Calendar - 本地化 Embedding + EdgeVec 向量搜索",
   "type": "module",
-  "description": "Local-first AI Calendar with privacy-first design, WebGPU embedding, and RAG",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "lint": "eslint src --ext .ts",
-    "check-types": "tsc --noEmit",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
-    "edgevec": "^0.9.0",
-    "localforage": "^1.10.0"
+    "@huggingface/transformers": "^3.0.0",
+    "edgevec": "^0.9.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@vitest/coverage-v8": "^2.0.0",
-    "@vitest/ui": "^2.0.0",
-    "esbuild": "^0.27.3",
-    "happy-dom": "^15.0.0",
-    "typescript": "^5.5.4",
-    "vitest": "^2.0.0"
+    "vite": "^5.0.0"
   },
-  "keywords": [
-    "local-first",
-    "calendar",
-    "ai",
-    "privacy",
-    "webgpu",
-    "vector-db",
-    "rag",
-    "offline-first"
-  ],
-  "author": "Idea Turbo",
+  "keywords": ["local-first", "embedding", "vector-search", "edgevec", "transformers"],
   "license": "MIT"
 }
