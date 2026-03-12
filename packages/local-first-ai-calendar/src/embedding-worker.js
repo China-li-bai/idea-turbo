@@ -53,7 +53,7 @@ async function initModel(name) {
 }
 
 async function embedQuery(text) {
-    const result = await embedder(`query: ${text}`, {
+    const result = await embedder(text, {
         pooling: 'mean',
         normalize: true
     });
@@ -61,7 +61,7 @@ async function embedQuery(text) {
 }
 
 async function embedDocument(text) {
-    const result = await embedder(`passage: ${text}`, {
+    const result = await embedder(text, {
         pooling: 'mean',
         normalize: true
     });

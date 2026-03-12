@@ -306,8 +306,16 @@
                 </div>
                 
                 <h3>搜索</h3>
+                
                 <div class="input-group">
-                    <label>查询</label>
+                    <label>官方查询选择</label>
+                    <select id="querySelect">
+                        <option value="">-- 选择官方查询 --</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label>或自定义查询</label>
                     <input id="queryText" type="text" placeholder="输入搜索内容...">
                 </div>
                 <div class="controls">
@@ -351,6 +359,7 @@
             vectorCount: document.getElementById('vectorCount'),
             progressBar: document.getElementById('progressBar'),
             progressText: document.getElementById('progressText'),
+            querySelect: document.getElementById('querySelect'),
             queryText: document.getElementById('queryText'),
             results: document.getElementById('results'),
             dataList: document.getElementById('dataList'),
@@ -385,6 +394,7 @@
         function updateUI(ready) {
             elements.loadOfficialDataBtn.disabled = !ready;
             elements.searchBtn.disabled = !ready;
+            elements.querySelect.disabled = !ready;
             elements.saveBtn.disabled = !ready;
             elements.loadBtn.disabled = !ready;
             elements.clearBtn.disabled = !ready;
@@ -427,6 +437,15 @@
                 if (data.queries) {
                     officialQueries = data.queries;
                     log(`加载到 ${officialQueries.length} 个官方查询`, 'info');
+                    
+                    elements.querySelect.innerHTML = '<option value="">-- 选择官方查询 --</option>';
+                    officialQueries.forEach((q, i) => {
+                        const option = document.createElement('option');
+                        option.value = String(i);
+                        const label = q.text.length > 60 ? q.text.substring(0, 60) + '...' : q.text;
+                        option.textContent = label;
+                        elements.querySelect.appendChild(option);
+                    });
                 }
                 
                 const batchSize = 50;
@@ -460,21 +479,36 @@
         });
         
         elements.searchBtn.addEventListener('click', async () => {
-            const queryText = elements.queryText.value.trim();
-            if (!queryText) return;
+            let queryText = '';
+            let useOfficialEmbedding = false;
+            
+            const selectedIndex = elements.querySelect.value;
+            if (selectedIndex !== '' && officialQueries[selectedIndex]) {
+                queryText = officialQueries[selectedIndex].text;
+                useOfficialEmbedding = true;
+            } else {
+                queryText = elements.queryText.value.trim();
+                if (!queryText) return;
+            }
             
             try {
-                log(`搜索: "${queryText}"`);
+                log(`搜索: "${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}"`);
                 
                 let results;
-                const officialQuery = officialQueries.find(q => q.text === queryText);
                 
-                if (officialQuery && officialQuery.embedding) {
+                if (useOfficialEmbedding) {
                     log(`使用官方预计算 embedding`, 'info');
-                    const queryVector = new Float32Array(officialQuery.embedding);
+                    const queryVector = new Float32Array(officialQueries[selectedIndex].embedding);
                     results = await store.store.search(queryVector, 10, { includeMetadata: true });
                 } else {
-                    results = await store.search(queryText, 10, { includeMetadata: true });
+                    const officialQuery = officialQueries.find(q => q.text === queryText);
+                    if (officialQuery && officialQuery.embedding) {
+                        log(`使用官方预计算 embedding`, 'info');
+                        const queryVector = new Float32Array(officialQuery.embedding);
+                        results = await store.store.search(queryVector, 10, { includeMetadata: true });
+                    } else {
+                        results = await store.search(queryText, 10, { includeMetadata: true });
+                    }
                 }
                 
                 elements.results.innerHTML = '';
@@ -499,7 +533,7 @@
                         text = result.text;
                     }
                     
-                    const similarity = 1.0 - result.score;
+                    const similarity = result.score;
                     
                     const item = document.createElement('div');
                     item.className = 'result-item';
