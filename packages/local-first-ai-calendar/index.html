@@ -410,16 +410,61 @@
                     updateProgress(current, total);
                 });
                 
+                log('模型加载完成，检查缓存...', 'info');
+                
+                const CACHE_NAME = 'calendar-official-index';
+                
+                try {
+                    log('尝试从 IndexedDB 缓存加载...');
+                    const loadedStore = await LocalAIStore.load(CACHE_NAME, { dimensions: 384 });
+                    store.store = loadedStore.store;
+                    
+                    elements.status.innerHTML = '<span class="status ready">就绪</span>';
+                    elements.docCount.textContent = store.count;
+                    elements.vectorCount.textContent = store.count;
+                    updateUI(true);
+                    log(`✅ 从缓存加载成功! 共 ${store.count} 条数据`, 'success');
+                    
+                    await loadOfficialQueries();
+                    elements.loadOfficialDataBtn.disabled = true;
+                    return;
+                } catch (e) {
+                    log('缓存不存在，将加载官方数据...', 'warn');
+                }
+                
                 elements.status.innerHTML = '<span class="status ready">就绪</span>';
                 elements.docCount.textContent = store.count;
                 elements.vectorCount.textContent = store.count;
                 updateUI(true);
-                log('初始化完成!', 'success');
+                log('初始化完成! 请点击"加载官方数据"按钮', 'success');
                 
             } catch (error) {
                 elements.status.innerHTML = '<span class="status error">错误</span>';
                 log(`初始化失败: ${error.message}`, 'error');
                 console.error(error);
+            }
+        }
+        
+        async function loadOfficialQueries() {
+            try {
+                const response = await fetch('/data.json');
+                const data = await response.json();
+                
+                if (data.queries) {
+                    officialQueries = data.queries;
+                    log(`加载到 ${officialQueries.length} 个官方查询`, 'info');
+                    
+                    elements.querySelect.innerHTML = '<option value="">-- 选择官方查询 --</option>';
+                    officialQueries.forEach((q, i) => {
+                        const option = document.createElement('option');
+                        option.value = String(i);
+                        const label = q.text.length > 60 ? q.text.substring(0, 60) + '...' : q.text;
+                        option.textContent = label;
+                        elements.querySelect.appendChild(option);
+                    });
+                }
+            } catch (e) {
+                log('加载官方查询失败: ' + e.message, 'error');
             }
         }
         
@@ -469,6 +514,11 @@
                 }
                 
                 log(`✅ 成功加载 ${storedData.length} 条官方数据到数据库!`, 'success');
+                
+                log('正在保存到 IndexedDB 缓存...', 'info');
+                await store.save('calendar-official-index');
+                log('✅ 已保存到缓存，下次刷新页面将自动加载', 'success');
+                
                 elements.loadOfficialDataBtn.disabled = true;
                 
             } catch (error) {
