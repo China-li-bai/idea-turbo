@@ -1,306 +1,146 @@
-"use client";
+'use client'
 
-import { useState, useCallback, useMemo } from "react";
-import { Calendar, dateFnsLocalizer, Views, SlotInfo } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay, addHours, isSameDay } from "date-fns";
-import { zhCN } from "date-fns/locale";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-import { useCalendarStore } from "@/lib/stores/calendarStore";
-import { v4 as uuidv4 } from "uuid";
+import {
+  CalendarApp,
+  createCalendar,
+  viewDay,
+  viewMonthAgenda,
+  viewMonthGrid,
+  viewWeek,
+} from '@schedule-x/calendar'
+import { createDragAndDropPlugin } from '@schedule-x/drag-and-drop'
+import { createEventModalPlugin } from '@schedule-x/event-modal'
+import '@schedule-x/theme-default/dist/index.css'
+import { useEffect, useState } from 'react'
+// import CodeMirror from '@uiw/react-codemirror'
+// import { javascript } from '@codemirror/lang-javascript'
+// import { githubDarkInit, githubLightInit } from '@uiw/codemirror-theme-github'
+import { calendarDemoCode } from './__data__/calendar-code'
+import styles from './demo.module.scss'
+import { useTheme } from 'nextra-theme-docs'
+import 'temporal-polyfill/global'
+// import './calendar-demo.scss'
 
-const locales = {
-  "zh-CN": zhCN,
-};
+export default function CalendarDemoPage() {
+  const { resolvedTheme } = useTheme()
 
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
+  const [cal, setCal] = useState<CalendarApp|null>(null)
 
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: Date;
-  end: Date;
-  allDay?: boolean;
-  resource?: {
-    description?: string;
-    location?: string;
-    isAllDay: boolean;
-  };
-}
+  // 检测是否为移动端
+  const [isMobile, setIsMobile] = useState(false)
 
-export function CalendarView() {
-  const [date, setDate] = useState(new Date());
-  const [view, setView] = useState<typeof Views[keyof typeof Views]>(Views.MONTH);
-  const [showEventModal, setShowEventModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore();
-  
-  const calendarEvents: CalendarEvent[] = useMemo(() => {
-    return events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      start: new Date(e.startTime),
-      end: new Date(e.endTime),
-      allDay: e.isAllDay,
-      resource: {
-        description: e.description,
-        location: e.location,
-        isAllDay: e.isAllDay,
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const calendarEl = document.getElementById('calendar') as HTMLElement
+
+    const calendar = createCalendar({
+      views: [viewMonthGrid, viewMonthAgenda, viewWeek, viewDay],
+      selectedDate: Temporal.PlainDate.from('2023-12-01'),
+      isDark: resolvedTheme === 'dark',
+      defaultView: isMobile ? viewMonthAgenda.name : viewWeek.name,
+      timezone: 'America/New_York',
+      events: [
+        {
+          id: 1,
+          title: 'Coffee with John',
+          start: Temporal.PlainDate.from('2023-12-01'),
+          end: Temporal.PlainDate.from('2023-12-01'),
+        },
+        {
+          id: 2,
+          title: 'Breakfast with Sam',
+          description: 'Discuss the new project',
+          location: 'Starbucks',
+          start: Temporal.ZonedDateTime.from('2023-11-29T05:00:00[America/New_York]'),
+          end: Temporal.ZonedDateTime.from('2023-11-29T06:00:00[America/New_York]'),
+        },
+        {
+          id: 3,
+          title: 'Gym',
+          start: Temporal.ZonedDateTime.from('2023-11-27T06:00:00[America/New_York]'),
+          end: Temporal.ZonedDateTime.from('2023-11-27T07:00:00[America/New_York]'),
+          calendarId: 'leisure',
+        },
+        {
+          id: 4,
+          title: 'Media fasting',
+          start: Temporal.PlainDate.from('2023-12-01'),
+          end: Temporal.PlainDate.from('2023-12-03'),
+          calendarId: 'leisure',
+        },
+        {
+          id: 5,
+          title: 'Some appointment',
+          people: ['John'],
+          start: Temporal.ZonedDateTime.from('2023-12-03T03:00:00[America/New_York]'),
+          end: Temporal.ZonedDateTime.from('2023-12-03T04:30:00[America/New_York]'),
+        },
+        {
+          id: 6,
+          title: 'Other appointment',
+          people: ['Susan', 'Mike'],
+          start: Temporal.ZonedDateTime.from('2023-12-03T03:00:00[America/New_York]'),
+          end: Temporal.ZonedDateTime.from('2023-12-03T04:30:00[America/New_York]'),
+          calendarId: 'leisure',
+        },
+      ],
+      calendars: {
+        leisure: {
+          colorName: 'leisure',
+          lightColors: {
+            main: '#1c7df9',
+            container: '#d2e7ff',
+            onContainer: '#002859',
+          },
+          darkColors: {
+            main: '#c0dfff',
+            onContainer: '#dee6ff',
+            container: '#426aa2',
+          },
+        },
       },
-    }));
-  }, [events]);
+      plugins: [createDragAndDropPlugin(), createEventModalPlugin()],
+    })
+    calendar.render(calendarEl)
+    setCal(calendar)
+  }, [])
 
-  const handleSelectSlot = useCallback((slotInfo: SlotInfo) => {
-    setSelectedEvent({
-      id: "",
-      title: "",
-      start: slotInfo.start,
-      end: slotInfo.end,
-      allDay: false,
-    });
-    setIsEditing(false);
-    setShowEventModal(true);
-  }, []);
+  useEffect(() => {
+    if (!cal) return
 
-  const handleSelectEvent = useCallback((event: CalendarEvent) => {
-    setSelectedEvent(event);
-    setIsEditing(true);
-    setShowEventModal(true);
-  }, []);
-
-  const handleSave = useCallback(() => {
-    if (!selectedEvent || !selectedEvent.title.trim()) return;
-    
-    if (isEditing && selectedEvent.id) {
-      const existingEvent = events.find((e) => e.id === selectedEvent.id);
-      if (existingEvent) {
-        updateEvent(selectedEvent.id, {
-          title: selectedEvent.title,
-          startTime: selectedEvent.start,
-          endTime: selectedEvent.end,
-          isAllDay: selectedEvent.allDay || false,
-          description: selectedEvent.resource?.description,
-          location: selectedEvent.resource?.location,
-        });
-      }
-    } else {
-      addEvent({
-        id: uuidv4(),
-        title: selectedEvent.title,
-        startTime: selectedEvent.start,
-        endTime: selectedEvent.end,
-        isAllDay: selectedEvent.allDay || false,
-        description: selectedEvent.resource?.description,
-        location: selectedEvent.resource?.location,
-        reminders: [],
-        viewMode: "personal",
-      });
-    }
-    
-    setShowEventModal(false);
-    setSelectedEvent(null);
-  }, [selectedEvent, isEditing, events, addEvent, updateEvent]);
-
-  const handleDelete = useCallback(() => {
-    if (selectedEvent?.id) {
-      deleteEvent(selectedEvent.id);
-      setShowEventModal(false);
-      setSelectedEvent(null);
-    }
-  }, [selectedEvent, deleteEvent]);
-
-  const handleClose = useCallback(() => {
-    setShowEventModal(false);
-    setSelectedEvent(null);
-  }, []);
+    cal.setTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
+  }, [resolvedTheme])
 
   return (
-    <div className="relative">
-      <div className="bg-white rounded-lg shadow p-4" style={{ height: "600px" }}>
-        <Calendar
-          localizer={localizer}
-          events={calendarEvents}
-          startAccessor="start"
-          endAccessor="end"
-          style={{ height: "100%" }}
-          view={view}
-          onView={setView}
-          date={date}
-          onNavigate={setDate}
-          onSelectSlot={handleSelectSlot}
-          onSelectEvent={handleSelectEvent}
-          selectable
-          culture="zh-CN"
-          popup
-        />
-      </div>
+    <div className={['page-wrapper', styles.demoPageWrapper].join(' ')}>
+      {/* <HeadingWithIcon icon={'🗓️'} text={'Calendar demo'} /> */}
 
-      {showEventModal && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-bold mb-4">
-              {isEditing ? "编辑日程" : "新建日程"}
-            </h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  标题 *
-                </label>
-                <input
-                  type="text"
-                  value={selectedEvent.title}
-                  onChange={(e) =>
-                    setSelectedEvent({ ...selectedEvent, title: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="输入日程标题"
-                  autoFocus
-                />
-              </div>
+      <div id="calendar" className="calendar-wrapper" />
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="allDay"
-                  checked={selectedEvent.allDay || false}
-                  onChange={(e) =>
-                    setSelectedEvent({
-                      ...selectedEvent,
-                      allDay: e.target.checked,
-                      end: e.target.checked
-                        ? selectedEvent.start
-                        : addHours(selectedEvent.start, 1),
-                    })
-                  }
-                  className="mr-2"
-                />
-                <label htmlFor="allDay" className="text-sm text-gray-700">
-                  全天事件
-                </label>
-              </div>
+      <h2 className={styles.demoSubheading}>Code</h2>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    开始时间
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={format(
-                      selectedEvent.start,
-                      "yyyy-MM-dd'T'HH:mm"
-                    )}
-                    onChange={(e) =>
-                      setSelectedEvent({
-                        ...selectedEvent,
-                        start: new Date(e.target.value),
-                        end: new Date(e.target.value) > selectedEvent.end
-                          ? new Date(e.target.value)
-                          : selectedEvent.end,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    结束时间
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={format(selectedEvent.end, "yyyy-MM-dd'T'HH:mm")}
-                    onChange={(e) =>
-                      setSelectedEvent({
-                        ...selectedEvent,
-                        end: new Date(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+      <p className={styles.calendarDemoText}>
+        The demo above is based on the code below.
+      </p>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  地点
-                </label>
-                <input
-                  type="text"
-                  value={selectedEvent.resource?.location || ""}
-                  onChange={(e) =>
-                    setSelectedEvent({
-                      ...selectedEvent,
-                      resource: {
-                        ...selectedEvent.resource,
-                        location: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="输入地点"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  备注
-                </label>
-                <textarea
-                  value={selectedEvent.resource?.description || ""}
-                  onChange={(e) =>
-                    setSelectedEvent({
-                      ...selectedEvent,
-                      resource: {
-                        ...selectedEvent.resource,
-                        description: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="输入备注"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-between mt-6">
-              <div>
-                {isEditing && (
-                  <button
-                    onClick={handleDelete}
-                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-md"
-                  >
-                    删除
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleClose}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={!selectedEvent.title.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* <CodeMirror
+        className={styles.calendarDemoCode}
+        value={calendarDemoCode}
+        height="800px"
+        extensions={[javascript({ jsx: true })]}
+        onChange={() => null}
+        theme={resolvedTheme === 'dark' ? githubDarkInit() : githubLightInit()}
+      /> */}
     </div>
-  );
+  )
 }
