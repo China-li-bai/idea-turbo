@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import styles from './landing.module.scss'
 
@@ -87,6 +87,16 @@ const comparison = [
 export default function LandingPage() {
   const [email, setEmail] = useState('')
   const [isSubscribed, setIsSubscribed] = useState(false)
+  const [scrollY, setScrollY] = useState(0)
+  const featuresRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,12 +106,19 @@ export default function LandingPage() {
     }
   }
 
+  const stats = [
+    { number: '50%', label: '效率提升' },
+    { number: '100%', label: '本地存储' },
+    { number: '5', label: '语言支持' },
+    { number: '24/7', label: '离线可用' },
+  ]
+
   return (
     <div className={styles.landing}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ${scrollY > 50 ? styles.headerScrolled : ''}`}>
         <div className={styles.logo}>
           <span className={styles.logoIcon}>📅</span>
-          <span className={styles.logoText}>AI Calendar</span>
+          <span className={styles.logoText}>智程日历</span>
         </div>
         <nav className={styles.nav}>
           <Link href="#features" className={styles.navLink}>功能</Link>
@@ -115,6 +132,7 @@ export default function LandingPage() {
         <div className={styles.heroBackground}>
           <div className={styles.gradientOrb1} />
           <div className={styles.gradientOrb2} />
+          <div className={styles.gradientOrb3} />
           <div className={styles.gridPattern} />
         </div>
         
@@ -142,6 +160,15 @@ export default function LandingPage() {
             <a href="#features" className={styles.secondaryButton}>
               了解更多
             </a>
+          </div>
+
+          <div className={styles.statsBar}>
+            {stats.map((stat, index) => (
+              <div key={index} className={styles.statItem}>
+                <div className={styles.statNumber}>{stat.number}</div>
+                <div className={styles.statLabel}>{stat.label}</div>
+              </div>
+            ))}
           </div>
 
           <div className={styles.heroDemo}>
@@ -297,7 +324,7 @@ export default function LandingPage() {
         <div className={styles.footerContent}>
           <div className={styles.footerBrand}>
             <span className={styles.logoIcon}>📅</span>
-            <span className={styles.logoText}>AI Calendar</span>
+            <span className={styles.logoText}>智程日历</span>
           </div>
           <p className={styles.footerTagline}>
             本地优先的 AI 智能日程管理 · 让时间成为朋友
@@ -308,7 +335,7 @@ export default function LandingPage() {
             <a href="#">联系我们</a>
           </div>
           <p className={styles.copyright}>
-            © 2024 AI Calendar. All rights reserved.
+            © 2024 智程日历. All rights reserved.
           </p>
         </div>
       </footer>
