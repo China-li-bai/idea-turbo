@@ -18,6 +18,7 @@
     "@schedule-x/events-service": "^4.3.1",
     "@schedule-x/react": "^4.1.0",
     "@schedule-x/theme-default": "^4.3.1",
+    "@schedule-x/translations": "^4.3.1",
     "@schedule-x/drag-and-drop": "^1.0.0",
     "date-fns": "^4.1.0",
     "localforage": "^1.10.0",

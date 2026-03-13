@@ -8,7 +8,7 @@ export interface CalendarEvent {
   isAllDay: boolean;
   repeatRule?: RepeatRule;
   reminders: number[];
-  viewMode: 'boss' | 'assistant';
+  viewMode: 'boss' | 'assistant' | 'personal';
   linkedTaskIds?: string[];
   color?: string;
 }
