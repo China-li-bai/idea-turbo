@@ -28,6 +28,7 @@ interface CalendarState {
   settings: UserSettings;
   
   addEvent: (event: CalendarEvent) => void;
+  addEvents: (events: CalendarEvent[]) => void;
   updateEvent: (id: string, event: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
   
@@ -59,6 +60,9 @@ export const useCalendarStore = create<CalendarState>()(
       
       addEvent: (event) =>
         set((state) => ({ events: [...state.events, event] })),
+      
+      addEvents: (newEvents) =>
+        set((state) => ({ events: [...state.events, ...newEvents] })),
       
       updateEvent: (id, eventUpdate) =>
         set((state) => ({

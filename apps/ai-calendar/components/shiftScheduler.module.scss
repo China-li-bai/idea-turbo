@@ -1,0 +1,246 @@
+.container {
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #111827;
+}
+
+.inputSection {
+  margin-bottom: 24px;
+}
+
+.textarea {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  &:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+  }
+}
+
+.quickExamples {
+  margin: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quickLabel {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.exampleBtn {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.button {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+}
+
+.success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+}
+
+.secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+
+  &:hover:not(:disabled) {
+    background: #e5e7eb;
+  }
+}
+
+.error {
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  margin-bottom: 24px;
+}
+
+.previewSection {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 24px;
+}
+
+.previewTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #111827;
+}
+
+.employeeList,
+.shiftTypeList,
+.shiftList {
+  margin-bottom: 24px;
+
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+}
+
+.employeeCards,
+.shiftCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.employeeCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f9fafb;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.shiftCard {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+}
+
+.shiftName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shiftTime {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.shiftTable {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.shiftRow {
+  display: flex;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: #f9fafb;
+  }
+}
+
+.shiftDate {
+  min-width: 100px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.shiftInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shiftTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.shiftTimeRange {
+  font-size: 13px;
+  color: #6b7280;
+}
