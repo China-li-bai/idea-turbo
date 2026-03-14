@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useCalendarStore } from '@/lib/stores/calendarStore'
 import { v4 as uuidv4 } from 'uuid'
-import { parseNaturalLanguage } from '@/lib/utils/nlpParser'
+import { parseNaturalLanguage } from '@/lib/services/aiParserService'
 import styles from './inspirationCapture.module.scss'
 
 type InspirationType = 'todo' | 'event' | 'note' | 'raw'
@@ -13,6 +13,7 @@ export default function InspirationCapture() {
   const [content, setContent] = useState('')
   const [selectedType, setSelectedType] = useState<InspirationType>('raw')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [parsedResult, setParsedResult] = useState<any>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { addInspiration } = useCalendarStore()
 
@@ -29,12 +30,24 @@ export default function InspirationCapture() {
     
     let extractedDate: Date | undefined
     let finalType = selectedType
-    
+    let description = content
+
     if (selectedType === 'raw') {
-      const parsed = await parseNaturalLanguage(content)
-      if (parsed.date) {
-        extractedDate = parsed.date
-        finalType = parsed.type || 'event'
+      try {
+        const parsed = await parseNaturalLanguage(content)
+        setParsedResult(parsed)
+        
+        if (parsed.date) {
+          extractedDate = parsed.date
+        }
+        if (parsed.type) {
+          finalType = parsed.type as InspirationType
+        }
+        if (parsed.description) {
+          description = parsed.description
+        }
+      } catch (error) {
+        console.error('AI解析失败，使用原始输入:', error)
       }
     }
 
@@ -42,13 +55,14 @@ export default function InspirationCapture() {
       id: uuidv4(),
       content: content.trim(),
       captureTime: new Date(),
-      type: finalType,
+      type: finalType === 'raw' ? 'event' : finalType,
       processed: false,
       extractedDate,
     })
 
     setContent('')
     setSelectedType('raw')
+    setParsedResult(null)
     setIsOpen(false)
     setIsProcessing(false)
   }
@@ -112,7 +126,7 @@ export default function InspirationCapture() {
                   ? '添加日程... (如: 下周二下午3点见王总)'
                   : selectedType === 'note'
                   ? '记录笔记...'
-                  : '记录灵感... (支持自然语言解析)'
+                  : '记录灵感... (AI智能解析)'
               }
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -120,9 +134,39 @@ export default function InspirationCapture() {
               rows={4}
             />
 
+            {parsedResult && (
+              <div className={styles.parsedResult}>
+                <div className={styles.parsedTitle}>
+                  🎯 智能解析结果
+                </div>
+                <div className={styles.parsedContent}>
+                  {parsedResult.title && (
+                    <div>标题: {parsedResult.title}</div>
+                  )}
+                  {parsedResult.date && (
+                    <div>日期: {parsedResult.date.toLocaleDateString()}</div>
+                  )}
+                  {parsedResult.time && (
+                    <div>时间: {parsedResult.time}</div>
+                  )}
+                  {parsedResult.location && (
+                    <div>地点: {parsedResult.location}</div>
+                  )}
+                  {parsedResult.people && parsedResult.people.length > 0 && (
+                    <div>人员: {parsedResult.people.join(', ')}</div>
+                  )}
+                  {parsedResult.duration && (
+                    <div>时长: {parsedResult.duration}分钟</div>
+                  )}
+                  <div>类型: {parsedResult.type}</div>
+                  <div>置信度: {Math.round(parsedResult.confidence * 100)}%</div>
+                </div>
+              </div>
+            )}
+
             <div className={styles.hint}>
-              <span className={styles.hintIcon}>💡</span>
-              <span>支持自然语言输入，如"下周二下午3点见王总"</span>
+              <span className={styles.hintIcon}>🤖</span>
+              <span>AI智能解析，支持复杂语义理解</span>
             </div>
 
             <div className={styles.actions}>
@@ -137,7 +181,7 @@ export default function InspirationCapture() {
                 onClick={handleSubmit}
                 disabled={!content.trim() || isProcessing}
               >
-                {isProcessing ? '处理中...' : '保存'}
+                {isProcessing ? '🤖 AI解析中...' : '保存'}
               </button>
             </div>
           </div>

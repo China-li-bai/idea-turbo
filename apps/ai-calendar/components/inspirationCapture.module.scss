@@ -222,3 +222,33 @@
     cursor: not-allowed;
   }
 }
+
+.parsedResult {
+  margin: 12px 20px;
+  padding: 12px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+}
+
+.parsedTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 8px;
+}
+
+.parsedContent {
+  font-size: 13px;
+  color: #0c4a6e;
+  line-height: 1.6;
+
+  > div {
+    padding: 4px 0;
+    border-bottom: 1px dashed #e0f2fe;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { shiftService } from '@/lib/services/shiftService';
 import ShiftList from './ShiftList';
 import ShiftEditor from './ShiftEditor';
 import ShiftScheduler from './ShiftScheduler';
+import ShiftNlpPanel from './ShiftNlpPanel';
 import type { ShiftSchedule, Shift, CalendarEvent } from '@/types';
 import styles from './shiftManager.module.scss';
 
@@ -201,6 +202,21 @@ export default function ShiftManager() {
             </button>
           </div>
         )}
+        
+        <div className={styles.nlpSection}>
+          <ShiftNlpPanel
+            scheduleId={schedule.id}
+            onShiftsUpdated={() => {
+              setSelectedSchedule(null);
+              setTimeout(() => {
+                if (schedule) {
+                  setSelectedSchedule(schedule);
+                }
+              }, 100);
+            }}
+          />
+        </div>
+        
         <div className={styles.detailContent}>
           <div className={styles.scheduleInfo}>
             <div className={styles.infoCard}>
