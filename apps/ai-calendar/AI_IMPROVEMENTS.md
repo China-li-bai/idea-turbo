@@ -363,6 +363,111 @@ async getAIResolutionSuggestion(
 
 ---
 
+## 🔒 隐私安全改进（2026-03-14）
+
+### 问题发现
+
+在全面测试AI功能时，发现了以下隐私安全问题：
+
+| 问题 | 严重程度 | 说明 |
+|------|---------|------|
+| API Key 硬编码 | 高 | GLM API Key 直接暴露在代码中 |
+| 自然语言解析无隐私保护 | 中 | 直接发送用户原始输入到AI |
+| 冲突解决无隐私保护 | 中 | 直接发送事件数据到AI |
+
+### 解决方案
+
+#### 1. 移除硬编码 API Key
+
+**修改文件：** `lib/ai/config.ts`
+
+```typescript
+// 修改前
+glm: {
+  baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+  apiKey: '25eedfacc5054f42afe13dbdedf85d83.INoE7zJEyd1j2bK0', // ⚠️ 暴露的API Key
+  model: 'GLM-4-Flash',
+}
+
+// 修改后
+glm: {
+  baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+  apiKey: '', // 清空硬编码的Key
+  model: 'GLM-4-Flash',
+}
+```
+
+#### 2. 创建 AI 设置页面
+
+**新增文件：** `app/settings/page.tsx`
+
+功能：
+- 用户可配置自己的 API Key
+- 支持多个 AI 提供商（OpenAI, Gemini, GLM, 阿里云百炼）
+- API Key 存储在浏览器本地 IndexedDB
+- 显示隐私说明
+
+#### 3. 创建 AI 隐私保护中间件
+
+**新增文件：** `lib/utils/aiPrivacy.ts`
+
+核心功能：
+- `sanitizeInput()` - 脱敏用户输入
+- `sanitizeEvent()` - 脱敏事件数据
+- `checkPrivacyRisk()` - 检查隐私风险
+- `createSafePrompt()` - 创建安全的提示词
+
+敏感信息检测：
+- 手机号：`1[3-9]\d{9}`
+- 身份证号：`\d{17}[\dXx]`
+- 邮箱：`[\w.-]+@[\w.-]+\.\w+`
+- 银行卡号：`\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}`
+
+#### 4. 为 AI 服务添加隐私保护
+
+**修改文件：**
+- `lib/services/aiParserService.ts` - 自然语言解析
+- `lib/services/conflictResolutionService.ts` - 冲突解决
+
+改进内容：
+```typescript
+// 添加隐私检查
+const privacyCheck = aiPrivacyMiddleware.checkPrivacyRisk(input, 'nlp');
+if (!privacyCheck.canSend) {
+  console.warn('隐私风险警告:', privacyCheck.warnings);
+}
+
+// 脱敏后发送
+const sanitizedInput = aiPrivacyMiddleware.sanitizeInput(input, 'nlp');
+```
+
+### 隐私保护架构
+
+```
+用户输入 → 隐私检查 → 数据脱敏 → AI API → 结果处理
+    ↓           ↓           ↓
+  本地存储   敏感检测   匿名化处理
+```
+
+### 隐私保护原则
+
+1. **数据最小化** - 只发送必要信息
+2. **脱敏处理** - 移除/替换敏感信息
+3. **用户知情** - 明确告知数据用途
+4. **本地优先** - 优先使用本地算法
+5. **API Key 本地存储** - 不上传到服务器
+
+### 测试验证
+
+所有 AI 功能测试通过：
+- ✅ 智能推荐服务
+- ✅ 智能提醒服务
+- ✅ 冲突解决服务
+- ✅ 自然语言解析
+- ✅ 向量搜索
+
+---
+
 ## 📚 相关文档
 
 - [统一数据架构设计](./UNIFIED_DATA_ARCHITECTURE.md)
