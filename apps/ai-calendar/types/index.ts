@@ -19,6 +19,16 @@ export interface CalendarEvent {
   createdAt: Date;
   updatedAt: Date;
   color?: string;
+  
+  eventType: 'regular' | 'shift' | 'meeting' | 'personal';
+  shiftMetadata?: {
+    scheduleId: string;
+    shiftId: string;
+    employeeId: string;
+    employeeName: string;
+    shiftTypeId: string;
+    shiftTypeName: string;
+  };
 }
 
 export interface RepeatRule {

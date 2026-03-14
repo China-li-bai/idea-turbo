@@ -3,6 +3,7 @@ import { db } from '@/lib/storage';
 import { eventBus } from '@/lib/utils/eventBus';
 import { aiService } from '@/lib/ai';
 import { localScheduler } from './localScheduler';
+import { privacySanitizer } from '@/lib/utils/privacy';
 import type {
   ShiftSchedule,
   ShiftType,
@@ -137,6 +138,24 @@ export class ShiftService {
       },
     ];
 
+    privacySanitizer.reset();
+
+    const { sanitizedPrompt, sanitizedData } = privacySanitizer.sanitizeForAI(
+      naturalLanguage,
+      defaultEmployees,
+      defaultShiftTypes,
+      startDate,
+      endDate
+    );
+
+    const anonymizedEmployeeMap = new Map<string, Employee>();
+    const employeeDisplayList = sanitizedData.employees.map((sanitizedEmp, idx) => {
+      const originalEmp = defaultEmployees[idx];
+      anonymizedEmployeeMap.set(sanitizedEmp.anonymizedName, originalEmp);
+      anonymizedEmployeeMap.set(originalEmp.id, originalEmp);
+      return `- ${sanitizedEmp.anonymizedName} (ID: ${originalEmp.id})`;
+    });
+
     const systemPrompt = `你是一个专业的排班助手。请根据用户的自然语言描述生成排班表。
 
 要求：
@@ -144,7 +163,7 @@ export class ShiftService {
 2. 可用班次类型：
 ${defaultShiftTypes.map(st => `- ${st.name}: ${st.startTime}-${st.endTime} (ID: ${st.id})`).join('\n')}
 3. 可用员工：
-${defaultEmployees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n')}
+${employeeDisplayList.join('\n')}
 
 请返回JSON格式，包含：
 {
@@ -162,7 +181,7 @@ ${defaultEmployees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n')}
 
     const response = await aiService.chat([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: naturalLanguage },
+      { role: 'user', content: sanitizedPrompt },
     ]);
 
     let parsedResult: { shifts: Array<{ date: string; shiftTypeId: string; employeeId: string; notes?: string }> };
@@ -177,14 +196,25 @@ ${defaultEmployees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n')}
       throw new Error('Failed to parse AI response');
     }
 
-    const shifts: Shift[] = parsedResult.shifts.map(s => ({
-      id: uuidv4(),
-      scheduleId: '',
-      date: new Date(s.date),
-      shiftTypeId: s.shiftTypeId,
-      employeeId: s.employeeId,
-      notes: s.notes,
-    }));
+    const shifts: Shift[] = parsedResult.shifts.map(s => {
+      let employeeId = s.employeeId;
+      
+      for (const [key, emp] of anonymizedEmployeeMap.entries()) {
+        if (key === s.employeeId || key.includes(s.employeeId)) {
+          employeeId = emp.id;
+          break;
+        }
+      }
+
+      return {
+        id: uuidv4(),
+        scheduleId: '',
+        date: new Date(s.date),
+        shiftTypeId: s.shiftTypeId,
+        employeeId,
+        notes: s.notes,
+      };
+    });
 
     const schedule: ShiftSchedule = {
       id: uuidv4(),
@@ -204,6 +234,8 @@ ${defaultEmployees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n')}
     const events: CalendarEvent[] = this.convertShiftsToEvents(schedule);
 
     schedule.shifts = shifts.map(s => ({ ...s, scheduleId: schedule.id }));
+
+    privacySanitizer.reset();
 
     return { schedule, events };
   }
