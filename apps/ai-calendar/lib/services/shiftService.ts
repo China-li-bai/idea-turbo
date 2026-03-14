@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '@/lib/storage';
+import { db, getAllFromStore } from '@/lib/storage';
 import { eventBus } from '@/lib/utils/eventBus';
 import { aiService } from '@/lib/ai';
 import { localScheduler } from './localScheduler';
@@ -23,7 +23,7 @@ export class ShiftService {
   }
 
   async getSchedules(): Promise<ShiftSchedule[]> {
-    return await db.shifts.getAllFromStore('schedules');
+    return await getAllFromStore<ShiftSchedule>(db.schedules);
   }
 
   async getSchedule(id: string): Promise<ShiftSchedule | undefined> {
@@ -240,53 +240,68 @@ ${employeeDisplayList.join('\n')}
     return { schedule, events };
   }
 
+  convertShiftToEvent(
+    shift: Shift,
+    schedule: ShiftSchedule,
+    existingEvent?: CalendarEvent
+  ): CalendarEvent | null {
+    const shiftType = schedule.shiftTypes.find(st => st.id === shift.shiftTypeId);
+    const employee = schedule.employees.find(e => e.id === shift.employeeId);
+
+    if (!shiftType || !employee) return null;
+
+    const shiftDate = new Date(shift.date);
+    const [startHour, startMinute] = shiftType.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shiftType.endTime.split(':').map(Number);
+
+    const startTime = new Date(shiftDate);
+    startTime.setHours(startHour, startMinute, 0, 0);
+
+    let endTime = new Date(shiftDate);
+    endTime.setHours(endHour, endMinute, 0, 0);
+
+    if (endHour < startHour) {
+      endTime.setDate(endTime.getDate() + 1);
+    }
+
+    const event: CalendarEvent = {
+      id: existingEvent?.id || uuidv4(),
+      title: `${employee.name} - ${shiftType.name}`,
+      description: shift.notes,
+      startTime,
+      endTime,
+      isAllDay: false,
+      reminders: existingEvent?.reminders || [],
+      viewMode: 'personal',
+      linkedEventId: existingEvent?.linkedEventId,
+      linkedTaskIds: existingEvent?.linkedTaskIds,
+      vectorId: existingEvent?.vectorId,
+      embeddingUpdatedAt: existingEvent?.embeddingUpdatedAt,
+      createdAt: existingEvent?.createdAt || new Date(),
+      updatedAt: new Date(),
+      color: shiftType.color,
+      eventType: 'shift',
+      shiftMetadata: {
+        scheduleId: schedule.id,
+        shiftId: shift.id,
+        employeeId: employee.id,
+        employeeName: employee.name,
+        shiftTypeId: shiftType.id,
+        shiftTypeName: shiftType.name,
+      },
+    };
+
+    return event;
+  }
+
   convertShiftsToEvents(schedule: ShiftSchedule): CalendarEvent[] {
     const events: CalendarEvent[] = [];
 
     for (const shift of schedule.shifts) {
-      const shiftType = schedule.shiftTypes.find(st => st.id === shift.shiftTypeId);
-      const employee = schedule.employees.find(e => e.id === shift.employeeId);
-
-      if (!shiftType || !employee) continue;
-
-      const shiftDate = new Date(shift.date);
-      const [startHour, startMinute] = shiftType.startTime.split(':').map(Number);
-      const [endHour, endMinute] = shiftType.endTime.split(':').map(Number);
-
-      const startTime = new Date(shiftDate);
-      startTime.setHours(startHour, startMinute, 0, 0);
-
-      let endTime = new Date(shiftDate);
-      endTime.setHours(endHour, endMinute, 0, 0);
-
-      if (endHour < startHour) {
-        endTime.setDate(endTime.getDate() + 1);
+      const event = this.convertShiftToEvent(shift, schedule);
+      if (event) {
+        events.push(event);
       }
-
-      const event: CalendarEvent = {
-        id: uuidv4(),
-        title: `${employee.name} - ${shiftType.name}`,
-        description: shift.notes,
-        startTime,
-        endTime,
-        isAllDay: false,
-        reminders: [],
-        viewMode: 'personal',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        color: shiftType.color,
-        eventType: 'shift',
-        shiftMetadata: {
-          scheduleId: schedule.id,
-          shiftId: shift.id,
-          employeeId: employee.id,
-          employeeName: employee.name,
-          shiftTypeId: shiftType.id,
-          shiftTypeName: shiftType.name,
-        },
-      };
-
-      events.push(event);
     }
 
     return events;
@@ -296,10 +311,12 @@ ${employeeDisplayList.join('\n')}
     newEvents: CalendarEvent[],
     existingEvents: CalendarEvent[]
   ): { 
-    conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }>;
+    conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked'; severity: 'error' | 'warning' }>;
     warnings: string[];
+    hasError: boolean;
+    hasWarning: boolean;
   } {
-    const conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }> = [];
+    const conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked'; severity: 'error' | 'warning' }> = [];
     const warnings: string[] = [];
 
     const allEvents = [...existingEvents, ...newEvents];
@@ -321,21 +338,34 @@ ${employeeDisplayList.join('\n')}
             event1,
             event2,
             type: isEmployeeDoubleBooked ? 'employee_double_booked' : 'overlap',
+            severity: isEmployeeDoubleBooked ? 'error' : 'warning',
           });
         }
       }
     }
 
-    if (conflicts.length > 0) {
-      warnings.push(`检测到 ${conflicts.length} 个潜在冲突`);
+    const errorConflicts = conflicts.filter(c => c.severity === 'error');
+    const warningConflicts = conflicts.filter(c => c.severity === 'warning');
+
+    if (errorConflicts.length > 0) {
+      warnings.push(`❌ 严重错误：检测到 ${errorConflicts.length} 个员工重复排班，必须修改`);
+    }
+
+    if (warningConflicts.length > 0) {
+      warnings.push(`⚠️ 警告：检测到 ${warningConflicts.length} 个时间重叠`);
     }
 
     const newShiftEvents = newEvents.filter(e => e.eventType === 'shift');
     if (newShiftEvents.length > 0) {
-      warnings.push(`将添加 ${newShiftEvents.length} 个排班事件`);
+      warnings.push(`ℹ️ 将添加 ${newShiftEvents.length} 个排班事件`);
     }
 
-    return { conflicts, warnings };
+    return { 
+      conflicts, 
+      warnings,
+      hasError: errorConflicts.length > 0,
+      hasWarning: warningConflicts.length > 0,
+    };
   }
 
   private isTimeOverlap(event1: CalendarEvent, event2: CalendarEvent): boolean {
@@ -493,6 +523,399 @@ ${employeeDisplayList.join('\n')}
         entityId: event.id,
       });
     }
+  }
+
+  async getAllSchedules(): Promise<ShiftSchedule[]> {
+    return await getAllFromStore<ShiftSchedule>(db.schedules);
+  }
+
+  async getScheduleById(id: string): Promise<ShiftSchedule | undefined> {
+    return await db.schedules.getItem(id);
+  }
+
+  async getShiftsByScheduleId(scheduleId: string): Promise<Shift[]> {
+    const schedule = await this.getScheduleById(scheduleId);
+    return schedule?.shifts || [];
+  }
+
+  async getShiftById(scheduleId: string, shiftId: string): Promise<Shift | undefined> {
+    const shifts = await this.getShiftsByScheduleId(scheduleId);
+    return shifts.find(s => s.id === shiftId);
+  }
+
+  async addShift(
+    scheduleId: string,
+    shiftData: Omit<Shift, 'id' | 'scheduleId'>
+  ): Promise<{
+    shift: Shift;
+    event?: CalendarEvent;
+    conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }>;
+    warnings: string[];
+  }> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const newShift: Shift = {
+      ...shiftData,
+      id: uuidv4(),
+      scheduleId,
+    };
+
+    const tempSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: [...schedule.shifts, newShift],
+    };
+
+    const newEvent = this.convertShiftToEvent(newShift, tempSchedule);
+    
+    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const otherEvents = allEvents.filter(e => 
+      !(e.eventType === 'shift' && e.shiftMetadata?.shiftId === newShift.id)
+    );
+
+    const conflictResult = newEvent ? 
+      this.detectConflicts([newEvent], otherEvents) : 
+      { conflicts: [], warnings: [] };
+
+    const updatedSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: [...schedule.shifts, newShift],
+      updatedAt: new Date(),
+    };
+
+    await db.schedules.setItem(scheduleId, updatedSchedule);
+
+    if (newEvent) {
+      await db.events.setItem(newEvent.id, newEvent);
+      eventBus.publish({
+        type: 'created',
+        entityType: 'event',
+        entityId: newEvent.id,
+      });
+    }
+
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift-schedule',
+      entityId: scheduleId,
+    });
+    eventBus.publish({
+      type: 'created',
+      entityType: 'shift',
+      entityId: newShift.id,
+      metadata: { scheduleId },
+    });
+
+    return {
+      shift: newShift,
+      event: newEvent,
+      conflicts: conflictResult.conflicts,
+      warnings: conflictResult.warnings,
+    };
+  }
+
+  async updateShift(
+    scheduleId: string,
+    shiftId: string,
+    updates: Partial<Omit<Shift, 'id' | 'scheduleId'>>
+  ): Promise<{
+    shift: Shift;
+    event?: CalendarEvent;
+    conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }>;
+    warnings: string[];
+  }> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const shiftIndex = schedule.shifts.findIndex(s => s.id === shiftId);
+    if (shiftIndex === -1) {
+      throw new Error('Shift not found');
+    }
+
+    const updatedShift: Shift = {
+      ...schedule.shifts[shiftIndex],
+      ...updates,
+    };
+
+    const updatedShifts = [...schedule.shifts];
+    updatedShifts[shiftIndex] = updatedShift;
+
+    const tempSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: updatedShifts,
+    };
+
+    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const existingEvent = allEvents.find(e => 
+      e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId
+    );
+
+    const updatedEvent = this.convertShiftToEvent(updatedShift, tempSchedule, existingEvent);
+    
+    const otherEvents = allEvents.filter(e => e.id !== updatedEvent?.id);
+
+    const conflictResult = updatedEvent ? 
+      this.detectConflicts([updatedEvent], otherEvents) : 
+      { conflicts: [], warnings: [] };
+
+    const updatedSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: updatedShifts,
+      updatedAt: new Date(),
+    };
+
+    await db.schedules.setItem(scheduleId, updatedSchedule);
+
+    if (updatedEvent) {
+      await db.events.setItem(updatedEvent.id, updatedEvent);
+      eventBus.publish({
+        type: 'updated',
+        entityType: 'event',
+        entityId: updatedEvent.id,
+      });
+    }
+
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift-schedule',
+      entityId: scheduleId,
+    });
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift',
+      entityId: shiftId,
+      metadata: { scheduleId },
+    });
+
+    return {
+      shift: updatedShift,
+      event: updatedEvent,
+      conflicts: conflictResult.conflicts,
+      warnings: conflictResult.warnings,
+    };
+  }
+
+  async checkShiftConflicts(
+    scheduleId: string,
+    shiftData: Omit<Shift, 'id' | 'scheduleId'>,
+    existingShiftId?: string
+  ): Promise<{
+    hasError: boolean;
+    hasWarning: boolean;
+    warnings: string[];
+  }> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const tempShift: Shift = {
+      ...shiftData,
+      id: existingShiftId || uuidv4(),
+      scheduleId,
+    };
+
+    const tempSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: existingShiftId
+        ? schedule.shifts.map(s => s.id === existingShiftId ? tempShift : s)
+        : [...schedule.shifts, tempShift],
+    };
+
+    const tempEvent = this.convertShiftToEvent(tempShift, tempSchedule);
+    if (!tempEvent) {
+      return { hasError: false, hasWarning: false, warnings: [] };
+    }
+
+    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const otherEvents = allEvents.filter(e => 
+      !(e.eventType === 'shift' && e.shiftMetadata?.shiftId === tempShift.id)
+    );
+
+    return this.detectConflicts([tempEvent], otherEvents);
+  }
+
+  async deleteShift(scheduleId: string, shiftId: string): Promise<void> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const updatedShifts = schedule.shifts.filter(s => s.id !== shiftId);
+    const updatedSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: updatedShifts,
+      updatedAt: new Date(),
+    };
+
+    await db.schedules.setItem(scheduleId, updatedSchedule);
+
+    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const eventToDelete = allEvents.find(e => 
+      e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId
+    );
+
+    if (eventToDelete) {
+      await db.events.removeItem(eventToDelete.id);
+      eventBus.publish({
+        type: 'deleted',
+        entityType: 'event',
+        entityId: eventToDelete.id,
+      });
+    }
+
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift-schedule',
+      entityId: scheduleId,
+    });
+    eventBus.publish({
+      type: 'deleted',
+      entityType: 'shift',
+      entityId: shiftId,
+      metadata: { scheduleId },
+    });
+  }
+
+  async deleteSchedule(scheduleId: string): Promise<void> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const eventsToDelete = allEvents.filter(
+      e => e.eventType === 'shift' && e.shiftMetadata?.scheduleId === scheduleId
+    );
+
+    for (const event of eventsToDelete) {
+      await db.events.removeItem(event.id);
+      eventBus.publish({
+        type: 'deleted',
+        entityType: 'event',
+        entityId: event.id,
+      });
+    }
+
+    await db.schedules.removeItem(scheduleId);
+    eventBus.publish({
+      type: 'deleted',
+      entityType: 'shift-schedule',
+      entityId: scheduleId,
+    });
+  }
+
+  async duplicateSchedule(
+    scheduleId: string,
+    newStartDate?: Date,
+    newEndDate?: Date
+  ): Promise<ShiftSchedule> {
+    const originalSchedule = await this.getScheduleById(scheduleId);
+    if (!originalSchedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const startDate = newStartDate || originalSchedule.startDate;
+    const endDate = newEndDate || originalSchedule.endDate;
+
+    const newSchedule: ShiftSchedule = {
+      id: uuidv4(),
+      name: `${originalSchedule.name} (副本)`,
+      description: originalSchedule.description,
+      startDate,
+      endDate,
+      employees: [...originalSchedule.employees],
+      shiftTypes: [...originalSchedule.shiftTypes],
+      shifts: originalSchedule.shifts.map(shift => ({
+        ...shift,
+        id: uuidv4(),
+        scheduleId: '',
+      })),
+      rules: [...originalSchedule.rules],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      generatedBy: originalSchedule.generatedBy,
+    };
+
+    newSchedule.shifts = newSchedule.shifts.map(s => ({
+      ...s,
+      scheduleId: newSchedule.id,
+    }));
+
+    await db.schedules.setItem(newSchedule.id, newSchedule);
+    eventBus.publish({
+      type: 'created',
+      entityType: 'shift-schedule',
+      entityId: newSchedule.id,
+    });
+
+    return newSchedule;
+  }
+
+  async swapShifts(
+    scheduleId: string,
+    shiftId1: string,
+    shiftId2: string
+  ): Promise<{ shift1: Shift; shift2: Shift }> {
+    const schedule = await this.getScheduleById(scheduleId);
+    if (!schedule) {
+      throw new Error('Schedule not found');
+    }
+
+    const shift1Index = schedule.shifts.findIndex(s => s.id === shiftId1);
+    const shift2Index = schedule.shifts.findIndex(s => s.id === shiftId2);
+
+    if (shift1Index === -1 || shift2Index === -1) {
+      throw new Error('One or both shifts not found');
+    }
+
+    const shift1 = schedule.shifts[shift1Index];
+    const shift2 = schedule.shifts[shift2Index];
+
+    const newShift1: Shift = {
+      ...shift1,
+      employeeId: shift2.employeeId,
+    };
+
+    const newShift2: Shift = {
+      ...shift2,
+      employeeId: shift1.employeeId,
+    };
+
+    const updatedShifts = [...schedule.shifts];
+    updatedShifts[shift1Index] = newShift1;
+    updatedShifts[shift2Index] = newShift2;
+
+    const updatedSchedule: ShiftSchedule = {
+      ...schedule,
+      shifts: updatedShifts,
+      updatedAt: new Date(),
+    };
+
+    await db.schedules.setItem(scheduleId, updatedSchedule);
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift-schedule',
+      entityId: scheduleId,
+    });
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift',
+      entityId: shiftId1,
+      metadata: { scheduleId, action: 'swap' },
+    });
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'shift',
+      entityId: shiftId2,
+      metadata: { scheduleId, action: 'swap' },
+    });
+
+    return { shift1: newShift1, shift2: newShift2 };
   }
 }
 
