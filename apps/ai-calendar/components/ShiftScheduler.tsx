@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { shiftService } from '@/lib/services/shiftService';
+import { useCalendarStore } from '@/lib/stores/calendarStore';
 import type { ShiftSchedule, CalendarEvent } from '@/types';
 import styles from './shiftScheduler.module.scss';
 
@@ -9,24 +10,82 @@ interface ShiftSchedulerProps {
   onScheduleCreated?: (schedule: ShiftSchedule, events: CalendarEvent[]) => void;
 }
 
+type GenerationMode = 'local' | 'ai';
+
 export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProps) {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mode, setMode] = useState<GenerationMode>('local');
   const [generatedSchedule, setGeneratedSchedule] = useState<{
     schedule: ShiftSchedule;
     events: CalendarEvent[];
   } | null>(null);
+  const [localConflicts, setLocalConflicts] = useState<string[]>([]);
+  const [localWarnings, setLocalWarnings] = useState<string[]>([]);
+  const [localScore, setLocalScore] = useState<number | null>(null);
+  const [calendarConflicts, setCalendarConflicts] = useState<Array<{ 
+    event1: CalendarEvent; 
+    event2: CalendarEvent; 
+    type: 'overlap' | 'employee_double_booked';
+  }>>([]);
+  const [calendarWarnings, setCalendarWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { events: existingEvents } = useCalendarStore();
+
+  const validateInput = (text: string): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const trimmedText = text.trim();
+    
+    if (!trimmedText) {
+      errors.push('请输入排班需求');
+      return { valid: false, errors };
+    }
+    
+    if (trimmedText.length < 5) {
+      errors.push('排班需求描述太短，请提供更详细的信息');
+    }
+    
+    const hasDateKeywords = /下?周[一二三四五六日天]|本?周[一二三四五六日天]|明天|后天|大后天|前?天|今天|日期|时间|号|日/.test(trimmedText);
+    const hasPeopleKeywords = /员工|人员|同事|工人|张三|李四|王五|赵六|钱七|孙八|和|跟|与/.test(trimmedText);
+    
+    if (!hasDateKeywords) {
+      errors.push('请包含日期信息（例如：下周一开始、本周三、明天等）');
+    }
+    
+    if (!hasPeopleKeywords) {
+      errors.push('请包含人员信息（例如：张三、李四、王五等）');
+    }
+    
+    return { valid: errors.length === 0, errors };
+  };
 
   const handleGenerate = async () => {
-    if (!input.trim()) return;
+    const validation = validateInput(input);
+    if (!validation.valid) {
+      setError(validation.errors.join('；'));
+      return;
+    }
     
     setIsGenerating(true);
     setError(null);
+    setLocalConflicts([]);
+    setLocalWarnings([]);
+    setLocalScore(null);
+    setCalendarConflicts([]);
+    setCalendarWarnings([]);
     
     try {
-      const result = await shiftService.generateScheduleFromNaturalLanguage(input);
+      const result = await shiftService.generateSchedule(input, { mode });
       setGeneratedSchedule(result);
+      
+      setLocalConflicts(result.conflicts || []);
+      setLocalWarnings(result.warnings || []);
+      setLocalScore(result.score || null);
+      
+      const { conflicts: detectedConflicts, warnings: detectedWarnings } = 
+        shiftService.detectConflicts(result.events, existingEvents);
+      setCalendarConflicts(detectedConflicts);
+      setCalendarWarnings(detectedWarnings);
       
       if (onScheduleCreated) {
         onScheduleCreated(result.schedule, result.events);
@@ -48,6 +107,8 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
       );
       setInput('');
       setGeneratedSchedule(null);
+      setConflicts([]);
+      setWarnings([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存排班失败');
     }
@@ -56,6 +117,11 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
   const handleClear = () => {
     setInput('');
     setGeneratedSchedule(null);
+    setLocalConflicts([]);
+    setLocalWarnings([]);
+    setLocalScore(null);
+    setCalendarConflicts([]);
+    setCalendarWarnings([]);
     setError(null);
   };
 
@@ -78,6 +144,31 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
           disabled={isGenerating}
           rows={4}
         />
+        
+        <div className={styles.modeSelector}>
+          <span className={styles.modeLabel}>生成模式：</span>
+          <button
+            className={`${styles.modeBtn} ${mode === 'local' ? styles.active : ''}`}
+            onClick={() => setMode('local')}
+            disabled={isGenerating}
+          >
+            🔒 本地算法（推荐）
+          </button>
+          <button
+            className={`${styles.modeBtn} ${mode === 'ai' ? styles.active : ''}`}
+            onClick={() => setMode('ai')}
+            disabled={isGenerating}
+          >
+            🤖 AI 辅助
+          </button>
+        </div>
+        
+        {mode === 'local' && (
+          <div className={styles.privacyNote}>
+            <span>🛡️ </span>
+            <span>本地模式：所有数据在本地处理，保护您的隐私</span>
+          </div>
+        )}
         
         <div className={styles.quickExamples}>
           <span className={styles.quickLabel}>快速示例：</span>
@@ -123,6 +214,77 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
       {error && (
         <div className={styles.error}>
           ⚠️ {error}
+        </div>
+      )}
+      
+      {localWarnings.length > 0 && (
+        <div className={styles.warnings}>
+          <h4 className={styles.warningTitle}>📢 本地算法提示</h4>
+          <ul className={styles.warningList}>
+            {localWarnings.map((warning, idx) => (
+              <li key={idx} className={styles.warningItem}>
+                • {warning}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {localConflicts.length > 0 && (
+        <div className={styles.conflicts}>
+          <h4 className={styles.conflictTitle}>⚠️ 本地算法检测到 {localConflicts.length} 个冲突</h4>
+          <ul className={styles.conflictList}>
+            {localConflicts.map((conflict, idx) => (
+              <li key={idx} className={styles.conflictItem}>
+                <span className={styles.conflictType}>无法排班</span>
+                <div className={styles.conflictDetails}>
+                  <span>{conflict}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {calendarWarnings.length > 0 && (
+        <div className={styles.warnings}>
+          <h4 className={styles.warningTitle}>📢 日历冲突提示</h4>
+          <ul className={styles.warningList}>
+            {calendarWarnings.map((warning, idx) => (
+              <li key={idx} className={styles.warningItem}>
+                • {warning}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {calendarConflicts.length > 0 && (
+        <div className={styles.conflicts}>
+          <h4 className={styles.conflictTitle}>⚠️ 检测到 {calendarConflicts.length} 个日历冲突</h4>
+          <ul className={styles.conflictList}>
+            {calendarConflicts.map((conflict, idx) => (
+              <li key={idx} className={styles.conflictItem}>
+                <span className={styles.conflictType}>
+                  {conflict.type === 'employee_double_booked' ? '👥 员工重复排班' : '⏰ 时间重叠'}
+                </span>
+                <div className={styles.conflictDetails}>
+                  <span>{conflict.event1.title}</span>
+                  <span>↔</span>
+                  <span>{conflict.event2.title}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {localScore !== null && (
+        <div className={styles.scoreDisplay}>
+          <span className={styles.scoreLabel}>📊 排班质量评分：</span>
+          <span className={`${styles.scoreValue} ${localScore >= 80 ? styles.high : localScore >= 60 ? styles.medium : styles.low}`}>
+            {Math.round(localScore)} / 100
+          </span>
         </div>
       )}
       
