@@ -23,9 +23,14 @@ export function convertToScheduleXEvent(event: CalendarEvent): ScheduleXEvent {
     ? Temporal.PlainDate.from(`${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`)
     : Temporal.ZonedDateTime.from(`${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}T${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}:00[Asia/Shanghai]`)
 
+  let displayTitle = event.title
+  if (event.eventType === 'shift' && event.shiftMetadata) {
+    displayTitle = `[排班] ${displayTitle}`
+  }
+
   return {
     id: event.id,
-    title: event.title,
+    title: displayTitle,
     description: event.description,
     location: event.location,
     start,
@@ -62,5 +67,6 @@ export function convertFromScheduleXEvent(sxEvent: any): CalendarEvent {
     isAllDay,
     viewMode: 'personal',
     reminders: [],
+    eventType: 'regular',
   }
 }

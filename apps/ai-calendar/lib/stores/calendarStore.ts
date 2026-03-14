@@ -59,10 +59,14 @@ export const useCalendarStore = create<CalendarState>()(
       },
       
       addEvent: (event) =>
-        set((state) => ({ events: [...state.events, event] })),
+        set((state) => ({ 
+          events: [...state.events, { eventType: 'regular', ...event }] 
+        })),
       
       addEvents: (newEvents) =>
-        set((state) => ({ events: [...state.events, ...newEvents] })),
+        set((state) => ({ 
+          events: [...state.events, ...newEvents.map(e => ({ eventType: 'regular', ...e }))] 
+        })),
       
       updateEvent: (id, eventUpdate) =>
         set((state) => ({

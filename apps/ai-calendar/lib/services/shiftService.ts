@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '@/lib/storage';
 import { eventBus } from '@/lib/utils/eventBus';
 import { aiService } from '@/lib/ai';
+import { localScheduler } from './localScheduler';
 import type {
   ShiftSchedule,
   ShiftType,
@@ -242,12 +243,208 @@ ${defaultEmployees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n')}
         createdAt: new Date(),
         updatedAt: new Date(),
         color: shiftType.color,
+        eventType: 'shift',
+        shiftMetadata: {
+          scheduleId: schedule.id,
+          shiftId: shift.id,
+          employeeId: employee.id,
+          employeeName: employee.name,
+          shiftTypeId: shiftType.id,
+          shiftTypeName: shiftType.name,
+        },
       };
 
       events.push(event);
     }
 
     return events;
+  }
+
+  detectConflicts(
+    newEvents: CalendarEvent[],
+    existingEvents: CalendarEvent[]
+  ): { 
+    conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }>;
+    warnings: string[];
+  } {
+    const conflicts: Array<{ event1: CalendarEvent; event2: CalendarEvent; type: 'overlap' | 'employee_double_booked' }> = [];
+    const warnings: string[] = [];
+
+    const allEvents = [...existingEvents, ...newEvents];
+
+    for (let i = 0; i < allEvents.length; i++) {
+      for (let j = i + 1; j < allEvents.length; j++) {
+        const event1 = allEvents[i];
+        const event2 = allEvents[j];
+
+        const isOverlap = this.isTimeOverlap(event1, event2);
+        
+        if (isOverlap) {
+          const isEmployeeDoubleBooked = 
+            event1.eventType === 'shift' && 
+            event2.eventType === 'shift' && 
+            event1.shiftMetadata?.employeeId === event2.shiftMetadata?.employeeId;
+
+          conflicts.push({
+            event1,
+            event2,
+            type: isEmployeeDoubleBooked ? 'employee_double_booked' : 'overlap',
+          });
+        }
+      }
+    }
+
+    if (conflicts.length > 0) {
+      warnings.push(`检测到 ${conflicts.length} 个潜在冲突`);
+    }
+
+    const newShiftEvents = newEvents.filter(e => e.eventType === 'shift');
+    if (newShiftEvents.length > 0) {
+      warnings.push(`将添加 ${newShiftEvents.length} 个排班事件`);
+    }
+
+    return { conflicts, warnings };
+  }
+
+  private isTimeOverlap(event1: CalendarEvent, event2: CalendarEvent): boolean {
+    return (
+      event1.startTime < event2.endTime &&
+      event1.endTime > event2.startTime
+    );
+  }
+
+  async generateScheduleLocal(
+    naturalLanguage: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      employees?: Employee[];
+      shiftTypes?: ShiftType[];
+    }
+  ): Promise<{
+    schedule: ShiftSchedule;
+    events: CalendarEvent[];
+    warnings: string[];
+    conflicts: string[];
+    score: number;
+  }> {
+    const today = new Date();
+    const startDate = options?.startDate || today;
+    const endDate = options?.endDate || new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const defaultShiftTypes: ShiftType[] = options?.shiftTypes || [
+      {
+        id: uuidv4(),
+        name: '早班',
+        startTime: '08:00',
+        endTime: '16:00',
+        color: '#3b82f6',
+      },
+      {
+        id: uuidv4(),
+        name: '中班',
+        startTime: '14:00',
+        endTime: '22:00',
+        color: '#10b981',
+      },
+      {
+        id: uuidv4(),
+        name: '晚班',
+        startTime: '20:00',
+        endTime: '06:00',
+        color: '#8b5cf6',
+      },
+    ];
+
+    const defaultEmployees: Employee[] = options?.employees || [
+      {
+        id: uuidv4(),
+        name: '张三',
+        color: '#ef4444',
+      },
+      {
+        id: uuidv4(),
+        name: '李四',
+        color: '#f59e0b',
+      },
+      {
+        id: uuidv4(),
+        name: '王五',
+        color: '#06b6d4',
+      },
+    ];
+
+    const shiftsPerDay = 1;
+
+    const schedulingResult = localScheduler.schedule(
+      startDate,
+      endDate,
+      defaultEmployees,
+      defaultShiftTypes,
+      shiftsPerDay
+    );
+
+    const schedule: ShiftSchedule = {
+      id: uuidv4(),
+      name: naturalLanguage.substring(0, 50),
+      description: naturalLanguage,
+      startDate,
+      endDate,
+      employees: defaultEmployees,
+      shiftTypes: defaultShiftTypes,
+      shifts: schedulingResult.shifts.map(s => ({ ...s, scheduleId: '' })),
+      rules: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      generatedBy: 'local',
+    };
+
+    const events: CalendarEvent[] = this.convertShiftsToEvents(schedule);
+    schedule.shifts = schedulingResult.shifts.map(s => ({ ...s, scheduleId: schedule.id }));
+
+    return {
+      schedule,
+      events,
+      warnings: schedulingResult.warnings,
+      conflicts: schedulingResult.conflicts,
+      score: schedulingResult.score,
+    };
+  }
+
+  async generateSchedule(
+    naturalLanguage: string,
+    options?: {
+      mode?: 'local' | 'ai' | 'hybrid';
+      startDate?: Date;
+      endDate?: Date;
+      employees?: Employee[];
+      shiftTypes?: ShiftType[];
+    }
+  ): Promise<{
+    schedule: ShiftSchedule;
+    events: CalendarEvent[];
+    warnings: string[];
+    conflicts: string[];
+    score?: number;
+    generatedBy: 'local' | 'ai' | 'hybrid';
+  }> {
+    const mode = options?.mode || 'local';
+
+    if (mode === 'local') {
+      const result = await this.generateScheduleLocal(naturalLanguage, options);
+      return {
+        ...result,
+        generatedBy: 'local',
+      };
+    } else {
+      const aiResult = await this.generateScheduleFromNaturalLanguage(naturalLanguage, options);
+      return {
+        ...aiResult,
+        warnings: [],
+        conflicts: [],
+        generatedBy: 'ai',
+      };
+    }
   }
 
   async saveGeneratedSchedule(

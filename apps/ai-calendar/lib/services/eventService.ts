@@ -8,6 +8,7 @@ export class EventService {
   async create(event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<CalendarEvent> {
     const now = new Date();
     const newEvent: CalendarEvent = {
+      eventType: 'regular',
       ...event,
       id: uuidv4(),
       createdAt: now,
