@@ -17,9 +17,9 @@ const DEFAULT_CONFIG: AIConfig = {
     },
     glm: {
       baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-      apiKey: '',
-      model: 'glm-4',
-      defaultModel: 'glm-4',
+      apiKey: '25eedfacc5054f42afe13dbdedf85d83.INoE7zJEyd1j2bK0',
+      model: 'GLM-4-Flash',
+      defaultModel: 'GLM-4-Flash',
     },
     bailian: {
       baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -28,7 +28,7 @@ const DEFAULT_CONFIG: AIConfig = {
       defaultModel: 'qwen-plus',
     },
   },
-  defaultProvider: 'openai',
+  defaultProvider: 'glm',
 };
 
 export class AIConfigManager {
