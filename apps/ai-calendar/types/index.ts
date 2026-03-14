@@ -118,6 +118,7 @@ export interface ShiftType {
   endTime: string;
   color: string;
   description?: string;
+  requiredSkills?: string[];
 }
 
 export interface Employee {
@@ -126,6 +127,7 @@ export interface Employee {
   color: string;
   email?: string;
   phone?: string;
+  skills?: string[];
   
   preferences?: {
     preferredShifts?: string[];
