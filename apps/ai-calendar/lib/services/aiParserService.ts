@@ -1,4 +1,5 @@
 import { aiService } from '@/lib/ai';
+import { aiPrivacyMiddleware } from '@/lib/utils/aiPrivacy';
 
 export interface ParsedResult {
   title: string;
@@ -83,6 +84,14 @@ export async function parseNaturalLanguage(input: string): Promise<ParsedResult>
   };
 
   try {
+    const privacyCheck = aiPrivacyMiddleware.checkPrivacyRisk(input, 'nlp');
+    
+    if (!privacyCheck.canSend) {
+      console.warn('隐私风险警告:', privacyCheck.warnings);
+    }
+
+    const sanitizedInput = aiPrivacyMiddleware.sanitizeInput(input, 'nlp');
+
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
@@ -93,7 +102,7 @@ export async function parseNaturalLanguage(input: string): Promise<ParsedResult>
       },
       {
         role: 'user',
-        content: `今天是${todayStr}。用户输入：${input}`,
+        content: `今天是${todayStr}。用户输入：${sanitizedInput}`,
       },
     ]);
 

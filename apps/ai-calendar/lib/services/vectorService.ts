@@ -230,9 +230,11 @@ class VectorService {
     
     return results.slice(0, k).map(result => ({
       id: result.id,
+      originalId: result.id,
       type: result.doc.type,
       score: result.score,
-      text: result.doc.text,
+      title: result.doc.metadata.title || result.doc.text.substring(0, 50),
+      content: result.doc.text,
       metadata: result.doc.metadata,
     }));
   }

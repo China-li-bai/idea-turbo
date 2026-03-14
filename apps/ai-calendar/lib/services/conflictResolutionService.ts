@@ -1,6 +1,7 @@
 import { aiService } from '@/lib/ai';
 import { smartRecommendationService, type TimeSlot } from './smartRecommendationService';
 import { unifiedDataService } from './unifiedDataService';
+import { aiPrivacyMiddleware } from '@/lib/utils/aiPrivacy';
 import type { CalendarEvent } from '@/types';
 
 export interface ConflictInfo {
@@ -235,6 +236,9 @@ class ConflictResolutionService {
     options: ResolutionOption[]
   ): Promise<string> {
     try {
+      const sanitizedEvent1 = aiPrivacyMiddleware.sanitizeEvent(conflict.event1);
+      const sanitizedEvent2 = aiPrivacyMiddleware.sanitizeEvent(conflict.event2);
+      
       const optionsDesc = options.map(o => `- ${o.description}: ${o.reasoning}`).join('\n');
 
       const response = await aiService.chat([
@@ -245,8 +249,8 @@ class ConflictResolutionService {
         {
           role: 'user',
           content: `发现日程冲突：
-事件1: "${conflict.event1.title}" (${conflict.event1.startTime.toLocaleString()})
-事件2: "${conflict.event2.title}" (${conflict.event2.startTime.toLocaleString()})
+事件1: "${sanitizedEvent1.title}" (${sanitizedEvent1.startTime.toLocaleString()})
+事件2: "${sanitizedEvent2.title}" (${sanitizedEvent2.startTime.toLocaleString()})
 冲突时长: ${Math.round(conflict.overlapDuration)}分钟
 严重程度: ${conflict.severity}
 
