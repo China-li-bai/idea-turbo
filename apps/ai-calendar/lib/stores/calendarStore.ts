@@ -1,137 +1,90 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import localforage from 'localforage';
+import { unifiedDataService } from '@/lib/services/unifiedDataService';
+import { useEvents, useTasks, useInspirations, useSettings } from '@/lib/hooks/useUnifiedData';
 import type { CalendarEvent, UserSettings, Inspiration, Task } from '@/types';
 
-localforage.config({
-  name: 'ai-calendar',
-  storeName: 'calendar-data',
-});
-
-const forageStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    const value = await localforage.getItem<string>(name);
-    return value;
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    await localforage.setItem(name, value);
-  },
-  removeItem: async (name: string): Promise<void> => {
-    await localforage.removeItem(name);
-  },
-};
-
-interface CalendarState {
-  events: CalendarEvent[];
-  inspirations: Inspiration[];
-  tasks: Task[];
-  settings: UserSettings;
+interface CalendarStoreState {
+  addEvent: (event: CalendarEvent) => Promise<void>;
+  addEvents: (events: CalendarEvent[]) => Promise<void>;
+  updateEvent: (id: string, event: Partial<CalendarEvent>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
   
-  addEvent: (event: CalendarEvent) => void;
-  addEvents: (events: CalendarEvent[]) => void;
-  updateEvent: (id: string, event: Partial<CalendarEvent>) => void;
-  deleteEvent: (id: string) => void;
+  addInspiration: (inspiration: Inspiration) => Promise<void>;
+  updateInspiration: (id: string, inspiration: Partial<Inspiration>) => Promise<void>;
+  deleteInspiration: (id: string) => Promise<void>;
+  processInspiration: (id: string) => Promise<void>;
   
-  addInspiration: (inspiration: Inspiration) => void;
-  updateInspiration: (id: string, inspiration: Partial<Inspiration>) => void;
-  deleteInspiration: (id: string) => void;
-  processInspiration: (id: string) => void;
+  addTask: (task: Task) => Promise<void>;
+  updateTask: (id: string, task: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  toggleTaskComplete: (id: string) => Promise<void>;
   
-  addTask: (task: Task) => void;
-  updateTask: (id: string, task: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  toggleTaskComplete: (id: string) => void;
-  
-  setViewMode: (mode: 'boss' | 'assistant' | 'personal') => void;
+  setViewMode: (mode: 'boss' | 'assistant' | 'personal') => Promise<void>;
 }
 
-export const useCalendarStore = create<CalendarState>()(
-  persist(
-    (set) => ({
-      events: [],
-      inspirations: [],
-      tasks: [],
-      settings: {
-        viewMode: 'personal',
-        firstDayOfWeek: 1,
-        theme: 'system',
-        language: 'zh-CN',
-      },
-      
-      addEvent: (event) =>
-        set((state) => ({ 
-          events: [...state.events, { eventType: 'regular', ...event }] 
-        })),
-      
-      addEvents: (newEvents) =>
-        set((state) => ({ 
-          events: [...state.events, ...newEvents.map(e => ({ eventType: 'regular', ...e }))] 
-        })),
-      
-      updateEvent: (id, eventUpdate) =>
-        set((state) => ({
-          events: state.events.map((e) =>
-            e.id === id ? { ...e, ...eventUpdate } : e
-          ),
-        })),
-      
-      deleteEvent: (id) =>
-        set((state) => ({
-          events: state.events.filter((e) => e.id !== id),
-        })),
-      
-      addInspiration: (inspiration) =>
-        set((state) => ({ inspirations: [...state.inspirations, inspiration] })),
-      
-      updateInspiration: (id, inspirationUpdate) =>
-        set((state) => ({
-          inspirations: state.inspirations.map((i) =>
-            i.id === id ? { ...i, ...inspirationUpdate } : i
-          ),
-        })),
-      
-      deleteInspiration: (id) =>
-        set((state) => ({
-          inspirations: state.inspirations.filter((i) => i.id !== id),
-        })),
-      
-      processInspiration: (id) =>
-        set((state) => ({
-          inspirations: state.inspirations.map((i) =>
-            i.id === id ? { ...i, processed: true } : i
-          ),
-        })),
-      
-      addTask: (task) =>
-        set((state) => ({ tasks: [...state.tasks, task] })),
-      
-      updateTask: (id, taskUpdate) =>
-        set((state) => ({
-          tasks: state.tasks.map((t) =>
-            t.id === id ? { ...t, ...taskUpdate } : t
-          ),
-        })),
-      
-      deleteTask: (id) =>
-        set((state) => ({
-          tasks: state.tasks.filter((t) => t.id !== id),
-        })),
-      
-      toggleTaskComplete: (id) =>
-        set((state) => ({
-          tasks: state.tasks.map((t) =>
-            t.id === id ? { ...t, completed: !t.completed } : t
-          ),
-        })),
-      
-      setViewMode: (mode) =>
-        set((state) => ({
-          settings: { ...state.settings, viewMode: mode },
-        })),
-    }),
-    {
-      name: 'ai-calendar-storage',
-      storage: createJSONStorage(() => forageStorage),
+export const useCalendarStore = create<CalendarStoreState>()(() => ({
+  addEvent: async (event) => {
+    await unifiedDataService.addEvent({
+      ...event,
+      eventType: event.eventType || 'regular',
+    });
+  },
+  
+  addEvents: async (newEvents) => {
+    await unifiedDataService.addEvents(
+      newEvents.map(e => ({ ...e, eventType: e.eventType || 'regular' }))
+    );
+  },
+  
+  updateEvent: async (id, eventUpdate) => {
+    await unifiedDataService.updateEvent(id, eventUpdate);
+  },
+  
+  deleteEvent: async (id) => {
+    await unifiedDataService.deleteEvent(id);
+  },
+  
+  addInspiration: async (inspiration) => {
+    await unifiedDataService.addInspiration(inspiration);
+  },
+  
+  updateInspiration: async (id, inspirationUpdate) => {
+    await unifiedDataService.updateInspiration(id, inspirationUpdate);
+  },
+  
+  deleteInspiration: async (id) => {
+    await unifiedDataService.deleteInspiration(id);
+  },
+  
+  processInspiration: async (id) => {
+    await unifiedDataService.updateInspiration(id, { processed: true });
+  },
+  
+  addTask: async (task) => {
+    await unifiedDataService.addTask(task);
+  },
+  
+  updateTask: async (id, taskUpdate) => {
+    await unifiedDataService.updateTask(id, taskUpdate);
+  },
+  
+  deleteTask: async (id) => {
+    await unifiedDataService.deleteTask(id);
+  },
+  
+  toggleTaskComplete: async (id) => {
+    const task = await unifiedDataService.getTaskById(id);
+    if (task) {
+      await unifiedDataService.updateTask(id, { completed: !task.completed });
     }
-  )
-);
+  },
+  
+  setViewMode: async (mode) => {
+    const settings = await unifiedDataService.getSettings();
+    if (settings) {
+      await unifiedDataService.saveSettings({ ...settings, viewMode: mode });
+    }
+  },
+}));
+
+export { useEvents, useTasks, useInspirations, useSettings };
