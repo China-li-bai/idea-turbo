@@ -1,0 +1,119 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #fff;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  p {
+    color: #888;
+    font-size: 1rem;
+  }
+}
+
+.section {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  
+  h2 {
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+    color: #fff;
+  }
+}
+
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.eventItem {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  
+  .eventTitle {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .eventMeta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #888;
+    
+    span {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+  }
+}
+
+.logList {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.emptyLog {
+  color: #666;
+  text-align: center;
+  padding: 1rem;
+}
+
+.logItem {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.875rem;
+  color: #aaa;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.instructions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.instructionItem {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  
+  h4 {
+    font-size: 0.875rem;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+  }
+  
+  p {
+    font-size: 0.8rem;
+    color: #888;
+    line-height: 1.4;
+  }
+}
