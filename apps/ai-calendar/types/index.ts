@@ -92,6 +92,9 @@ export interface Inspiration {
   embeddingUpdatedAt?: Date;
   
   source?: 'keyboard' | 'voice' | 'clipboard' | 'other';
+  
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ShiftSchedule {

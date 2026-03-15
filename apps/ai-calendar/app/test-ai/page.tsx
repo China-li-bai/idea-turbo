@@ -52,6 +52,10 @@ export default function AIFunctionsTestPage() {
     location,
     description,
     color: '#3B82F6',
+    isAllDay: false,
+    reminders: [],
+    viewMode: 'personal',
+    eventType: 'regular',
     createdAt: new Date(),
     updatedAt: new Date(),
   });
