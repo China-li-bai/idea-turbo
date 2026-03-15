@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orama + BGE 本地搜索</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            margin-bottom: 16px;
+            color: #333;
+            font-size: 1.3em;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn.primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn.primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn.secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e9ecef;
+        }
+        
+        .btn.secondary:hover:not(:disabled) {
+            background: #e9ecef;
+        }
+        
+        .btn.danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn.danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        
+        .log .info { color: #4ec9b0; }
+        .log .warn { color: #dcdcaa; }
+        .log .error { color: #f48771; }
+        .log .success { color: #89d185; }
+        
+        .results {
+            margin-top: 16px;
+        }
+        
+        .result-item {
+            padding: 16px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+        
+        .result-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .result-id {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .result-score {
+            background: #667eea;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+        
+        .result-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .result-content {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .result-meta {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #999;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Orama + BGE 本地搜索</h1>
+            <p>纯前端向量搜索引擎 - 支持 BGE-small-zh-v1.5 中文模型</p>
+        </div>
+        
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>系统状态</h2>
+                <span id="status" class="status loading">初始化中...</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progress" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div id="docCount" class="stat-value">0</div>
+                    <div class="stat-label">文档数量</div>
+                </div>
+                <div class="stat-item">
+                    <div id="modelStatus" class="stat-value">-</div>
+                    <div class="stat-label">模型状态</div>
+                </div>
+                <div class="stat-item">
+                    <div id="searchCount" class="stat-value">0</div>
+                    <div class="stat-label">搜索次数</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" data-tab="search">搜索</div>
+                <div class="tab" data-tab="add">添加文档</div>
+                <div class="tab" data-tab="data">数据管理</div>
+            </div>
+            
+            <div id="searchTab" class="tab-content active">
+                <h2>语义搜索</h2>
+                <div class="form-group">
+                    <label>搜索查询</label>
+                    <input type="text" id="searchInput" placeholder="输入搜索内容，如：明天下午的会议">
+                </div>
+                <div class="form-group">
+                    <label>搜索模式</label>
+                    <select id="searchMode">
+                        <option value="vector">向量搜索</option>
+                        <option value="hybrid">混合搜索</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>相似度阈值</label>
+                    <input type="range" id="similarityThreshold" min="0" max="1" step="0.1" value="0.5">
+                    <span id="similarityValue">0.5</span>
+                </div>
+                <div class="form-group">
+                    <label>返回数量</label>
+                    <input type="number" id="limit" value="10" min="1" max="100">
+                </div>
+                <button id="searchBtn" class="btn primary" disabled>搜索</button>
+                <button id="clearResultsBtn" class="btn secondary">清空结果</button>
+                
+                <div id="searchResults" class="results"></div>
+            </div>
+            
+            <div id="addTab" class="tab-content">
+                <h2>添加文档</h2>
+                <div class="form-group">
+                    <label>文档标题</label>
+                    <input type="text" id="docTitle" placeholder="如：项目会议">
+                </div>
+                <div class="form-group">
+                    <label>文档内容</label>
+                    <textarea id="docContent" placeholder="如：明天下午2点和李总在星巴克开会讨论新项目"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>分类</label>
+                    <select id="docCategory">
+                        <option value="work">工作</option>
+                        <option value="personal">个人</option>
+                        <option value="study">学习</option>
+                        <option value="other">其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>标签 (逗号分隔)</label>
+                    <input type="text" id="docTags" placeholder="如：会议,重要,项目">
+                </div>
+                <button id="addDocBtn" class="btn primary" disabled>添加文档</button>
+                <button id="addSampleBtn" class="btn secondary" disabled>添加示例数据</button>
+            </div>
+            
+            <div id="dataTab" class="tab-content">
+                <h2>数据管理</h2>
+                <button id="saveBtn" class="btn primary" disabled>保存到 IndexedDB</button>
+                <button id="loadBtn" class="btn secondary" disabled>从 IndexedDB 加载</button>
+                <button id="clearBtn" class="btn danger" disabled>清空所有数据</button>
+                <p style="color: #888; font-size: 12px; margin-top: 8px;">💡 数据会自动保存到 IndexedDB，刷新页面自动加载</p>
+                
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">当前数据</h3>
+                <div id="dataList" class="results"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>日志</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import OramaLocalSearch from './src/index.js';
+        
+        const store = new OramaLocalSearch();
+        let searchCount = 0;
+        
+        const elements = {
+            status: document.getElementById('status'),
+            progress: document.getElementById('progress'),
+            docCount: document.getElementById('docCount'),
+            modelStatus: document.getElementById('modelStatus'),
+            searchCount: document.getElementById('searchCount'),
+            searchInput: document.getElementById('searchInput'),
+            searchMode: document.getElementById('searchMode'),
+            similarityThreshold: document.getElementById('similarityThreshold'),
+            similarityValue: document.getElementById('similarityValue'),
+            limit: document.getElementById('limit'),
+            searchBtn: document.getElementById('searchBtn'),
+            clearResultsBtn: document.getElementById('clearResultsBtn'),
+            searchResults: document.getElementById('searchResults'),
+            docTitle: document.getElementById('docTitle'),
+            docContent: document.getElementById('docContent'),
+            docCategory: document.getElementById('docCategory'),
+            docTags: document.getElementById('docTags'),
+            addDocBtn: document.getElementById('addDocBtn'),
+            addSampleBtn: document.getElementById('addSampleBtn'),
+            saveBtn: document.getElementById('saveBtn'),
+            loadBtn: document.getElementById('loadBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            dataList: document.getElementById('dataList'),
+            log: document.getElementById('log')
+        };
+        
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${time}] ${message}`;
+            elements.log.appendChild(div);
+            elements.log.scrollTop = elements.log.scrollHeight;
+        }
+        
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            elements.progress.style.width = `${percent}%`;
+        }
+        
+        function updateUI(enabled) {
+            elements.searchBtn.disabled = !enabled;
+            elements.addDocBtn.disabled = !enabled;
+            elements.addSampleBtn.disabled = !enabled;
+            elements.saveBtn.disabled = !enabled;
+            elements.loadBtn.disabled = !enabled;
+            elements.clearBtn.disabled = !enabled;
+        }
+        
+        async function init() {
+            try {
+                elements.status.innerHTML = '<span class="status loading">初始化中...</span>';
+                log('开始初始化 Orama + BGE...');
+                
+                await store.initialize((current, total) => {
+                    updateProgress(current, total);
+                });
+                
+                log('模型加载完成，检查缓存...', 'info');
+                
+                try {
+                    const loaded = await store.load('calendar-data');
+                    
+                    if (loaded) {
+                        elements.status.innerHTML = '<span class="status ready">就绪</span>';
+                        elements.modelStatus.textContent = '✓';
+                        elements.docCount.textContent = store.count;
+                        updateUI(true);
+                        log(`✅ 从缓存加载成功! 共 ${store.count} 条数据`, 'success');
+                        return;
+                    }
+                } catch (e) {
+                    log('缓存加载失败: ' + e.message, 'warn');
+                }
+                
+                elements.status.innerHTML = '<span class="status ready">就绪</span>';
+                elements.modelStatus.textContent = '✓';
+                elements.docCount.textContent = store.count;
+                updateUI(true);
+                log('初始化完成! 请添加文档或点击"添加示例数据"', 'success');
+                
+            } catch (error) {
+                elements.status.innerHTML = '<span class="status error">错误</span>';
+                log(`初始化失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        async function search() {
+            const query = elements.searchInput.value.trim();
+            
+            if (!query) {
+                log('请输入搜索内容', 'warn');
+                return;
+            }
+            
+            try {
+                elements.searchBtn.disabled = true;
+                log(`搜索: "${query}"`);
+                
+                const mode = elements.searchMode.value;
+                const similarity = parseFloat(elements.similarityThreshold.value);
+                const limit = parseInt(elements.limit.value);
+                
+                const results = mode === 'hybrid'
+                    ? await store.hybridSearch(query, { similarity, limit })
+                    : await store.search(query, { similarity, limit });
+                
+                searchCount++;
+                elements.searchCount.textContent = searchCount;
+                
+                displayResults(results);
+                log(`找到 ${results.length} 条结果`, 'success');
+                
+            } catch (error) {
+                log(`搜索失败: ${error.message}`, 'error');
+            } finally {
+                elements.searchBtn.disabled = false;
+            }
+        }
+        
+        function displayResults(results) {
+            if (results.length === 0) {
+                elements.searchResults.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <p>没有找到结果</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            elements.searchResults.innerHTML = results.map((result, index) => `
+                <div class="result-item">
+                    <div class="result-header">
+                        <span class="result-id">#${index + 1} (${result.id})</span>
+                        <span class="result-score">相似度: ${(1 - result.score).toFixed(4)}</span>
+                    </div>
+                    <div class="result-title">${result.document.title}</div>
+                    <div class="result-content">${result.document.content}</div>
+                    <div class="result-meta">
+                        分类: ${result.document.category} | 
+                        标签: ${result.document.tags?.join(', ') || '无'} |
+                        时间: ${new Date(result.document.timestamp).toLocaleString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function addDocument() {
+            const title = elements.docTitle.value.trim();
+            const content = elements.docContent.value.trim();
+            
+            if (!title || !content) {
+                log('请填写标题和内容', 'warn');
+                return;
+            }
+            
+            try {
+                elements.addDocBtn.disabled = true;
+                log('添加文档中...');
+                
+                const tags = elements.docTags.value
+                    .split(',')
+                    .map(t => t.trim())
+                    .filter(t => t);
+                
+                const id = await store.addDocument({
+                    title,
+                    content,
+                    category: elements.docCategory.value,
+                    tags,
+                    timestamp: Date.now()
+                });
+                
+                elements.docCount.textContent = store.count;
+                log(`✅ 文档添加成功: ${id}`, 'success');
+                
+                elements.docTitle.value = '';
+                elements.docContent.value = '';
+                elements.docTags.value = '';
+                
+                await store.save('calendar-data');
+                log('已自动保存到 IndexedDB', 'info');
+                
+            } catch (error) {
+                log(`添加失败: ${error.message}`, 'error');
+            } finally {
+                elements.addDocBtn.disabled = false;
+            }
+        }
+        
+        async function addSampleData() {
+            const sampleDocs = [
+                {
+                    id: 'sample_1',
+                    title: '项目会议',
+                    content: '明天下午2点和李总在星巴克开会讨论新项目',
+                    category: 'work',
+                    tags: ['会议', '重要', '项目'],
+                    timestamp: Date.now()
+                },
+                {
+                    id: 'sample_2',
+                    title: '健身计划',
+                    content: '每周一三五晚上7点去健身房锻炼',
+                    category: 'personal',
+                    tags: ['健身', '健康'],
+                    timestamp: Date.now()
+                },
+                {
+                    id: 'sample_3',
+                    title: '学习计划',
+                    content: '周末学习机器学习和深度学习相关知识',
+                    category: 'study',
+                    tags: ['学习', 'AI', '机器学习'],
+                    timestamp: Date.now()
+                },
+                {
+                    id: 'sample_4',
+                    title: '家庭聚餐',
+                    content: '周六中午全家去外婆家吃饭',
+                    category: 'personal',
+                    tags: ['家庭', '聚餐'],
+                    timestamp: Date.now()
+                },
+                {
+                    id: 'sample_5',
+                    title: '代码审查',
+                    content: '周三上午审查团队成员提交的代码',
+                    category: 'work',
+                    tags: ['工作', '代码审查'],
+                    timestamp: Date.now()
+                }
+            ];
+            
+            try {
+                elements.addSampleBtn.disabled = true;
+                log('添加示例数据中...');
+                
+                await store.addDocuments(sampleDocs, (current, total) => {
+                    updateProgress(current, total);
+                    elements.docCount.textContent = store.count;
+                });
+                
+                log(`✅ 成功添加 ${sampleDocs.length} 条示例数据`, 'success');
+                
+                await store.save('calendar-data');
+                log('已自动保存到 IndexedDB', 'info');
+                
+            } catch (error) {
+                log(`添加失败: ${error.message}`, 'error');
+            } finally {
+                elements.addSampleBtn.disabled = false;
+            }
+        }
+        
+        async function saveData() {
+            try {
+                elements.saveBtn.disabled = true;
+                log('保存数据到 IndexedDB...');
+                
+                await store.save('calendar-data');
+                
+                log('✅ 保存成功', 'success');
+            } catch (error) {
+                log(`保存失败: ${error.message}`, 'error');
+            } finally {
+                elements.saveBtn.disabled = false;
+            }
+        }
+        
+        async function loadData() {
+            try {
+                elements.loadBtn.disabled = true;
+                log('从 IndexedDB 加载数据...');
+                
+                const loaded = await store.load('calendar-data');
+                
+                if (loaded) {
+                    elements.docCount.textContent = store.count;
+                    log(`✅ 加载成功! 共 ${store.count} 条数据`, 'success');
+                } else {
+                    log('没有找到缓存数据', 'warn');
+                }
+            } catch (error) {
+                log(`加载失败: ${error.message}`, 'error');
+            } finally {
+                elements.loadBtn.disabled = false;
+            }
+        }
+        
+        async function clearData() {
+            if (!confirm('确定要清空所有数据吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            try {
+                elements.clearBtn.disabled = true;
+                log('清空数据...');
+                
+                await store.initialize();
+                
+                elements.docCount.textContent = 0;
+                elements.searchResults.innerHTML = '';
+                elements.dataList.innerHTML = '';
+                
+                log('✅ 数据已清空', 'success');
+            } catch (error) {
+                log(`清空失败: ${error.message}`, 'error');
+            } finally {
+                elements.clearBtn.disabled = false;
+            }
+        }
+        
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}Tab`).classList.add('active');
+            });
+        });
+        
+        elements.similarityThreshold.addEventListener('input', (e) => {
+            elements.similarityValue.textContent = e.target.value;
+        });
+        
+        elements.searchBtn.addEventListener('click', search);
+        elements.searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') search();
+        });
+        
+        elements.clearResultsBtn.addEventListener('click', () => {
+            elements.searchResults.innerHTML = '';
+        });
+        
+        elements.addDocBtn.addEventListener('click', addDocument);
+        elements.addSampleBtn.addEventListener('click', addSampleData);
+        
+        elements.saveBtn.addEventListener('click', saveData);
+        elements.loadBtn.addEventListener('click', loadData);
+        elements.clearBtn.addEventListener('click', clearData);
+        
+        init();
+    </script>
+</body>
+</html>

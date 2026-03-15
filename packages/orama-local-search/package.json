@@ -1,0 +1,19 @@
+{
+  "name": "orama-local-search",
+  "version": "1.0.0",
+  "description": "Orama + BGE-small-zh-v1.5 本地向量搜索引擎",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@orama/orama": "^3.0.0",
+    "@orama/plugin-data-persistence": "^3.0.0",
+    "@huggingface/transformers": "^3.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
