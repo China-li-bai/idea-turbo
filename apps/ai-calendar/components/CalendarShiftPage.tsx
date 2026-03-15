@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useEvents } from '@/lib/stores/calendarStore';
+import { useEvents } from '@/lib/stores';
 import { shiftService } from '@/lib/services/shiftService';
 import Navbar from '@/components/Navbar';
 import CalendarView from '@/components/CalendarView';

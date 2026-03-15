@@ -1,13 +1,15 @@
 'use client'
 
 import { useCalendarStore } from '@/lib/stores/calendarStore'
+import { useSettings } from '@/lib/hooks/useUnifiedData'
 import styles from './viewModeSelector.module.scss'
 
 export type ViewMode = 'boss' | 'assistant' | 'personal'
 
 export default function ViewModeSelector() {
-  const { settings, setViewMode } = useCalendarStore()
-  const currentMode = settings.viewMode
+  const { settings } = useSettings()
+  const { setViewMode } = useCalendarStore()
+  const currentMode = settings?.viewMode || 'personal'
 
   const modes: { value: ViewMode; label: string; icon: string; description: string }[] = [
     { 

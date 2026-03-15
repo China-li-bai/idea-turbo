@@ -13,6 +13,7 @@ import { ScheduleXCalendar, useNextCalendarApp } from '@schedule-x/react'
 import '@schedule-x/theme-default/dist/index.css'
 import 'temporal-polyfill/global'
 import { useCalendarStore } from '@/lib/stores/calendarStore'
+import { useEvents, useSettings } from '@/lib/hooks/useUnifiedData'
 import { useTheme } from 'nextra-theme-docs'
 import { convertToScheduleXEvent, convertFromScheduleXEvent } from '@/lib/utils/eventConverter'
 import { detectUserLocale, loadScheduleXTranslations, type SupportedLocale } from '@/lib/utils/i18n'
@@ -24,7 +25,9 @@ interface CalendarViewProps {
 
 export default function CalendarView({ onEventClick }: CalendarViewProps) {
   const { resolvedTheme } = useTheme()
-  const { events, settings, updateEvent } = useCalendarStore()
+  const { events, loading: eventsLoading } = useEvents()
+  const { settings } = useSettings()
+  const { updateEvent } = useCalendarStore()
   const [isMobile, setIsMobile] = useState(false)
   const [locale, setLocale] = useState<SupportedLocale>('zh-CN')
   const [translations, setTranslations] = useState<any>(null)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { shiftService } from '@/lib/services/shiftService';
-import { useCalendarStore } from '@/lib/stores/calendarStore';
+import { useEvents } from '@/lib/hooks/useUnifiedData';
 import type { ShiftSchedule, CalendarEvent } from '@/types';
 import styles from './shiftScheduler.module.scss';
 
@@ -30,7 +30,7 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
   }>>([]);
   const [calendarWarnings, setCalendarWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { events: existingEvents } = useCalendarStore();
+  const { events: existingEvents } = useEvents();
 
   const validateInput = (text: string): { valid: boolean; errors: string[] } => {
     const errors: string[] = [];
@@ -107,8 +107,8 @@ export default function ShiftScheduler({ onScheduleCreated }: ShiftSchedulerProp
       );
       setInput('');
       setGeneratedSchedule(null);
-      setConflicts([]);
-      setWarnings([]);
+      setLocalConflicts([]);
+      setLocalWarnings([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存排班失败');
     }
