@@ -1,6 +1,6 @@
 import { aiService } from '@/lib/ai';
 import { smartRecommendationService, type TimeSlot } from './smartRecommendationService';
-import { unifiedDataService } from './unifiedDataService';
+import { dataStoreAdapter } from './dataStoreAdapter';
 import { aiPrivacyMiddleware } from '@/lib/utils/aiPrivacy';
 import type { CalendarEvent } from '@/types';
 
@@ -35,7 +35,7 @@ class ConflictResolutionService {
     startDate: Date,
     endDate: Date
   ): Promise<ConflictInfo[]> {
-    const events = await unifiedDataService.getAllEvents({
+    const events = await dataStoreAdapter.getAllEvents({
       dateRange: { start: startDate, end: endDate },
     });
 
@@ -281,9 +281,9 @@ ${optionsDesc}
     
     for (const change of option.suggestedChanges) {
       if (change.changes.title === '[已合并]') {
-        await unifiedDataService.deleteEvent(change.eventId);
+        await dataStoreAdapter.deleteEvent(change.eventId);
       } else {
-        await unifiedDataService.updateEvent(change.eventId, change.changes);
+        await dataStoreAdapter.updateEvent(change.eventId, change.changes);
       }
     }
 

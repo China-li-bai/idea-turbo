@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db, getAllFromStore } from '@/lib/storage';
+import { dataStoreAdapter } from './dataStoreAdapter';
+import { useDataStore } from '../stores/dataStore';
 import { eventBus } from '@/lib/utils/eventBus';
+import type { EntityType } from '@/lib/utils/eventBus';
 import { aiService } from '@/lib/ai';
 import { localScheduler } from './localScheduler';
 import { privacySanitizer } from '@/lib/utils/privacy';
@@ -23,12 +25,30 @@ export class ShiftService {
     return ShiftService.instance;
   }
 
+  private async getAllEvents(): Promise<CalendarEvent[]> {
+    return useDataStore.getState().events;
+  }
+
+  private async saveEvent(event: CalendarEvent): Promise<void> {
+    const store = useDataStore.getState();
+    const existing = store.events.find(e => e.id === event.id);
+    if (existing) {
+      await store.updateEvent(event.id, event);
+    } else {
+      await store.addEvent(event);
+    }
+  }
+
+  private async deleteEvent(eventId: string): Promise<void> {
+    await useDataStore.getState().deleteEvent(eventId);
+  }
+
   async getSchedules(): Promise<ShiftSchedule[]> {
-    return await getAllFromStore<ShiftSchedule>(db.schedules);
+    return await dataStoreAdapter.getAllSchedules();
   }
 
   async getSchedule(id: string): Promise<ShiftSchedule | undefined> {
-    return await db.schedules.getItem(id);
+    return await dataStoreAdapter.getScheduleById(id) ?? undefined;
   }
 
   async createSchedule(
@@ -41,10 +61,10 @@ export class ShiftService {
       createdAt: now,
       updatedAt: now,
     };
-    await db.schedules.setItem(newSchedule.id, newSchedule);
+    await dataStoreAdapter.addSchedule(newSchedule);
     eventBus.publish({
       type: 'created',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: newSchedule.id,
     });
     return newSchedule;
@@ -58,27 +78,16 @@ export class ShiftService {
     if (!schedule) {
       throw new Error('Schedule not found');
     }
-    const updatedSchedule: ShiftSchedule = {
-      ...schedule,
-      ...updates,
-      updatedAt: new Date(),
-    };
-    await db.schedules.setItem(id, updatedSchedule);
+    const updatedSchedule = await dataStoreAdapter.updateSchedule(id, updates);
+    if (!updatedSchedule) {
+      throw new Error('Failed to update schedule');
+    }
     eventBus.publish({
       type: 'updated',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: id,
     });
     return updatedSchedule;
-  }
-
-  async deleteSchedule(id: string): Promise<void> {
-    await db.schedules.removeItem(id);
-    eventBus.publish({
-      type: 'deleted',
-      entityType: 'shift-schedule',
-      entityId: id,
-    });
   }
 
   async generateScheduleFromNaturalLanguage(
@@ -320,7 +329,7 @@ ${employeeDisplayList.join('\n')}
 
     const shiftDates = new Map<string, Shift[]>();
     for (const shift of employeeShifts) {
-      const dateKey = shift.date;
+      const dateKey = shift.date.toISOString().split('T')[0];
       if (!shiftDates.has(dateKey)) {
         shiftDates.set(dateKey, []);
       }
@@ -584,10 +593,13 @@ ${employeeDisplayList.join('\n')}
 
         const event = this.convertShiftToEvent(tempShift, updatedSchedule);
 
-        await db.schedules.setItem(scheduleId, updatedSchedule);
+        await dataStoreAdapter.updateSchedule(scheduleId, { 
+          shifts: updatedSchedule.shifts,
+          updatedAt: updatedSchedule.updatedAt,
+        });
 
         if (event) {
-          await db.events.setItem(event.id, event);
+          await this.saveEvent(event);
           addedEvents.push(event);
         }
 
@@ -600,7 +612,7 @@ ${employeeDisplayList.join('\n')}
     if (addedShifts.length > 0) {
       eventBus.publish({
         type: 'updated',
-        entityType: 'shift-schedule',
+        entityType: 'shiftSchedule',
         entityId: scheduleId,
       });
     }
@@ -612,11 +624,11 @@ ${employeeDisplayList.join('\n')}
     shift: Shift,
     schedule: ShiftSchedule,
     existingEvent?: CalendarEvent
-  ): CalendarEvent | null {
+  ): CalendarEvent | undefined {
     const shiftType = schedule.shiftTypes.find(st => st.id === shift.shiftTypeId);
     const employee = schedule.employees.find(e => e.id === shift.employeeId);
 
-    if (!shiftType || !employee) return null;
+    if (!shiftType || !employee) return undefined;
 
     const { startTime, endTime } = this.calculateShiftDuration(shift, shiftType);
 
@@ -814,7 +826,7 @@ ${employeeDisplayList.join('\n')}
       rules: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      generatedBy: 'local',
+      generatedBy: 'manual',
     };
 
     const events: CalendarEvent[] = this.convertShiftsToEvents(schedule);
@@ -872,7 +884,7 @@ ${employeeDisplayList.join('\n')}
     await this.createSchedule(schedule);
     
     for (const event of events) {
-      await db.events.setItem(event.id, event);
+      await this.saveEvent(event);
       eventBus.publish({
         type: 'created',
         entityType: 'event',
@@ -882,11 +894,11 @@ ${employeeDisplayList.join('\n')}
   }
 
   async getAllSchedules(): Promise<ShiftSchedule[]> {
-    return await getAllFromStore<ShiftSchedule>(db.schedules);
+    return await dataStoreAdapter.getAllSchedules();
   }
 
   async getScheduleById(id: string): Promise<ShiftSchedule | undefined> {
-    return await db.schedules.getItem(id);
+    return await dataStoreAdapter.getScheduleById(id) ?? undefined;
   }
 
   async getShiftsByScheduleId(scheduleId: string): Promise<Shift[]> {
@@ -933,8 +945,8 @@ ${employeeDisplayList.join('\n')}
 
     const newEvent = this.convertShiftToEvent(newShift, tempSchedule);
     
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
-    const otherEvents = allEvents.filter(e => 
+    const allEvents = await this.getAllEvents();
+    const otherEvents = allEvents.filter((e: CalendarEvent) => 
       !(e.eventType === 'shift' && e.shiftMetadata?.shiftId === newShift.id)
     );
 
@@ -950,10 +962,13 @@ ${employeeDisplayList.join('\n')}
       updatedAt: new Date(),
     };
 
-    await db.schedules.setItem(scheduleId, updatedSchedule);
+    await dataStoreAdapter.updateSchedule(scheduleId, { 
+      shifts: updatedSchedule.shifts,
+      updatedAt: updatedSchedule.updatedAt,
+    });
 
     if (newEvent) {
-      await db.events.setItem(newEvent.id, newEvent);
+      await this.saveEvent(newEvent);
       eventBus.publish({
         type: 'created',
         entityType: 'event',
@@ -963,14 +978,8 @@ ${employeeDisplayList.join('\n')}
 
     eventBus.publish({
       type: 'updated',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: scheduleId,
-    });
-    eventBus.publish({
-      type: 'created',
-      entityType: 'shift',
-      entityId: newShift.id,
-      metadata: { scheduleId },
     });
 
     return {
@@ -1021,14 +1030,14 @@ ${employeeDisplayList.join('\n')}
       shifts: updatedShifts,
     };
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
-    const existingEvent = allEvents.find(e => 
+    const allEvents = await this.getAllEvents();
+    const existingEvent = allEvents.find((e: CalendarEvent) => 
       e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId
     );
 
     const updatedEvent = this.convertShiftToEvent(updatedShift, tempSchedule, existingEvent);
     
-    const otherEvents = allEvents.filter(e => e.id !== updatedEvent?.id);
+    const otherEvents = allEvents.filter((e: CalendarEvent) => e.id !== updatedEvent?.id);
 
     const conflictResult = updatedEvent ? 
       this.detectConflicts([updatedEvent], otherEvents) : 
@@ -1042,10 +1051,13 @@ ${employeeDisplayList.join('\n')}
       updatedAt: new Date(),
     };
 
-    await db.schedules.setItem(scheduleId, updatedSchedule);
+    await dataStoreAdapter.updateSchedule(scheduleId, { 
+      shifts: updatedShifts,
+      updatedAt: updatedSchedule.updatedAt,
+    });
 
     if (updatedEvent) {
-      await db.events.setItem(updatedEvent.id, updatedEvent);
+      await this.saveEvent(updatedEvent);
       eventBus.publish({
         type: 'updated',
         entityType: 'event',
@@ -1055,14 +1067,8 @@ ${employeeDisplayList.join('\n')}
 
     eventBus.publish({
       type: 'updated',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: scheduleId,
-    });
-    eventBus.publish({
-      type: 'updated',
-      entityType: 'shift',
-      entityId: shiftId,
-      metadata: { scheduleId },
     });
 
     return {
@@ -1109,8 +1115,8 @@ ${employeeDisplayList.join('\n')}
       }
     }
 
-    const [startHour, startMinute] = shiftData.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shiftData.endTime.split(':').map(Number);
+    const [startHour, startMinute] = shiftType?.startTime.split(':').map(Number) || [0, 0];
+    const [endHour, endMinute] = shiftType?.endTime.split(':').map(Number) || [0, 0];
 
     const startTime = new Date(shiftDate);
     startTime.setHours(startHour, startMinute, 0, 0);
@@ -1125,7 +1131,7 @@ ${employeeDisplayList.join('\n')}
     const durationMs = endTime.getTime() - startTime.getTime();
     const durationHours = durationMs / (1000 * 60 * 60);
 
-    if (shiftData.startTime === shiftData.endTime) {
+    if (shiftType && shiftType.startTime === shiftType.endTime) {
       errors.push('开始时间和结束时间不能相同');
     }
 
@@ -1210,8 +1216,8 @@ ${employeeDisplayList.join('\n')}
       };
     }
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
-    const otherEvents = allEvents.filter(e => 
+    const allEvents = await this.getAllEvents();
+    const otherEvents = allEvents.filter((e: CalendarEvent) => 
       !(e.eventType === 'shift' && e.shiftMetadata?.shiftId === tempShift.id)
     );
 
@@ -1269,15 +1275,18 @@ ${employeeDisplayList.join('\n')}
       updatedAt: new Date(),
     };
 
-    await db.schedules.setItem(scheduleId, updatedSchedule);
+    await dataStoreAdapter.updateSchedule(scheduleId, { 
+      shifts: updatedShifts,
+      updatedAt: updatedSchedule.updatedAt,
+    });
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
-    const eventToDelete = allEvents.find(e => 
+    const allEvents = await this.getAllEvents();
+    const eventToDelete = allEvents.find((e: CalendarEvent) => 
       e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId
     );
 
     if (eventToDelete) {
-      await db.events.removeItem(eventToDelete.id);
+      await this.deleteEvent(eventToDelete.id);
       eventBus.publish({
         type: 'deleted',
         entityType: 'event',
@@ -1287,14 +1296,8 @@ ${employeeDisplayList.join('\n')}
 
     eventBus.publish({
       type: 'updated',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: scheduleId,
-    });
-    eventBus.publish({
-      type: 'deleted',
-      entityType: 'shift',
-      entityId: shiftId,
-      metadata: { scheduleId },
     });
   }
 
@@ -1304,13 +1307,13 @@ ${employeeDisplayList.join('\n')}
       throw new Error('Schedule not found');
     }
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const allEvents = await this.getAllEvents();
     const eventsToDelete = allEvents.filter(
-      e => e.eventType === 'shift' && e.shiftMetadata?.scheduleId === scheduleId
+      (e: CalendarEvent) => e.eventType === 'shift' && e.shiftMetadata?.scheduleId === scheduleId
     );
 
     for (const event of eventsToDelete) {
-      await db.events.removeItem(event.id);
+      await this.deleteEvent(event.id);
       eventBus.publish({
         type: 'deleted',
         entityType: 'event',
@@ -1318,10 +1321,10 @@ ${employeeDisplayList.join('\n')}
       });
     }
 
-    await db.schedules.removeItem(scheduleId);
+    await dataStoreAdapter.deleteSchedule(scheduleId);
     eventBus.publish({
       type: 'deleted',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: scheduleId,
     });
   }
@@ -1363,12 +1366,12 @@ ${employeeDisplayList.join('\n')}
       scheduleId: newSchedule.id,
     }));
 
-    await db.schedules.setItem(newSchedule.id, newSchedule);
+    await dataStoreAdapter.addSchedule(newSchedule);
 
     for (const shift of newSchedule.shifts) {
       const event = this.convertShiftToEvent(shift, newSchedule);
       if (event) {
-        await db.events.setItem(event.id, event);
+        await this.saveEvent(event);
         eventBus.publish({
           type: 'created',
           entityType: 'event',
@@ -1379,7 +1382,7 @@ ${employeeDisplayList.join('\n')}
 
     eventBus.publish({
       type: 'created',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: newSchedule.id,
     });
 
@@ -1426,13 +1429,16 @@ ${employeeDisplayList.join('\n')}
       updatedAt: new Date(),
     };
 
-    await db.schedules.setItem(scheduleId, updatedSchedule);
+    await dataStoreAdapter.updateSchedule(scheduleId, { 
+      shifts: updatedShifts,
+      updatedAt: updatedSchedule.updatedAt,
+    });
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
-    const event1 = allEvents.find(e => 
+    const allEvents = await this.getAllEvents();
+    const event1 = allEvents.find((e: CalendarEvent) => 
       e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId1
     );
-    const event2 = allEvents.find(e => 
+    const event2 = allEvents.find((e: CalendarEvent) => 
       e.eventType === 'shift' && e.shiftMetadata?.shiftId === shiftId2
     );
 
@@ -1440,7 +1446,7 @@ ${employeeDisplayList.join('\n')}
     const updatedEvent2 = this.convertShiftToEvent(newShift2, updatedSchedule, event2);
 
     if (updatedEvent1) {
-      await db.events.setItem(updatedEvent1.id, updatedEvent1);
+      await this.saveEvent(updatedEvent1);
       eventBus.publish({
         type: 'updated',
         entityType: 'event',
@@ -1449,7 +1455,7 @@ ${employeeDisplayList.join('\n')}
     }
 
     if (updatedEvent2) {
-      await db.events.setItem(updatedEvent2.id, updatedEvent2);
+      await this.saveEvent(updatedEvent2);
       eventBus.publish({
         type: 'updated',
         entityType: 'event',
@@ -1459,20 +1465,8 @@ ${employeeDisplayList.join('\n')}
 
     eventBus.publish({
       type: 'updated',
-      entityType: 'shift-schedule',
+      entityType: 'shiftSchedule',
       entityId: scheduleId,
-    });
-    eventBus.publish({
-      type: 'updated',
-      entityType: 'shift',
-      entityId: shiftId1,
-      metadata: { scheduleId, action: 'swap' },
-    });
-    eventBus.publish({
-      type: 'updated',
-      entityType: 'shift',
-      entityId: shiftId2,
-      metadata: { scheduleId, action: 'swap' },
     });
 
     return { shift1: newShift1, shift2: newShift2 };
@@ -1483,8 +1477,8 @@ ${employeeDisplayList.join('\n')}
     syncedShifts: number;
     deletedEvents: number;
   }> {
-    const schedules = await this.getAllSchedules();
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const schedules = await this.getSchedules();
+    const allEvents = await this.getAllEvents();
 
     const existingShiftEventIds = new Set<string>();
     let syncedShifts = 0;
@@ -1494,18 +1488,18 @@ ${employeeDisplayList.join('\n')}
         const event = this.convertShiftToEvent(shift, schedule);
         if (event) {
           existingShiftEventIds.add(event.id);
-          await db.events.setItem(event.id, event);
+          await this.saveEvent(event);
           syncedShifts++;
         }
       }
     }
 
-    const shiftEventsToDelete = allEvents.filter(e => 
+    const shiftEventsToDelete = allEvents.filter((e: CalendarEvent) => 
       e.eventType === 'shift' && !existingShiftEventIds.has(e.id)
     );
 
     for (const event of shiftEventsToDelete) {
-      await db.events.removeItem(event.id);
+      await this.deleteEvent(event.id);
     }
 
     return {
@@ -1524,7 +1518,7 @@ ${employeeDisplayList.join('\n')}
       throw new Error('Schedule not found');
     }
 
-    const allEvents = await getAllFromStore<CalendarEvent>(db.events);
+    const allEvents = await this.getAllEvents();
 
     const existingShiftEventIds = new Set<string>();
     let syncedShifts = 0;
@@ -1533,19 +1527,19 @@ ${employeeDisplayList.join('\n')}
       const event = this.convertShiftToEvent(shift, schedule);
       if (event) {
         existingShiftEventIds.add(event.id);
-        await db.events.setItem(event.id, event);
+        await this.saveEvent(event);
         syncedShifts++;
       }
     }
 
-    const shiftEventsToDelete = allEvents.filter(e => 
+    const shiftEventsToDelete = allEvents.filter((e: CalendarEvent) => 
       e.eventType === 'shift' && 
       e.shiftMetadata?.scheduleId === scheduleId &&
       !existingShiftEventIds.has(e.id)
     );
 
     for (const event of shiftEventsToDelete) {
-      await db.events.removeItem(event.id);
+      await this.deleteEvent(event.id);
     }
 
     return {

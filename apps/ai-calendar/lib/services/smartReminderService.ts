@@ -1,5 +1,5 @@
 import { aiService } from '@/lib/ai';
-import { unifiedDataService } from './unifiedDataService';
+import { dataStoreAdapter } from './dataStoreAdapter';
 import type { CalendarEvent } from '@/types';
 
 export interface ReminderConfig {
@@ -262,7 +262,7 @@ class SmartReminderService {
   }
 
   async scheduleAllReminders(): Promise<void> {
-    const events = await unifiedDataService.getAllEvents({
+    const events = await dataStoreAdapter.getAllEvents({
       dateRange: {
         start: new Date(),
         end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),

@@ -1,194 +1,121 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { unifiedDataService } from './unifiedDataService';
-import { eventBus } from '../eventBus';
+import { useDataStore } from '../stores/dataStore';
 import type { CalendarEvent, Task, Inspiration, ShiftSchedule, UserSettings, SearchHistory } from '@/types';
 
 export function useEvents() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const events = useDataStore((state) => state.events);
+  const loading = useDataStore((state) => state._loading);
+  const addEvent = useDataStore((state) => state.addEvent);
+  const addEvents = useDataStore((state) => state.addEvents);
+  const updateEvent = useDataStore((state) => state.updateEvent);
+  const deleteEvent = useDataStore((state) => state.deleteEvent);
+  const getEventById = useDataStore((state) => state.getEventById);
 
-  const loadEvents = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getAllEvents();
-    setEvents(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadEvents();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'event') {
-        loadEvents();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadEvents]);
-
-  return { events, loading, refresh: loadEvents };
+  return { 
+    events, 
+    loading, 
+    addEvent, 
+    addEvents, 
+    updateEvent, 
+    deleteEvent,
+    getEventById,
+  };
 }
 
 export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tasks = useDataStore((state) => state.tasks);
+  const loading = useDataStore((state) => state._loading);
+  const addTask = useDataStore((state) => state.addTask);
+  const updateTask = useDataStore((state) => state.updateTask);
+  const deleteTask = useDataStore((state) => state.deleteTask);
+  const getTaskById = useDataStore((state) => state.getTaskById);
+  const toggleTaskComplete = useDataStore((state) => state.toggleTaskComplete);
 
-  const loadTasks = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getAllTasks();
-    setTasks(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadTasks();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'task') {
-        loadTasks();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadTasks]);
-
-  return { tasks, loading, refresh: loadTasks };
+  return { 
+    tasks, 
+    loading, 
+    addTask, 
+    updateTask, 
+    deleteTask,
+    getTaskById,
+    toggleTaskComplete,
+  };
 }
 
 export function useInspirations() {
-  const [inspirations, setInspirations] = useState<Inspiration[]>([]);
-  const [loading, setLoading] = useState(true);
+  const inspirations = useDataStore((state) => state.inspirations);
+  const loading = useDataStore((state) => state._loading);
+  const addInspiration = useDataStore((state) => state.addInspiration);
+  const updateInspiration = useDataStore((state) => state.updateInspiration);
+  const deleteInspiration = useDataStore((state) => state.deleteInspiration);
+  const processInspiration = useDataStore((state) => state.processInspiration);
 
-  const loadInspirations = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getAllInspirations();
-    setInspirations(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadInspirations();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'inspiration') {
-        loadInspirations();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadInspirations]);
-
-  return { inspirations, loading, refresh: loadInspirations };
+  return { 
+    inspirations, 
+    loading, 
+    addInspiration, 
+    updateInspiration, 
+    deleteInspiration,
+    processInspiration,
+  };
 }
 
 export function useSchedules() {
-  const [schedules, setSchedules] = useState<ShiftSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const schedules = useDataStore((state) => state.schedules);
+  const loading = useDataStore((state) => state._loading);
+  const addSchedule = useDataStore((state) => state.addSchedule);
+  const updateSchedule = useDataStore((state) => state.updateSchedule);
+  const deleteSchedule = useDataStore((state) => state.deleteSchedule);
+  const getScheduleById = useDataStore((state) => state.getScheduleById);
 
-  const loadSchedules = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getAllSchedules();
-    setSchedules(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadSchedules();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'schedule') {
-        loadSchedules();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadSchedules]);
-
-  return { schedules, loading, refresh: loadSchedules };
+  return { 
+    schedules, 
+    loading, 
+    addSchedule, 
+    updateSchedule, 
+    deleteSchedule,
+    getScheduleById,
+  };
 }
 
 export function useScheduleById(id?: string) {
-  const [schedule, setSchedule] = useState<ShiftSchedule | null>(null);
-  const [loading, setLoading] = useState(true);
+  const schedule = useDataStore((state) => 
+    id ? state.schedules.find((s: ShiftSchedule) => s.id === id) : undefined
+  );
+  const loading = useDataStore((state) => state._loading);
 
-  const loadSchedule = useCallback(async () => {
-    if (!id) {
-      setSchedule(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const data = await unifiedDataService.getScheduleById(id);
-    setSchedule(data);
-    setLoading(false);
-  }, [id]);
-
-  useEffect(() => {
-    loadSchedule();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'schedule' && event.entityId === id) {
-        loadSchedule();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadSchedule, id]);
-
-  return { schedule, loading, refresh: loadSchedule };
+  return { schedule, loading };
 }
 
 export function useSettings() {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const settings = useDataStore((state) => state.settings);
+  const loading = useDataStore((state) => state._loading);
+  const updateSettings = useDataStore((state) => state.updateSettings);
 
-  const loadSettings = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getSettings();
-    setSettings(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadSettings();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'settings' && event.entityId === 'current') {
-        loadSettings();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadSettings]);
-
-  return { settings, loading, refresh: loadSettings };
+  return { settings, loading, updateSettings };
 }
 
 export function useSearchHistory() {
-  const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const searchHistory = useDataStore((state) => state.searchHistory);
+  const loading = useDataStore((state) => state._loading);
+  const addSearchHistory = useDataStore((state) => state.addSearchHistory);
+  const clearSearchHistory = useDataStore((state) => state.clearSearchHistory);
 
-  const loadSearchHistory = useCallback(async () => {
-    setLoading(true);
-    const data = await unifiedDataService.getAllSearchHistory();
-    setSearchHistory(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadSearchHistory();
-
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'searchHistory') {
-        loadSearchHistory();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadSearchHistory]);
-
-  return { searchHistory, loading, refresh: loadSearchHistory };
+  return { 
+    searchHistory, 
+    loading, 
+    addSearchHistory, 
+    clearSearchHistory,
+  };
 }
+
+export function useDataInitialization() {
+  const initialize = useDataStore((state) => state.initialize);
+  const initialized = useDataStore((state) => state._initialized);
+  const loading = useDataStore((state) => state._loading);
+
+  return { initialize, initialized, loading };
+}
+
+export { useDataStore } from '../stores/dataStore';

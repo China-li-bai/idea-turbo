@@ -1,7 +1,16 @@
+export type EntityType = 
+  | 'event' 
+  | 'task' 
+  | 'inspiration' 
+  | 'shiftSchedule' 
+  | 'settings' 
+  | 'searchHistory';
+
 export type DataChangeEvent = {
   type: 'created' | 'updated' | 'deleted';
-  entityType: 'event' | 'task' | 'inspiration' | 'shiftSchedule' | 'settings';
-  entityId?: string;
+  entityType: EntityType;
+  entityId: string;
+  data?: any;
   metadata?: Record<string, any>;
 };
 
@@ -10,14 +19,19 @@ type EventCallback = (event: DataChangeEvent) => void;
 class EventBus {
   private listeners = new Map<string, Set<EventCallback>>();
 
-  subscribe(entityType: string, callback: EventCallback): () => void {
+  subscribe(entityType: string, callback: EventCallback): () => void;
+  subscribe(callback: EventCallback): () => void;
+  subscribe(entityTypeOrCallback: string | EventCallback, callback?: EventCallback): () => void {
+    const entityType = typeof entityTypeOrCallback === 'string' ? entityTypeOrCallback : '*';
+    const cb = typeof entityTypeOrCallback === 'string' ? callback! : entityTypeOrCallback;
+    
     if (!this.listeners.has(entityType)) {
       this.listeners.set(entityType, new Set());
     }
-    this.listeners.get(entityType)!.add(callback);
+    this.listeners.get(entityType)!.add(cb);
 
     return () => {
-      this.listeners.get(entityType)?.delete(callback);
+      this.listeners.get(entityType)?.delete(cb);
     };
   }
 

@@ -1,5 +1,5 @@
 import { aiService } from '@/lib/ai';
-import { unifiedDataService } from './unifiedDataService';
+import { dataStoreAdapter } from './dataStoreAdapter';
 import type { CalendarEvent } from '@/types';
 
 export interface TimeSlot {
@@ -37,7 +37,7 @@ class SmartRecommendationService {
   }
 
   async learnUserPreferences(): Promise<UserPreferences> {
-    const events = await unifiedDataService.getAllEvents();
+    const events = await dataStoreAdapter.getAllEvents();
     
     if (events.length === 0) {
       return this.getDefaultPreferences();
@@ -128,7 +128,7 @@ class SmartRecommendationService {
     const start = dateRange?.start || new Date();
     const end = dateRange?.end || new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const existingEvents = await unifiedDataService.getAllEvents({
+    const existingEvents = await dataStoreAdapter.getAllEvents({
       dateRange: { start, end },
     });
 

@@ -50,12 +50,14 @@ export function convertFromScheduleXEvent(sxEvent: any): CalendarEvent {
     startTime = new Date(sxEvent.start.toString() + 'T00:00:00')
     endTime = new Date(sxEvent.end.toString() + 'T23:59:59')
   } else if (sxEvent.start instanceof Temporal.ZonedDateTime) {
-    startTime = sxEvent.start.toDate()
-    endTime = sxEvent.end.toDate()
+    startTime = new Date(sxEvent.start.toString())
+    endTime = new Date(sxEvent.end.toString())
   } else {
-    startTime = new Date(sxEvent.start)
-    endTime = new Date(sxEvent.end)
+    startTime = new Date()
+    endTime = new Date()
   }
+
+  const now = new Date()
 
   return {
     id: String(sxEvent.id),
@@ -68,5 +70,7 @@ export function convertFromScheduleXEvent(sxEvent: any): CalendarEvent {
     viewMode: 'personal',
     reminders: [],
     eventType: 'regular',
+    createdAt: now,
+    updatedAt: now,
   }
 }

@@ -1,34 +1,21 @@
-import { v4 as uuidv4 } from 'uuid';
-import { db, getAllFromStore } from '@/lib/storage';
-import { eventBus } from '@/lib/utils/eventBus';
-import { vectorService } from './vectorService';
+import { dataStoreAdapter } from './dataStoreAdapter';
 import type { Task } from '@/types';
 
 export class TaskService {
   async create(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
+    const id = crypto.randomUUID();
     const now = new Date();
     const newTask: Task = {
       ...task,
-      id: uuidv4(),
+      id,
       createdAt: now,
       updatedAt: now,
     };
-
-    await db.tasks.setItem(newTask.id, newTask);
-    this.updateVectorIndex(newTask).catch(console.error);
-
-    eventBus.publish({
-      type: 'created',
-      entityType: 'task',
-      entityId: newTask.id,
-    });
-
-    return newTask;
+    return dataStoreAdapter.addTask(newTask);
   }
 
   async get(id: string): Promise<Task | null> {
-    const task = await db.tasks.getItem<Task>(id);
-    return task || null;
+    return dataStoreAdapter.getTaskById(id);
   }
 
   async getAll(options?: {
@@ -36,67 +23,19 @@ export class TaskService {
     completed?: boolean;
     priority?: string;
   }): Promise<Task[]> {
-    const allTasks = await getAllFromStore<Task>(db.tasks);
-    
-    return allTasks.filter((task) => {
-      let matches = true;
-      
-      if (options?.eventId) {
-        matches = matches && task.eventId === options.eventId;
-      }
-      
-      if (options?.completed !== undefined) {
-        matches = matches && task.completed === options.completed;
-      }
-      
-      if (options?.priority) {
-        matches = matches && task.priority === options.priority;
-      }
-      
-      return matches;
-    }).sort((a, b) => {
-      if (a.dueTime && b.dueTime) {
-        return a.dueTime.getTime() - b.dueTime.getTime();
-      }
-      return a.createdAt.getTime() - b.createdAt.getTime();
-    });
+    return dataStoreAdapter.getAllTasks(options);
   }
 
   async update(id: string, updates: Partial<Task>): Promise<Task> {
-    const existingTask = await this.get(id);
-    if (!existingTask) {
+    const result = await dataStoreAdapter.updateTask(id, updates);
+    if (!result) {
       throw new Error(`Task not found: ${id}`);
     }
-
-    const now = new Date();
-    const updatedTask: Task = {
-      ...existingTask,
-      ...updates,
-      id,
-      updatedAt: now,
-    };
-
-    await db.tasks.setItem(id, updatedTask);
-    this.updateVectorIndex(updatedTask).catch(console.error);
-
-    eventBus.publish({
-      type: 'updated',
-      entityType: 'task',
-      entityId: id,
-    });
-
-    return updatedTask;
+    return result;
   }
 
   async delete(id: string): Promise<void> {
-    await db.tasks.removeItem(id);
-    vectorService.deleteFromIndex(id).catch(console.error);
-
-    eventBus.publish({
-      type: 'deleted',
-      entityType: 'task',
-      entityId: id,
-    });
+    await dataStoreAdapter.deleteTask(id);
   }
 
   async toggleComplete(id: string): Promise<Task> {
@@ -104,21 +43,9 @@ export class TaskService {
     if (!task) {
       throw new Error(`Task not found: ${id}`);
     }
-
-    const now = new Date();
-    return this.update(id, {
+    return this.update(id, { 
       completed: !task.completed,
-      completedAt: !task.completed ? now : undefined,
-    });
-  }
-
-  private async updateVectorIndex(task: Task): Promise<void> {
-    const text = `${task.title} ${task.description || ''}`;
-    await vectorService.indexDocument('task', task.id, text, {
-      completed: task.completed,
-      priority: task.priority,
-      eventId: task.eventId,
-      dueTime: task.dueTime,
+      completedAt: !task.completed ? new Date() : undefined,
     });
   }
 }

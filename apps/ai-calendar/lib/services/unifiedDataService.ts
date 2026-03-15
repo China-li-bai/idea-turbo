@@ -1,23 +1,32 @@
+/**
+ * @deprecated Use dataStoreAdapter instead. This service directly accesses the database
+ * and bypasses the unified Zustand store, which can cause data inconsistency issues.
+ * 
+ * Migration guide:
+ * - unifiedDataService.getAllEvents() → dataStoreAdapter.getAllEvents()
+ * - unifiedDataService.getEventById() → dataStoreAdapter.getEventById()
+ * - unifiedDataService.addEvent() → dataStoreAdapter.addEvent()
+ * - unifiedDataService.updateEvent() → dataStoreAdapter.updateEvent()
+ * - unifiedDataService.deleteEvent() → dataStoreAdapter.deleteEvent()
+ * 
+ * Similar methods exist for tasks, inspirations, schedules, and settings.
+ * 
+ * @see dataStoreAdapter
+ * @see useDataStore
+ */
 import { db, getAllFromStore } from '../storage';
-import { eventBus } from '../utils/eventBus';
+import { eventBus, type DataChangeEvent, type EntityType } from '../utils/eventBus';
 import { vectorService } from './vectorService';
 import type { CalendarEvent, Task, Inspiration, ShiftSchedule, UserSettings, SearchHistory } from '@/types';
 import type { AIConfig } from '@/lib/ai/types';
 
-export interface DataChangeEvent {
-  type: 'created' | 'updated' | 'deleted';
-  entityType: 'event' | 'task' | 'inspiration' | 'schedule' | 'settings' | 'searchHistory';
-  entityId: string;
-  data?: any;
-}
-
 class UnifiedDataService {
-  private async publishChange(event: DataChangeEvent) {
+  private async publishChange(type: DataChangeEvent['type'], entityType: EntityType, entityId: string, data?: any) {
     eventBus.publish({
-      type: event.type as any,
-      entityType: event.entityType as any,
-      entityId: event.entityId,
-      data: event.data,
+      type,
+      entityType,
+      entityId,
+      data,
     });
   }
 
@@ -77,44 +86,38 @@ class UnifiedDataService {
   }
 
   async addEvent(event: CalendarEvent): Promise<CalendarEvent> {
-    const newEvent = {
-      eventType: 'regular' as const,
+    const now = new Date();
+    const newEvent: CalendarEvent = {
       ...event,
-      createdAt: event.createdAt || new Date(),
-      updatedAt: new Date(),
+      createdAt: event.createdAt || now,
+      updatedAt: now,
+      eventType: event.eventType || 'regular',
     };
     
     await db.events.setItem(newEvent.id, newEvent);
     await this.updateEventVectorIndex(newEvent);
-    await this.publishChange({
-      type: 'created',
-      entityType: 'event',
-      entityId: newEvent.id,
-      data: newEvent,
-    });
+    await this.publishChange('created', 'event', newEvent.id, newEvent);
     return newEvent;
   }
 
   async addEvents(events: CalendarEvent[]): Promise<CalendarEvent[]> {
     const added: CalendarEvent[] = [];
+    const now = new Date();
+    
     for (const event of events) {
-      const newEvent = {
-        eventType: 'regular' as const,
+      const newEvent: CalendarEvent = {
         ...event,
-        createdAt: event.createdAt || new Date(),
-        updatedAt: new Date(),
+        createdAt: event.createdAt || now,
+        updatedAt: now,
+        eventType: event.eventType || 'regular',
       };
       await db.events.setItem(newEvent.id, newEvent);
       await this.updateEventVectorIndex(newEvent);
       added.push(newEvent);
     }
+    
     for (const event of added) {
-      await this.publishChange({
-        type: 'created',
-        entityType: 'event',
-        entityId: event.id,
-        data: event,
-      });
+      await this.publishChange('created', 'event', event.id, event);
     }
     return added;
   }
@@ -123,7 +126,7 @@ class UnifiedDataService {
     const existing = await this.getEventById(id);
     if (!existing) return null;
 
-    const updated = { 
+    const updated: CalendarEvent = { 
       ...existing, 
       ...updates, 
       id,
@@ -131,12 +134,7 @@ class UnifiedDataService {
     };
     await db.events.setItem(id, updated);
     await this.updateEventVectorIndex(updated);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'event',
-      entityId: id,
-      data: updated,
-    });
+    await this.publishChange('updated', 'event', id, updated);
     return updated;
   }
 
@@ -145,12 +143,7 @@ class UnifiedDataService {
     if (!existing) return false;
 
     await db.events.removeItem(id);
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'event',
-      entityId: id,
-      data: existing,
-    });
+    await this.publishChange('deleted', 'event', id, existing);
     return true;
   }
 
@@ -190,19 +183,15 @@ class UnifiedDataService {
   }
 
   async addTask(task: Task): Promise<Task> {
-    const newTask = {
+    const now = new Date();
+    const newTask: Task = {
       ...task,
-      createdAt: task.createdAt || new Date(),
-      updatedAt: new Date(),
+      createdAt: task.createdAt || now,
+      updatedAt: now,
     };
     await db.tasks.setItem(newTask.id, newTask);
     await this.updateTaskVectorIndex(newTask);
-    await this.publishChange({
-      type: 'created',
-      entityType: 'task',
-      entityId: newTask.id,
-      data: newTask,
-    });
+    await this.publishChange('created', 'task', newTask.id, newTask);
     return newTask;
   }
 
@@ -210,7 +199,7 @@ class UnifiedDataService {
     const existing = await this.getTaskById(id);
     if (!existing) return null;
 
-    const updated = { 
+    const updated: Task = { 
       ...existing, 
       ...updates, 
       id,
@@ -218,12 +207,7 @@ class UnifiedDataService {
     };
     await db.tasks.setItem(id, updated);
     await this.updateTaskVectorIndex(updated);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'task',
-      entityId: id,
-      data: updated,
-    });
+    await this.publishChange('updated', 'task', id, updated);
     return updated;
   }
 
@@ -232,12 +216,7 @@ class UnifiedDataService {
     if (!existing) return false;
 
     await db.tasks.removeItem(id);
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'task',
-      entityId: id,
-      data: existing,
-    });
+    await this.publishChange('deleted', 'task', id, existing);
     return true;
   }
 
@@ -267,19 +246,14 @@ class UnifiedDataService {
   }
 
   async addInspiration(inspiration: Inspiration): Promise<Inspiration> {
-    const newInspiration = {
+    const now = new Date();
+    const newInspiration: Inspiration = {
       ...inspiration,
-      createdAt: inspiration.createdAt || new Date(),
-      updatedAt: new Date(),
+      captureTime: inspiration.captureTime || now,
     };
     await db.inspirations.setItem(newInspiration.id, newInspiration);
     await this.updateInspirationVectorIndex(newInspiration);
-    await this.publishChange({
-      type: 'created',
-      entityType: 'inspiration',
-      entityId: newInspiration.id,
-      data: newInspiration,
-    });
+    await this.publishChange('created', 'inspiration', newInspiration.id, newInspiration);
     return newInspiration;
   }
 
@@ -287,20 +261,14 @@ class UnifiedDataService {
     const existing = await this.getInspirationById(id);
     if (!existing) return null;
 
-    const updated = { 
+    const updated: Inspiration = { 
       ...existing, 
       ...updates, 
       id,
-      updatedAt: new Date() 
     };
     await db.inspirations.setItem(id, updated);
     await this.updateInspirationVectorIndex(updated);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'inspiration',
-      entityId: id,
-      data: updated,
-    });
+    await this.publishChange('updated', 'inspiration', id, updated);
     return updated;
   }
 
@@ -309,12 +277,7 @@ class UnifiedDataService {
     if (!existing) return false;
 
     await db.inspirations.removeItem(id);
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'inspiration',
-      entityId: id,
-      data: existing,
-    });
+    await this.publishChange('deleted', 'inspiration', id, existing);
     return true;
   }
 
@@ -327,18 +290,14 @@ class UnifiedDataService {
   }
 
   async addSchedule(schedule: ShiftSchedule): Promise<ShiftSchedule> {
-    const newSchedule = {
+    const now = new Date();
+    const newSchedule: ShiftSchedule = {
       ...schedule,
-      createdAt: schedule.createdAt || new Date(),
-      updatedAt: new Date(),
+      createdAt: schedule.createdAt || now,
+      updatedAt: now,
     };
     await db.schedules.setItem(newSchedule.id, newSchedule);
-    await this.publishChange({
-      type: 'created',
-      entityType: 'schedule',
-      entityId: newSchedule.id,
-      data: newSchedule,
-    });
+    await this.publishChange('created', 'shiftSchedule', newSchedule.id, newSchedule);
     return newSchedule;
   }
 
@@ -346,19 +305,14 @@ class UnifiedDataService {
     const existing = await this.getScheduleById(id);
     if (!existing) return null;
 
-    const updated = { 
+    const updated: ShiftSchedule = { 
       ...existing, 
       ...updates, 
       id,
       updatedAt: new Date() 
     };
     await db.schedules.setItem(id, updated);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'schedule',
-      entityId: id,
-      data: updated,
-    });
+    await this.publishChange('updated', 'shiftSchedule', id, updated);
     return updated;
   }
 
@@ -367,12 +321,7 @@ class UnifiedDataService {
     if (!existing) return false;
 
     await db.schedules.removeItem(id);
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'schedule',
-      entityId: id,
-      data: existing,
-    });
+    await this.publishChange('deleted', 'shiftSchedule', id, existing);
     return true;
   }
 
@@ -382,12 +331,7 @@ class UnifiedDataService {
 
   async saveSettings(settings: UserSettings): Promise<UserSettings> {
     await db.settings.setItem('current', settings);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'settings',
-      entityId: 'current',
-      data: settings,
-    });
+    await this.publishChange('updated', 'settings', 'current', settings);
     return settings;
   }
 
@@ -397,12 +341,7 @@ class UnifiedDataService {
 
   async saveAIConfig(config: AIConfig): Promise<AIConfig> {
     await db.settings.setItem('aiConfig', config);
-    await this.publishChange({
-      type: 'updated',
-      entityType: 'settings',
-      entityId: 'aiConfig',
-      data: config,
-    });
+    await this.publishChange('updated', 'settings', 'aiConfig', config);
     return config;
   }
 
@@ -412,12 +351,7 @@ class UnifiedDataService {
 
   async addSearchHistory(history: SearchHistory): Promise<SearchHistory> {
     await db.searchHistory.setItem(history.id, history);
-    await this.publishChange({
-      type: 'created',
-      entityType: 'searchHistory',
-      entityId: history.id,
-      data: history,
-    });
+    await this.publishChange('created', 'searchHistory', history.id, history);
     return history;
   }
 
@@ -426,22 +360,13 @@ class UnifiedDataService {
     if (!existing) return false;
 
     await db.searchHistory.removeItem(id);
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'searchHistory',
-      entityId: id,
-      data: existing,
-    });
+    await this.publishChange('deleted', 'searchHistory', id, existing);
     return true;
   }
 
   async clearAllSearchHistory(): Promise<void> {
     await db.searchHistory.clear();
-    await this.publishChange({
-      type: 'deleted',
-      entityType: 'searchHistory',
-      entityId: 'all',
-    });
+    await this.publishChange('deleted', 'searchHistory', 'all');
   }
 }
 

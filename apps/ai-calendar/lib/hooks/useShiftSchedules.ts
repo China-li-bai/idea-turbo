@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { shiftService } from '@/lib/services/shiftService';
-import { eventBus } from '@/lib/utils/eventBus';
+import { eventBus, type DataChangeEvent } from '@/lib/utils/eventBus';
 import type { ShiftSchedule, Shift, Employee, ShiftType } from '@/types';
 
 export function useShiftSchedules() {
@@ -75,8 +75,8 @@ export function useShiftSchedules() {
   }, [loadSchedules]);
 
   useEffect(() => {
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.entityType === 'shift-schedule') {
+    const unsubscribe = eventBus.subscribe((event: DataChangeEvent) => {
+      if (event.entityType === 'shiftSchedule') {
         loadSchedules();
       }
     });
@@ -179,16 +179,10 @@ export function useShiftSchedule(scheduleId: string | null) {
   }, [loadSchedule]);
 
   useEffect(() => {
-    const unsubscribe = eventBus.subscribe((event) => {
+    const unsubscribe = eventBus.subscribe((event: DataChangeEvent) => {
       if (
-        event.entityType === 'shift-schedule' && 
+        event.entityType === 'shiftSchedule' && 
         event.entityId === scheduleId
-      ) {
-        loadSchedule();
-      }
-      if (
-        event.entityType === 'shift' && 
-        event.metadata?.scheduleId === scheduleId
       ) {
         loadSchedule();
       }
