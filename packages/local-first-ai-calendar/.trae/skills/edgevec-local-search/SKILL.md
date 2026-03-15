@@ -337,6 +337,192 @@ export default defineConfig({
 
 ---
 
+## 数据持久化方案
+
+### 问题背景
+
+EdgeVec v0.9.0 的 `save()/load()` 方法使用 `postcard` 序列化库保存到 IndexedDB，但在实际使用中存在兼容性问题：
+
+```javascript
+// 保存成功
+await store.save('my-index');  // ✅ 成功
+
+// 加载失败
+const loaded = await EdgeVecIndex.load('my-index');  
+// ❌ Error: "corrupted data: Deserialization failed: 
+// This is a feature that PostCard will never implement"
+```
+
+这是 EdgeVec 内部的 postcard 序列化问题，导致保存的数据无法正确加载。
+
+### 解决方案：只缓存原始JSON数据
+
+由于 EdgeVec 的二进制序列化存在 bug，我们采用折中方案：**只缓存原始 JSON 数据，不依赖 EdgeVec 的 save/load 功能**。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              缓存流程对比                                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  理想方案 (EdgeVec原生):                                    │
+│  ┌──────────┐    save()     ┌──────────────┐              │
+│  │ EdgeVec  │ ──────────►  │ IndexedDB    │              │
+│  │ 索引     │              │ (二进制)     │              │
+│  └──────────┘              └──────────────┘              │
+│        │                          │                        │
+│        │ load()                  │                        │
+│        ▼                          ▼                        │
+│  直接使用 ─────────────────► 快速恢复                      │
+│                                                             │
+│  当前方案 (JSON缓存):                                       │
+│  ┌──────────┐              ┌──────────────┐              │
+│  │ EdgeVec  │              │ IndexedDB    │              │
+│  │ 索引     │              │ (JSON)       │              │
+│  └──────────┘              └──────────────┘              │
+│        │                          │                        │
+│        │ 手动重建                │                        │
+│        ▼                          ▼                        │
+│  从JSON重建索引 ──────► 搜索功能正常                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 实现代码
+
+#### 1. 保存原始数据到 IndexedDB
+
+```javascript
+// 使用独立的 IndexedDB 数据库，避免与 EdgeVec 冲突
+async function saveRawCache(name, data) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('EdgeVecRawCache', 1);
+        
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('data')) {
+                db.createObjectStore('data');
+            }
+        };
+        
+        request.onsuccess = (e) => {
+            const db = e.target.result;
+            const tx = db.transaction(['data'], 'readwrite');
+            const store = tx.objectStore('data');
+            store.put(JSON.stringify(data), name);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        };
+        
+        request.onerror = () => reject(request.error);
+    });
+}
+```
+
+#### 2. 从 IndexedDB 加载并重建索引
+
+```javascript
+async function loadRawCache(name) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('EdgeVecRawCache', 1);
+        
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('data')) {
+                db.createObjectStore('data');
+            }
+        };
+        
+        request.onsuccess = (e) => {
+            const db = e.target.result;
+            const tx = db.transaction(['data'], 'readonly');
+            const store = tx.objectStore('data');
+            const getReq = store.get(name);
+            
+            getReq.onsuccess = () => {
+                if (getReq.result) {
+                    resolve(JSON.parse(getReq.result));
+                } else {
+                    resolve(null);
+                }
+            };
+            
+            getReq.onerror = () => reject(getReq.error);
+        };
+        
+        request.onerror = () => reject(request.error);
+    });
+}
+```
+
+#### 3. 初始化时自动加载缓存
+
+```javascript
+async function init() {
+    // 初始化 EdgeVec
+    await store.initialize();
+    
+    const CACHE_KEY = 'calendar-raw-data';
+    
+    // 尝试从缓存加载
+    try {
+        const cached = await loadRawCache(CACHE_KEY);
+        
+        if (cached && cached.documents && cached.documents.length > 0) {
+            // 从缓存重建索引
+            for (const doc of cached.documents) {
+                const vector = new Float32Array(doc.embedding);
+                store.store.add(vector, {
+                    id: doc.id,
+                    text: doc.text
+                });
+            }
+            
+            console.log(`从缓存加载成功! 共 ${store.count} 条数据`);
+            return;
+        }
+    } catch (e) {
+        console.warn('缓存加载失败:', e);
+    }
+    
+    // 无缓存，从网络加载
+    const response = await fetch('/data.json');
+    const data = await response.json();
+    
+    // 重建索引
+    for (const doc of data.documents) {
+        const vector = new Float32Array(doc.embedding);
+        store.store.add(vector, { id: doc.id, text: doc.text });
+    }
+    
+    // 保存到缓存
+    await saveRawCache(CACHE_KEY, data);
+}
+```
+
+### 优势与权衡
+
+| 方面 | 说明 |
+|------|------|
+| **可靠性** | ✅ 只缓存 JSON，不依赖 EdgeVec 序列化 |
+| **兼容性** | ✅ 即使 EdgeVec 升级，JSON 仍可用 |
+| **加载速度** | ⚠️ 需重建索引 (1000条约2-3秒) |
+| **搜索性能** | ✅ 搜索仍在 EdgeVec 内存索引中进行 |
+| **存储空间** | ⚠️ JSON 比二进制大约2-3倍 |
+
+### 适用场景
+
+- ✅ 数据量 < 10,000 条（重建索引时间可接受）
+- ✅ 对加载速度要求不高
+- ❌ 数据量 > 100,000 条（建议等待 EdgeVec 修复）
+
+### 未来优化
+
+1. 等待 EdgeVec 修复 postcard 序列化问题
+2. 实现增量更新（只缓存新增数据）
+3. 使用 Web Worker 后台重建索引
+
+---
+
 ## 参考资源
 
 - EdgeVec源码: `/Users/mac/project/idea-turbo/packages/edgevec`
