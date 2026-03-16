@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useEvents } from '@/lib/stores';
 import { shiftService } from '@/lib/services/shiftService';
-import Navbar from '@/components/Navbar';
-import CalendarView from '@/components/CalendarView';
-import ShiftManager from '@/components/ShiftManager';
-import ShiftNlpPanel from '@/components/ShiftNlpPanel';
+import Navbar from '@/components/ui/Navbar';
+import CalendarView from '@/components/calendar/CalendarView';
+import ShiftManager from '@/components/shift/ShiftManager';
+import ShiftNlpPanel from '@/components/shift/ShiftNlpPanel';
 import type { CalendarEvent } from '@/types';
 import styles from './calendar-shift.module.scss';
 
