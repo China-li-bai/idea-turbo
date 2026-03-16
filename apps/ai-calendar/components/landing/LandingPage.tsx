@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import LanguageSwitcher from '@/components/LanguageSwitcher'
+import LanguageSwitcher from '@/components/i18n/LanguageSwitcher'
 import { useI18nStore } from '@/lib/stores/i18nStore'
 import { useTranslation } from '@/lib/utils/translations'
 import styles from './landing.module.scss'
