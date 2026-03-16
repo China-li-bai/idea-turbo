@@ -176,11 +176,13 @@ export class LocalScheduler {
       return false;
     }
 
-    if (preferences.preferredShifts?.length > 0 &&
+    if (preferences.preferredShifts && 
+        preferences.preferredShifts.length > 0 &&
         !preferences.preferredShifts.includes(shiftType.id)) {
     }
 
-    if (preferences.preferredDaysOff?.includes(date.getDay())) {
+    if (preferences.preferredDaysOff && 
+        preferences.preferredDaysOff.includes(date.getDay())) {
     }
 
     return true;

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useCalendarStore } from '@/lib/stores/calendarStore'
 import { v4 as uuidv4 } from 'uuid'
 import { parseNaturalLanguage } from '@/lib/services/aiParserService'
-import styles from './inspirationCapture.module.scss'
+import styles from './InspirationCapture.module.scss'
 
 type InspirationType = 'todo' | 'event' | 'note' | 'raw'
 

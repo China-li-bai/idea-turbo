@@ -2,9 +2,9 @@ export {
   parseNaturalLanguage, 
   formatTimeRange, 
   formatRelativeDate 
-} from './aiParserService';
+} from '../services/aiParserService';
 
-export type { ParsedResult } from './aiParserService';
+export type { ParsedResult } from '../services/aiParserService';
 
 export { 
   parseNaturalLanguage as parseNaturalLanguageLegacy 
