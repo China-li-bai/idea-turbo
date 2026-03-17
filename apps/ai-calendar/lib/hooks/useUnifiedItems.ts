@@ -7,18 +7,32 @@ export function useUnifiedItems(options?: {
   type?: ItemType;
   status?: ItemStatus;
 }) {
-  const items = useUnifiedStore((state) => state.getItems(options?.type, options?.status));
+  const allItems = useUnifiedStore((state) => state.items);
   const addItem = useUnifiedStore((state) => state.addItem);
   const updateItem = useUnifiedStore((state) => state.updateItem);
+  const updateEmbedding = useUnifiedStore((state) => state.updateEmbedding);
   const deleteItem = useUnifiedStore((state) => state.deleteItem);
   const convertToEvent = useUnifiedStore((state) => state.convertToEvent);
   const convertToIdea = useUnifiedStore((state) => state.convertToIdea);
 
+  const items = useMemo(() => {
+    let filtered = allItems;
+    if (options?.type) {
+      filtered = filtered.filter((item) => item.type === options.type);
+    }
+    if (options?.status) {
+      filtered = filtered.filter((item) => item.status === options.status);
+    }
+    return filtered;
+  }, [allItems, options?.type, options?.status]);
+
   const createIdea = useCallback(async (content: string, metadata?: Partial<UnifiedCalendarItem['metadata']>) => {
-    const idea = await unifiedItemService.createIdea(content, metadata);
+    const idea = await unifiedItemService.createIdea(content, metadata, (update) => {
+      updateEmbedding(update);
+    });
     await addItem(idea);
     return idea;
-  }, [addItem]);
+  }, [addItem, updateEmbedding]);
 
   const createEvent = useCallback(async (
     title: string,
@@ -26,10 +40,12 @@ export function useUnifiedItems(options?: {
     endTime: number,
     metadata?: Partial<UnifiedCalendarItem['metadata']>
   ) => {
-    const event = await unifiedItemService.createEvent(title, startTime, endTime, metadata);
+    const event = await unifiedItemService.createEvent(title, startTime, endTime, metadata, (update) => {
+      updateEmbedding(update);
+    });
     await addItem(event);
     return event;
-  }, [addItem]);
+  }, [addItem, updateEmbedding]);
 
   const update = useCallback(async (id: string, updates: Partial<UnifiedCalendarItem>) => {
     await updateItem(id, updates);
@@ -73,6 +89,10 @@ export function useUnifiedItems(options?: {
     toEvent,
     toIdea
   };
+}
+
+export function useAIStatus() {
+  return useUnifiedStore((state) => state.aiStatus);
 }
 
 export function useIdeas() {

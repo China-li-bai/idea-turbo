@@ -1,186 +1,159 @@
+import { zh } from 'chrono-node';
+
 export interface ParsedResult {
-  title: string
-  date?: Date
-  time?: string
-  duration?: number
-  location?: string
-  type?: 'todo' | 'event' | 'note'
-  people?: string[]
+  title: string;
+  date?: Date;
+  time?: string;
+  duration?: number;
+  location?: string;
+  type?: 'todo' | 'event' | 'note';
+  people?: string[];
+  confidence: number;
+  rawInput: string;
 }
 
-const TODO_KEYWORDS = ['待办', 'todo', '任务', '要做', '需要做', '记得', '购买', '联系', '处理']
-const NOTE_KEYWORDS = ['笔记', 'note', '记录', '想法', '感悟', '总结']
-
-const WEEK_DAYS: Record<string, number> = {
-  '周日': 0, '周一': 1, '周二': 2, '周三': 3, '周四': 4, '周五': 5, '周六': 6
-}
-
-const TIME_PERIODS = ['上午', '下午', '早上', '晚上', '中午', '凌晨']
-const LOCATION_PREFIXES = ['在', '于', '地点', '位置', '地址', '去', '到']
-const PEOPLE_PREFIXES = ['见', '和', '与', '同', '跟']
-const PEOPLE_SUFFIXES = ['总', '老师', '先生', '女士', '博士', '经理', '总监', 'CEO', 'CTO', 'CFO']
-
-function createDate(year: number, month: number, day: number, hour?: number, minute?: number): Date {
-  return new Date(year, month, day, hour || 0, minute || 0)
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date)
-  result.setDate(result.getDate() + days)
-  return result
-}
+const TODO_KEYWORDS = ['待办', 'todo', '任务', '要做', '需要做', '记得', '购买', '联系', '处理'];
+const NOTE_KEYWORDS = ['笔记', 'note', '记录', '想法', '感悟', '总结'];
+const LOCATION_PREFIXES = ['在', '于', '地点', '位置', '地址', '去', '到'];
+const PEOPLE_PREFIXES = ['见', '和', '与', '同', '跟'];
 
 function hasAnyKeyword(input: string, keywords: string[]): boolean {
-  const lowerInput = input.toLowerCase()
-  return keywords.some(keyword => lowerInput.includes(keyword))
+  const lowerInput = input.toLowerCase();
+  return keywords.some((keyword) => lowerInput.includes(keyword));
 }
 
 function extractByPrefix(input: string, prefixes: string[], maxLength: number = 20): string | null {
   for (const prefix of prefixes) {
-    const regex = new RegExp(`${prefix}\\s*([^，,\\s]{2,${maxLength}})`)
-    const match = input.match(regex)
+    const regex = new RegExp(`${prefix}\\s*([^，,\\s]{2,${maxLength}})`);
+    const match = input.match(regex);
     if (match) {
-      return match[1].trim()
+      return match[1].trim();
     }
   }
-  return null
-}
-
-function parseTime(input: string): { hour: number; minute: number } | null {
-  const timeMatch = input.match(/(\d{1,2})(?::(\d{2}))?\s*(?:点|时)/)
-  if (!timeMatch) return null
-
-  let hour = parseInt(timeMatch[1])
-  const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
-
-  if (hasAnyKeyword(input, ['下午', '晚上'])) {
-    if (hour < 12) hour += 12
-  } else if (hasAnyKeyword(input, ['上午', '早上'])) {
-    if (hour === 12) hour = 0
-  }
-
-  return { hour, minute }
-}
-
-function parseRelativeDate(input: string, now: Date): Date | null {
-  if (input.includes('今天')) {
-    return createDate(now.getFullYear(), now.getMonth(), now.getDate())
-  }
-  if (input.includes('明天')) {
-    const tomorrow = addDays(now, 1)
-    return createDate(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate())
-  }
-  if (input.includes('后天')) {
-    const dayAfter = addDays(now, 2)
-    return createDate(dayAfter.getFullYear(), dayAfter.getMonth(), dayAfter.getDate())
-  }
-  if (input.includes('下周')) {
-    const daysUntilNextWeek = 7 - now.getDay() + 1
-    const nextWeek = addDays(now, daysUntilNextWeek)
-    return createDate(nextWeek.getFullYear(), nextWeek.getMonth(), nextWeek.getDate())
-  }
-
-  for (const [day, dayNum] of Object.entries(WEEK_DAYS)) {
-    if (input.includes(day)) {
-      let daysUntil = dayNum - now.getDay()
-      if (daysUntil <= 0) daysUntil += 7
-      const targetDate = addDays(now, daysUntil)
-      return createDate(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
-    }
-  }
-
-  return null
+  return null;
 }
 
 function parseDuration(input: string): number | null {
-  const durationMatch = input.match(/(\d+)\s*(?:小时|分钟|天)/)
+  const durationMatch = input.match(/(\d+)\s*(?:小时|分钟|天)/);
   if (durationMatch) {
-    const value = parseInt(durationMatch[1])
-    if (input.includes('小时')) return value * 60
-    if (input.includes('分钟')) return value
-    if (input.includes('天')) return value * 24 * 60
+    const value = parseInt(durationMatch[1]);
+    if (input.includes('小时')) return value * 60;
+    if (input.includes('分钟')) return value;
+    if (input.includes('天')) return value * 24 * 60;
   }
-  if (input.includes('半天')) return 4 * 60
-  if (input.includes('半小时')) return 30
-  return null
+  if (input.includes('半天')) return 4 * 60;
+  if (input.includes('半小时')) return 30;
+  return null;
+}
+
+function determineType(input: string, hasDate: boolean): 'todo' | 'event' | 'note' {
+  if (hasAnyKeyword(input, TODO_KEYWORDS)) {
+    return 'todo';
+  }
+  if (hasAnyKeyword(input, NOTE_KEYWORDS)) {
+    return 'note';
+  }
+  if (hasDate) {
+    return 'event';
+  }
+  return 'event';
+}
+
+function calculateConfidence(
+  hasDate: boolean,
+  hasTime: boolean,
+  hasLocation: boolean,
+  hasPeople: boolean
+): number {
+  let confidence = 0.5;
+  if (hasDate) confidence += 0.15;
+  if (hasTime) confidence += 0.15;
+  if (hasLocation) confidence += 0.1;
+  if (hasPeople) confidence += 0.1;
+  return Math.min(confidence, 1.0);
 }
 
 export async function parseNaturalLanguage(input: string): Promise<ParsedResult> {
   const result: ParsedResult = {
     title: input.trim(),
-  }
+    confidence: 0.5,
+    rawInput: input,
+  };
 
-  if (hasAnyKeyword(input, TODO_KEYWORDS)) {
-    result.type = 'todo'
-  } else if (hasAnyKeyword(input, NOTE_KEYWORDS)) {
-    result.type = 'note'
-  } else {
-    result.type = 'event'
-  }
+  const chronoResults = zh.parse(input, new Date());
 
-  const now = new Date()
+  let hasDate = false;
+  let hasTime = false;
 
-  const relativeDate = parseRelativeDate(input, now)
-  if (relativeDate) {
-    result.date = relativeDate
-  }
+  if (chronoResults.length > 0) {
+    const firstResult = chronoResults[0];
+    const start = firstResult.start;
 
-  const time = parseTime(input)
-  if (time) {
-    result.time = `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}`
-    if (result.date) {
-      result.date = createDate(
-        result.date.getFullYear(),
-        result.date.getMonth(),
-        result.date.getDate(),
-        time.hour,
-        time.minute
-      )
+    hasDate = start.isCertain('day') || start.isCertain('month') || start.isCertain('year');
+    hasTime = start.isCertain('hour');
+
+    if (hasDate || hasTime) {
+      result.date = start.date();
+
+      if (hasTime) {
+        const hour = start.get('hour') ?? 0;
+        const minute = start.get('minute') ?? 0;
+        result.time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      }
+
+      if (firstResult.end) {
+        const durationMs = firstResult.end.date().getTime() - firstResult.start.date().getTime();
+        result.duration = Math.round(durationMs / (1000 * 60));
+      }
     }
   }
 
-  const duration = parseDuration(input)
-  if (duration) {
-    result.duration = duration
+  result.type = determineType(input, hasDate);
+
+  const duration = parseDuration(input);
+  if (duration && !result.duration) {
+    result.duration = duration;
   }
 
-  const location = extractByPrefix(input, LOCATION_PREFIXES)
+  const location = extractByPrefix(input, LOCATION_PREFIXES);
   if (location) {
-    result.location = location
+    result.location = location;
   }
 
-  const people = extractByPrefix(input, PEOPLE_PREFIXES, 10)
+  const people = extractByPrefix(input, PEOPLE_PREFIXES, 10);
   if (people) {
-    result.people = [people]
+    result.people = [people];
   }
 
-  return result
+  result.confidence = calculateConfidence(hasDate, hasTime, !!result.location, !!result.people);
+
+  return result;
 }
 
 export function formatTimeRange(start: Date, end: Date): string {
-  const startHour = start.getHours()
-  const startMinute = start.getMinutes()
-  const endHour = end.getHours()
-  const endMinute = end.getMinutes()
-  
+  const startHour = start.getHours();
+  const startMinute = start.getMinutes();
+  const endHour = end.getHours();
+  const endMinute = end.getMinutes();
+
   const formatHour = (h: number) => {
     if (h >= 12) {
-      return `下午${h === 12 ? 12 : h - 12}`
+      return `下午${h === 12 ? 12 : h - 12}`;
     }
-    return `上午${h === 0 ? 12 : h}`
-  }
-  
-  return `${formatHour(startHour)}:${startMinute.toString().padStart(2, '0')} - ${formatHour(endHour)}:${endMinute.toString().padStart(2, '0')}`
+    return `上午${h === 0 ? 12 : h}`;
+  };
+
+  return `${formatHour(startHour)}:${startMinute.toString().padStart(2, '0')} - ${formatHour(endHour)}:${endMinute.toString().padStart(2, '0')}`;
 }
 
 export function formatRelativeDate(date: Date): string {
-  const now = new Date()
-  const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  
-  if (diffDays === 0) return '今天'
-  if (diffDays === 1) return '明天'
-  if (diffDays === 2) return '后天'
-  if (diffDays > 0 && diffDays < 7) return `${diffDays}天后`
-  
-  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  const now = new Date();
+  const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return '今天';
+  if (diffDays === 1) return '明天';
+  if (diffDays === 2) return '后天';
+  if (diffDays > 0 && diffDays < 7) return `${diffDays}天后`;
+
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
 }

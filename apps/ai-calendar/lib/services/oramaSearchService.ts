@@ -146,8 +146,6 @@ class OramaSearchService {
         eventType: item.metadata.eventType || "regular",
       },
     });
-
-    console.log(`Indexed ${item.type}: ${item.id}`);
   }
 
   async search(
@@ -160,6 +158,12 @@ class OramaSearchService {
       score: number;
       title: string;
       content: string;
+      startTime: number | null;
+      endTime: number | null;
+      isAllDay: boolean;
+      status: 'pending' | 'scheduled' | 'completed' | 'cancelled';
+      createdAt: number;
+      updatedAt: number;
       metadata: any;
     }>
   > {
@@ -185,6 +189,9 @@ class OramaSearchService {
     }
 
     const results = await search(this.db, searchOptions);
+    
+    console.log('Orama raw results:', results);
+    console.log('Hits count:', results.hits?.length);
 
     return results.hits
       .filter((hit: any) => {
@@ -211,6 +218,12 @@ class OramaSearchService {
         score: hit.score,
         title: hit.document.title,
         content: hit.document.content,
+        startTime: hit.document.startTime || null,
+        endTime: hit.document.endTime || null,
+        isAllDay: hit.document.isAllDay || false,
+        status: hit.document.status || 'pending',
+        createdAt: hit.document.createdAt || Date.now(),
+        updatedAt: hit.document.updatedAt || Date.now(),
         metadata: hit.document.metadata || {},
       }));
   }
@@ -225,6 +238,12 @@ class OramaSearchService {
       score: number;
       title: string;
       content: string;
+      startTime: number | null;
+      endTime: number | null;
+      isAllDay: boolean;
+      status: 'pending' | 'scheduled' | 'completed' | 'cancelled';
+      createdAt: number;
+      updatedAt: number;
       metadata: any;
     }>
   > {
@@ -277,6 +296,12 @@ class OramaSearchService {
         score: hit.score,
         title: hit.document.title,
         content: hit.document.content,
+        startTime: hit.document.startTime || null,
+        endTime: hit.document.endTime || null,
+        isAllDay: hit.document.isAllDay || false,
+        status: hit.document.status || 'pending',
+        createdAt: hit.document.createdAt || Date.now(),
+        updatedAt: hit.document.updatedAt || Date.now(),
         metadata: hit.document.metadata || {},
       }));
   }
@@ -294,13 +319,29 @@ class OramaSearchService {
   async updateDocument(id: string, updates: any): Promise<void> {
     await this.initialize();
 
-    if (updates.content || updates.title) {
-      updates.embedding = await this.embed(
-        updates.content || updates.title || "",
-      );
+    if (updates.embedding) {
+      try {
+        const existingDoc = await getByID(this.db, id);
+        if (existingDoc) {
+          await remove(this.db, id);
+          
+          const updatedDoc = {
+            ...existingDoc,
+            ...updates,
+          };
+          
+          await insert(this.db, updatedDoc);
+        }
+      } catch (error) {
+        console.error('Failed to update document via remove/insert:', id, error);
+      }
+    } else {
+      try {
+        await update(this.db, id, updates);
+      } catch (error) {
+        console.error('Failed to update document:', id, error);
+      }
     }
-
-    await update(this.db, id, updates);
   }
 
   async deleteFromIndex(id: string): Promise<void> {

@@ -1,60 +1,130 @@
 'use client';
 
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
-import { oramaSearchService } from './oramaSearchService';
+
+function generateEmptyEmbedding(): number[] {
+  return new Array(512).fill(0).map(() => Math.random() * 0.001 - 0.0005);
+}
+
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export interface EmbeddingUpdate {
+  id: string;
+  embedding: number[];
+  embeddingUpdatedAt: number;
+}
 
 class UnifiedItemService {
   private extractor: any = null;
   private initPromise: Promise<void> | null = null;
+  private isReady: boolean = false;
+  private listeners: Set<(ready: boolean) => void> = new Set();
 
-  async initialize(): Promise<void> {
+  async initialize(
+    progressCallback?: (status: string) => void
+  ): Promise<void> {
     if (this.extractor) return;
     
     if (this.initPromise) return this.initPromise;
     
-    this.initPromise = this._initialize();
+    this.initPromise = this._initialize(progressCallback);
     return this.initPromise;
   }
 
-  private async _initialize(): Promise<void> {
+  private async _initialize(
+    progressCallback?: (status: string) => void
+  ): Promise<void> {
     try {
+      progressCallback?.('正在加载 AI 模型...');
+      
       const { pipeline } = await import('@huggingface/transformers');
       this.extractor = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5');
-      console.log('UnifiedItemService initialized');
+      
+      this.isReady = true;
+      this.notifyListeners(true);
+      
+      console.log('UnifiedItemService: AI engine initialized');
     } catch (error) {
-      console.error('Failed to initialize UnifiedItemService:', error);
-      throw error;
+      console.warn('UnifiedItemService: Failed to initialize embedding model:', error);
+      this.isReady = false;
+      this.notifyListeners(false);
     }
   }
 
-  private async generateEmbedding(text: string): Promise<number[]> {
-    await this.initialize();
+  private notifyListeners(ready: boolean): void {
+    this.listeners.forEach(listener => listener(ready));
+  }
+
+  onReadyChange(listener: (ready: boolean) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.isReady);
+    return () => this.listeners.delete(listener);
+  }
+
+  getIsReady(): boolean {
+    return this.isReady;
+  }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    try {
+      await this.initialize();
+      
+      if (this.extractor) {
+        const output = await this.extractor(text, {
+          pooling: 'mean',
+          normalize: true
+        });
+        return Array.from(output.data);
+      }
+    } catch (error) {
+      console.warn('Failed to generate embedding:', error);
+    }
     
-    const output = await this.extractor(text);
-    return Array.from(output.data);
+    return generateEmptyEmbedding();
   }
 
   async createIdea(
     content: string,
-    metadata?: Partial<UnifiedCalendarItem['metadata']>
+    metadata?: Partial<UnifiedCalendarItem['metadata']>,
+    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
   ): Promise<UnifiedCalendarItem> {
-    const embedding = await this.generateEmbedding(content);
+    const now = Date.now();
+    const id = generateUUID();
     
     const item: UnifiedCalendarItem = {
-      id: crypto.randomUUID(),
+      id,
       type: 'idea',
       title: content.substring(0, 100),
       content,
       startTime: null,
       endTime: null,
       isAllDay: false,
-      embedding,
-      embeddingUpdatedAt: Date.now(),
+      embedding: generateEmptyEmbedding(),
+      embeddingUpdatedAt: now,
       status: 'pending',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       metadata: metadata || {}
     };
+    
+    this.generateEmbedding(content).then(embedding => {
+      if (onEmbeddingUpdate) {
+        onEmbeddingUpdate({
+          id,
+          embedding,
+          embeddingUpdatedAt: Date.now()
+        });
+      }
+    }).catch(console.error);
     
     return item;
   }
@@ -63,26 +133,38 @@ class UnifiedItemService {
     title: string,
     startTime: number,
     endTime: number,
-    metadata?: Partial<UnifiedCalendarItem['metadata']>
+    metadata?: Partial<UnifiedCalendarItem['metadata']>,
+    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
   ): Promise<UnifiedCalendarItem> {
     const content = metadata?.description || title;
-    const embedding = await this.generateEmbedding(content);
+    const now = Date.now();
+    const id = generateUUID();
     
     const item: UnifiedCalendarItem = {
-      id: crypto.randomUUID(),
+      id,
       type: 'event',
       title,
       content,
       startTime,
       endTime,
       isAllDay: false,
-      embedding,
-      embeddingUpdatedAt: Date.now(),
+      embedding: generateEmptyEmbedding(),
+      embeddingUpdatedAt: now,
       status: 'scheduled',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       metadata: metadata || {}
     };
+    
+    this.generateEmbedding(content).then(embedding => {
+      if (onEmbeddingUpdate) {
+        onEmbeddingUpdate({
+          id,
+          embedding,
+          embeddingUpdatedAt: Date.now()
+        });
+      }
+    }).catch(console.error);
     
     return item;
   }
@@ -143,7 +225,8 @@ class UnifiedItemService {
 
   async updateItem(
     item: UnifiedCalendarItem,
-    updates: Partial<UnifiedCalendarItem>
+    updates: Partial<UnifiedCalendarItem>,
+    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
   ): Promise<UnifiedCalendarItem> {
     const updatedItem: UnifiedCalendarItem = {
       ...item,
@@ -153,49 +236,21 @@ class UnifiedItemService {
     
     if (updates.title || updates.content) {
       const newContent = updates.content || item.content;
-      updatedItem.embedding = await this.generateEmbedding(newContent);
-      updatedItem.embeddingUpdatedAt = Date.now();
+      this.generateEmbedding(newContent).then(embedding => {
+        updatedItem.embedding = embedding;
+        updatedItem.embeddingUpdatedAt = Date.now();
+        
+        if (onEmbeddingUpdate) {
+          onEmbeddingUpdate({
+            id: updatedItem.id,
+            embedding,
+            embeddingUpdatedAt: updatedItem.embeddingUpdatedAt
+          });
+        }
+      }).catch(console.error);
     }
     
     return updatedItem;
-  }
-
-  async searchItems(
-    query: string,
-    options?: {
-      types?: ItemType[];
-      status?: ItemStatus[];
-      limit?: number;
-      useHybrid?: boolean;
-    }
-  ): Promise<UnifiedCalendarItem[]> {
-    await oramaSearchService.initialize();
-    
-    const searchResults = options?.useHybrid
-      ? await oramaSearchService.hybridSearch(query, {
-          k: options?.limit || 10,
-          filters: options?.types ? { types: options.types } : undefined
-        })
-      : await oramaSearchService.search(query, {
-          k: options?.limit || 10,
-          filters: options?.types ? { types: options.types } : undefined
-        });
-    
-    return searchResults.map(result => ({
-      id: result.id,
-      type: result.type as ItemType,
-      title: result.title,
-      content: result.content,
-      startTime: result.metadata.date ? new Date(result.metadata.date).getTime() : null,
-      endTime: null,
-      isAllDay: false,
-      embedding: [],
-      embeddingUpdatedAt: Date.now(),
-      status: (result.metadata.status as ItemStatus) || 'pending',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      metadata: result.metadata
-    }));
   }
 
   isIdea(item: UnifiedCalendarItem): boolean {

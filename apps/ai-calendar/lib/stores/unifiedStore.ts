@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
+import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
+import { generateDemoData, shouldLoadDemoData } from '@/lib/services/demoDataService';
+
+interface AIStatus {
+  isReady: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
 
 interface UnifiedStore {
   items: UnifiedCalendarItem[];
@@ -9,12 +17,14 @@ interface UnifiedStore {
     viewMode: 'boss' | 'secretary';
     theme: 'light' | 'dark' | 'system';
   };
+  aiStatus: AIStatus;
   _initialized: boolean;
   
   initialize: () => Promise<void>;
   
   addItem: (item: UnifiedCalendarItem) => Promise<void>;
   updateItem: (id: string, updates: Partial<UnifiedCalendarItem>) => Promise<void>;
+  updateEmbedding: (update: EmbeddingUpdate) => void;
   deleteItem: (id: string) => Promise<void>;
   
   convertToEvent: (id: string, startTime: number, endTime: number, metadata?: Partial<UnifiedCalendarItem['metadata']>) => Promise<void>;
@@ -34,17 +44,66 @@ export const useUnifiedStore = create<UnifiedStore>()(
         viewMode: 'boss',
         theme: 'light'
       },
+      aiStatus: {
+        isReady: false,
+        isLoading: true,
+        error: null
+      },
       _initialized: false,
       
       initialize: async () => {
         if (get()._initialized) return;
         
+        set({ aiStatus: { isReady: false, isLoading: true, error: null } });
+        
         try {
-          await oramaSearchService.initialize();
-          set({ _initialized: true });
+          await Promise.all([
+            oramaSearchService.initialize(),
+            unifiedItemService.initialize()
+          ]);
+          
+          unifiedItemService.onReadyChange((ready) => {
+            set({ 
+              aiStatus: { 
+                isReady: ready, 
+                isLoading: false, 
+                error: ready ? null : 'AI 模型加载失败' 
+              } 
+            });
+          });
+          
+          if (shouldLoadDemoData()) {
+            const demoData = generateDemoData();
+            set({ items: demoData });
+            
+            for (const item of demoData) {
+              try {
+                await oramaSearchService.indexItem(item);
+              } catch (e) {
+                console.warn('Failed to index demo item:', item.id, e);
+              }
+            }
+            console.log('Demo data loaded and indexed:', demoData.length, 'items');
+          }
+          
+          set({ 
+            _initialized: true,
+            aiStatus: { 
+              isReady: unifiedItemService.getIsReady(), 
+              isLoading: false, 
+              error: null 
+            }
+          });
           console.log('Unified store initialized');
         } catch (error) {
           console.error('Failed to initialize unified store:', error);
+          set({ 
+            aiStatus: { 
+              isReady: false, 
+              isLoading: false, 
+              error: error instanceof Error ? error.message : '初始化失败' 
+            }
+          });
         }
       },
       
@@ -74,6 +133,27 @@ export const useUnifiedStore = create<UnifiedStore>()(
         } catch (error) {
           console.error('Failed to update item in index:', error);
         }
+      },
+      
+      updateEmbedding: (update: EmbeddingUpdate) => {
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === update.id
+              ? { 
+                  ...item, 
+                  embedding: update.embedding,
+                  embeddingUpdatedAt: update.embeddingUpdatedAt
+                }
+              : item
+          )
+        }));
+        
+        oramaSearchService.updateDocument(update.id, {
+          embedding: update.embedding,
+          embeddingUpdatedAt: update.embeddingUpdatedAt
+        }).catch(error => {
+          console.error('Failed to update embedding in index:', error);
+        });
       },
       
       deleteItem: async (id) => {
