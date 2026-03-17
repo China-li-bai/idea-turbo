@@ -11,7 +11,7 @@
   "dependencies": {
     "@orama/orama": "^3.0.0",
     "@orama/plugin-data-persistence": "^3.0.0",
-    "@huggingface/transformers": "^3.0.0"
+    "@huggingface/transformers": "^3.5.1"
   },
   "devDependencies": {
     "vite": "^5.0.0"

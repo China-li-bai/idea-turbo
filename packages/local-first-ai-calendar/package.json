@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.0.0",
+    "@huggingface/transformers": "^3.5.1",
     "edgevec": "^0.9.0"
   },
   "devDependencies": {

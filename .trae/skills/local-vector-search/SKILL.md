@@ -58,7 +58,7 @@ description: "Orama + BGE 本地向量搜索引擎集成方案。适用于需要
   "dependencies": {
     "@orama/orama": "^3.0.0",
     "@orama/plugin-data-persistence": "^3.0.0",
-    "@huggingface/transformers": "^3.0.0"
+    "@huggingface/transformers": "^3.5.1"
   }
 }
 ```

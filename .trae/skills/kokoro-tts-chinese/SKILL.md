@@ -157,7 +157,7 @@ _validate_voice(voice) {
 ```json
 {
   "dependencies": {
-    "@huggingface/transformers": "^3.0.0",
+    "@huggingface/transformers": "^3.5.1",
     "phonemizer": "^1.2.1",
     "pinyin-pro": "^3.24.0"
   }
