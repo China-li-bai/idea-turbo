@@ -6,5 +6,3 @@ export {
   useScheduledEvents,
   useTodayEvents
 } from './useUnifiedItems';
-
-export { useShiftSchedules, useShiftSchedule } from './useShiftSchedules';

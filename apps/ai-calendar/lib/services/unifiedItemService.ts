@@ -19,10 +19,7 @@ class UnifiedItemService {
   private async _initialize(): Promise<void> {
     try {
       const { pipeline } = await import('@huggingface/transformers');
-      this.extractor = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5', {
-        pooling: 'mean',
-        normalize: true
-      });
+      this.extractor = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5');
       console.log('UnifiedItemService initialized');
     } catch (error) {
       console.error('Failed to initialize UnifiedItemService:', error);
