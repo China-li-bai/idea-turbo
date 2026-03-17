@@ -299,7 +299,6 @@ local-first-ai-calendar/
 {
   "dependencies": {
     "edgevec": "^0.9.0",
-    "@huggingface/transformers": "^2.14.0"
   },
   "devDependencies": {
     "vite": "^5.0.0"
