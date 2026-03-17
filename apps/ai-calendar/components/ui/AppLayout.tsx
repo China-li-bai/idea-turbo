@@ -67,6 +67,12 @@ export default function AppLayout() {
           <SecretaryView />
         </div>
       </main>
+
+      <div className={styles.shortcutHint}>
+        <span className={styles.shortcutText}>
+          Press <kbd className={styles.kbd}>Cmd</kbd> + <kbd className={styles.kbd}>K</kbd> to capture anywhere
+        </span>
+      </div>
     </div>
   );
 }

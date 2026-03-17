@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { useTodayEvents, usePendingIdeas } from '@/lib/hooks/useUnifiedItems';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTodayEvents, usePendingIdeas, useAIStatus } from '@/lib/hooks/useUnifiedItems';
+import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import styles from './BossView.module.scss';
 
 interface BossViewProps {
@@ -10,54 +11,83 @@ interface BossViewProps {
 
 export default function BossView({ onOpenSecretary }: BossViewProps) {
   const [inputValue, setInputValue] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const { items: todayEvents, remove: deleteEvent, update: updateEvent } = useTodayEvents();
+  const { items: todayEvents, update: updateEvent, remove: deleteEvent } = useTodayEvents();
   const { items: pendingIdeas, createIdea, remove: deleteIdea, toEvent } = usePendingIdeas();
+  const convertToEvent = useUnifiedStore((state) => state.convertToEvent);
+  const aiStatus = useAIStatus();
 
-  const handleInputSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!inputValue.trim()) return;
-    
-    setIsProcessing(true);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+    if (error) setError(null);
+  }, [error]);
+
+  const handleCreateIdea = useCallback(async () => {
+    const content = inputValue.trim();
+    if (!content || isCreating) return;
+
+    setIsCreating(true);
+    setError(null);
     
     try {
-      await createIdea(inputValue.trim());
+      await createIdea(content);
       setInputValue('');
-    } catch (error) {
-      console.error('创建灵感失败:', error);
+      inputRef.current?.focus();
+    } catch (err) {
+      console.error('创建灵感失败:', err);
+      setError('创建失败，请重试');
     } finally {
-      setIsProcessing(false);
+      setIsCreating(false);
     }
-  };
+  }, [inputValue, isCreating, createIdea]);
 
-  const handleDeleteEvent = async (eventId: string) => {
-    try {
-      await deleteEvent(eventId);
-    } catch (error) {
-      console.error('删除事件失败:', error);
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleCreateIdea();
     }
-  };
+  }, [handleCreateIdea]);
 
-  const handleDeleteIdea = async (ideaId: string) => {
-    try {
-      await deleteIdea(ideaId);
-    } catch (error) {
-      console.error('删除灵感失败:', error);
-    }
-  };
-
-  const handleProcessIdea = async (ideaId: string) => {
+  const handleProcessIdea = useCallback(async (ideaId: string) => {
     try {
       const now = Date.now();
       const oneHour = 60 * 60 * 1000;
       await toEvent(ideaId, now, now + oneHour);
-    } catch (error) {
-      console.error('转换灵感失败:', error);
+    } catch (err) {
+      console.error('转换灵感失败:', err);
     }
-  };
+  }, [toEvent]);
+
+  const handleDeleteIdea = useCallback(async (ideaId: string) => {
+    try {
+      await deleteIdea(ideaId);
+    } catch (err) {
+      console.error('删除灵感失败:', err);
+    }
+  }, [deleteIdea]);
+
+  const handleCompleteEvent = useCallback(async (eventId: string) => {
+    try {
+      await updateEvent(eventId, { status: 'completed' });
+    } catch (err) {
+      console.error('完成事件失败:', err);
+    }
+  }, [updateEvent]);
+
+  const handleDeleteEvent = useCallback(async (eventId: string) => {
+    try {
+      await deleteEvent(eventId);
+    } catch (err) {
+      console.error('删除事件失败:', err);
+    }
+  }, [deleteEvent]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -66,48 +96,60 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
 
   return (
     <div className={styles.container}>
-      <div className={styles.inputSection}>
-        <form onSubmit={handleInputSubmit} className={styles.inputForm}>
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="捕捉灵感..."
-            className={styles.input}
-            disabled={isProcessing}
-          />
-          <button type="submit" className={styles.submitBtn} disabled={isProcessing || !inputValue.trim()}>
-            {isProcessing ? '处理中...' : '捕捉'}
-          </button>
-        </form>
+      {!aiStatus.isReady && (
+        <div className={styles.aiStatusBar}>
+          {aiStatus.isLoading ? (
+            <span className={styles.aiLoading}>🔄 AI 引擎加载中...</span>
+          ) : aiStatus.error ? (
+            <span className={styles.aiError}>⚠️ {aiStatus.error}</span>
+          ) : null}
+        </div>
+      )}
+      
+      <div className={styles.canvas}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          placeholder="在这里输入明天的会议，或是突发的灵感..."
+          className={styles.canvasInput}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={isCreating}
+        />
+        {error && <div className={styles.error}>{error}</div>}
       </div>
 
-      <div className={styles.contentSection}>
-        <div className={styles.timelineSection}>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>今日日程</h2>
-            <span className={styles.count}>{todayEvents.length}</span>
-          </div>
+      <div className={styles.main}>
+        <div className={styles.timeline}>
+          <p className={styles.sectionTitle}>Today / 执行线</p>
           
-          <div className={styles.timeline}>
+          <div className={styles.eventList}>
             {todayEvents.length === 0 ? (
               <div className={styles.emptyState}>暂无日程</div>
             ) : (
               todayEvents.map((event) => (
-                <div key={event.id} className={styles.eventCard}>
-                  <div className={styles.eventTime}>
+                <div 
+                  key={event.id} 
+                  className={styles.eventCard}
+                  onClick={() => handleCompleteEvent(event.id)}
+                >
+                  <span className={styles.eventTime}>
                     {formatTime(event.startTime || 0)}
-                  </div>
-                  <div className={styles.eventContent}>
-                    <div className={styles.eventTitle}>{event.title}</div>
-                    {event.metadata.location && (
-                      <div className={styles.eventLocation}>{event.metadata.location}</div>
-                    )}
+                  </span>
+                  <div className={styles.eventIndicator} />
+                  <span className={styles.eventTitle}>{event.title}</span>
+                  <div className={styles.eventCheckbox}>
+                    <div className={styles.checkboxInner} />
                   </div>
                   <button
                     className={styles.deleteBtn}
-                    onClick={() => handleDeleteEvent(event.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteEvent(event.id);
+                    }}
                     aria-label="删除事件"
                   >
                     ×
@@ -118,15 +160,14 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
           </div>
         </div>
 
-        <div className={styles.ideasSection}>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>灵感胶囊</h2>
-            <span className={styles.count}>{pendingIdeas.length}</span>
-          </div>
+        <div className={styles.ideas}>
+          <p className={styles.sectionTitle}>Ideas / 灵感胶囊</p>
           
-          <div className={styles.ideasList}>
+          <div className={styles.ideaList}>
             {pendingIdeas.length === 0 ? (
-              <div className={styles.emptyState}>暂无灵感</div>
+              <div className={styles.emptyIdea}>
+                按 <kbd>Cmd</kbd> + <kbd>K</kbd> 快速捕捉
+              </div>
             ) : (
               pendingIdeas.map((idea) => (
                 <div key={idea.id} className={styles.ideaCapsule}>
@@ -136,6 +177,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
                       className={styles.ideaBtn}
                       onClick={() => handleProcessIdea(idea.id)}
                       aria-label="转换为日程"
+                      title="转换为日程"
                     >
                       ✓
                     </button>
@@ -143,6 +185,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
                       className={styles.ideaBtn}
                       onClick={() => handleDeleteIdea(idea.id)}
                       aria-label="删除灵感"
+                      title="删除灵感"
                     >
                       ×
                     </button>
@@ -153,12 +196,6 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
           </div>
         </div>
       </div>
-
-      {onOpenSecretary && (
-        <button className={styles.switchBtn} onClick={onOpenSecretary}>
-          切换到秘书视图
-        </button>
-      )}
     </div>
   );
 }
