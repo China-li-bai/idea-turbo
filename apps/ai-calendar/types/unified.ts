@@ -96,6 +96,12 @@ export interface SearchResult {
   score: number;
   title: string;
   content: string;
+  startTime: number | null;
+  endTime: number | null;
+  isAllDay: boolean;
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled';
+  createdAt: number;
+  updatedAt: number;
   metadata: UnifiedCalendarItem['metadata'];
 }
 

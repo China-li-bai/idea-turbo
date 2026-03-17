@@ -4,41 +4,6 @@
 
 ### 1.1 数据结构对比
 
-#### 当前架构（分离式）
-
-```typescript
-// 两个独立的接口
-interface CalendarEvent {
-  id: string;
-  title: string;
-  startTime: Date;        // 必须有时间
-  endTime: Date;
-  location?: string;
-  isAllDay: boolean;
-  reminders: number[];
-  eventType: 'regular' | 'shift' | 'meeting' | 'personal';
-  // ... 更多字段
-}
-
-interface Inspiration {
-  id: string;
-  content: string;
-  captureTime: Date;      // 捕捉时间
-  type: 'todo' | 'event' | 'note' | 'raw';
-  processed: boolean;
-  extractedDate?: Date;
-  extractedTime?: string;
-  convertedToEventId?: string;  // 转换后的引用
-  // ... 提取的字段
-}
-```
-
-**问题**：
-- ❌ 两个独立的存储数组
-- ❌ 转换需要创建新对象，删除旧对象
-- ❌ AI 检索时需要查询两个索引
-- ❌ 历史上下文不完整（转换后就丢失了灵感状态）
-- ❌ 数据同步复杂
 
 #### 统一架构
 
