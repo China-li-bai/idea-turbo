@@ -1,122 +1,152 @@
-'use client'
+'use client';
 
-import { useState, useRef, useEffect } from 'react'
-import { useEvents } from '@/lib/hooks/useUnifiedData'
-import { aiService } from '@/lib/ai'
-import { aiPrivacyMiddleware } from '@/lib/utils/aiPrivacy'
-import type { CalendarEvent } from '@/types'
-import styles from './SecretaryView.module.scss'
+import { useState, useRef, useEffect } from 'react';
+import { useUnifiedItems } from '@/lib/hooks/useUnifiedItems';
+import { oramaSearchService } from '@/lib/services/oramaSearchService';
+import styles from './SecretaryView.module.scss';
 
 interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  proposal?: { title: string; newTime: string; location?: string }
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
 }
 
 export default function SecretaryView() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'assistant', content: '您好！我是您的智能日程助手。告诉我您想如何调整日程。' },
-  ])
-  const [inputValue, setInputValue] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { events } = useEvents()
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { items: allItems } = useUnifiedItems();
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const handleApprove = (proposal: NonNullable<Message['proposal']>) => {
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      role: 'assistant',
-      content: `已确认：${proposal.title} - ${proposal.newTime}`,
-    }])
-  }
-
-  const handleSend = async () => {
-    if (!inputValue.trim() || isProcessing) return
-    const userInput = inputValue.trim()
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userInput }])
-    setInputValue('')
-    setIsProcessing(true)
-
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!inputValue.trim() || isProcessing) return;
+    
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: inputValue.trim(),
+      timestamp: Date.now()
+    };
+    
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue('');
+    setIsProcessing(true);
+    
     try {
-      const sanitizedInput = aiPrivacyMiddleware.sanitizeInput(userInput, 'chat')
-      const todayStr = new Date().toISOString().split('T')[0]
-      const upcoming = events.filter(e => new Date(e.startTime) >= new Date()).slice(0, 5)
+      const searchResults = await oramaSearchService.hybridSearch(userMessage.content, {
+        k: 5,
+        useHybrid: true
+      });
       
-      const response = await aiService.chat([
-        { role: 'system', content: `你是智能日程助手。今天是${todayStr}。用户日程：${upcoming.map(e => e.title).join(', ')}` },
-        { role: 'user', content: sanitizedInput },
-      ])
-
-      const content = response.choices[0]?.message?.content || '我理解您的需求。'
-      const proposal = userInput.includes('推迟') || userInput.includes('调整') 
-        ? { title: '调整后的日程', newTime: '周五 15:00-16:30', location: '会议室' }
-        : undefined
-
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content, proposal }])
-    } catch {
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: '处理中出现问题，请重试。' }])
+      const relevantItems = searchResults.map(result => {
+        return allItems.find(item => item.id === result.id);
+      }).filter(Boolean);
+      
+      let assistantResponse = `我找到了 ${relevantItems.length} 个相关项目：\n\n`;
+      
+      relevantItems.forEach((item, index) => {
+        if (item) {
+          assistantResponse += `${index + 1}. **${item.title}** (${item.type === 'idea' ? '灵感' : '日程'})\n`;
+          if (item.type === 'event' && item.startTime) {
+            const date = new Date(item.startTime);
+            assistantResponse += `   时间：${date.toLocaleString('zh-CN')}\n`;
+          }
+          assistantResponse += `   内容：${item.content}\n\n`;
+        }
+      });
+      
+      if (relevantItems.length === 0) {
+        assistantResponse = '抱歉，我没有找到相关的信息。您可以尝试用不同的关键词搜索。';
+      }
+      
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp: Date.now()
+      };
+      
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('搜索失败:', error);
+      
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '抱歉，搜索时出现了错误。请稍后再试。',
+        timestamp: Date.now()
+      };
+      
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
+  };
 
   return (
-    <section className={styles.container}>
-      <div className={styles.messages}>
-        {messages.map(msg => (
-          <div key={msg.id} className={`${styles.messageWrapper} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
-            {msg.role === 'user' ? (
-              <div className={styles.userBubble}><p>{msg.content}</p></div>
-            ) : (
-              <div className={styles.assistantBubble}>
-                {msg.proposal ? (
-                  <div className={styles.proposalCard}>
-                    <div className={styles.proposalHeader}>
-                      <div className={styles.statusDot} />
-                      <span>Schedule Proposal</span>
-                    </div>
-                    <p>{msg.content}</p>
-                    <div className={styles.proposalDetails}>
-                      <p className={styles.detailLabel}>新时间</p>
-                      <p className={styles.detailValue}>{msg.proposal.newTime}</p>
-                      {msg.proposal.location && <p>📍 {msg.proposal.location}</p>}
-                    </div>
-                    <div className={styles.proposalActions}>
-                      <button className={styles.approveBtn} onClick={() => handleApprove(msg.proposal!)}>批准</button>
-                      <button className={styles.editBtn}>修改</button>
-                    </div>
-                  </div>
-                ) : (
-                  <p>{msg.content}</p>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>AI 秘书</h1>
+        <p className={styles.subtitle}>我可以帮您查找和管理日程</p>
       </div>
-      <div className={styles.inputArea}>
-        <div className={styles.inputWrapper}>
+
+      <div className={styles.messagesContainer}>
+        {messages.length === 0 ? (
+          <div className={styles.welcome}>
+            <div className={styles.welcomeIcon}>🤖</div>
+            <h2 className={styles.welcomeTitle}>欢迎使用 AI 秘书</h2>
+            <p className={styles.welcomeText}>
+              您可以问我关于日程的任何问题，例如：
+            </p>
+            <ul className={styles.examples}>
+              <li>"我明天有什么安排？"</li>
+              <li>"帮我找一下关于项目的想法"</li>
+              <li>"我之前是不是有个关于读书的想法？"</li>
+            </ul>
+          </div>
+        ) : (
+          <div className={styles.messages}>
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`${styles.message} ${
+                  message.role === 'user' ? styles.userMessage : styles.assistantMessage
+                }`}
+              >
+                <div className={styles.messageContent}>{message.content}</div>
+                <div className={styles.messageTime}>
+                  {new Date(message.timestamp).toLocaleTimeString('zh-CN')}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+      </div>
+
+      <div className={styles.inputSection}>
+        <form onSubmit={handleSendMessage} className={styles.inputForm}>
           <input
-            className={styles.input}
-            placeholder="告诉秘书你想怎么调整日程..."
+            type="text"
             value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="输入您的问题..."
+            className={styles.input}
             disabled={isProcessing}
           />
-          <button className={styles.sendBtn} onClick={handleSend} disabled={isProcessing || !inputValue.trim()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
-            </svg>
+          <button type="submit" className={styles.submitBtn} disabled={isProcessing || !inputValue.trim()}>
+            {isProcessing ? '搜索中...' : '发送'}
           </button>
-        </div>
+        </form>
       </div>
-    </section>
-  )
+    </div>
+  );
 }

@@ -2,16 +2,16 @@
 
 import { create, insert, search, remove, update, getByID } from '@orama/orama';
 import { persist, restore } from '@orama/plugin-data-persistence';
-import type { SearchResult, CalendarEvent, Task, Inspiration } from '@/types';
+import type { UnifiedCalendarItem, ItemType } from '@/types/unified';
 
-type EntityType = 'event' | 'task' | 'inspiration';
+type EntityType = ItemType;
 
 interface SearchOptions {
   k?: number;
   similarity?: number;
   filters?: {
     types?: EntityType[];
-    dateRange?: { start: Date; end: Date };
+    dateRange?: { start: number; end: number };
   };
 }
 
@@ -48,14 +48,7 @@ class OramaSearchService {
 
       if (progressCallback) progressCallback(1, 3, '正在初始化 BGE 模型...');
 
-      this.extractor = await pipeline('feature-extraction', this.modelName, {
-        progress_callback: (progress: { status?: string; progress?: number }) => {
-          if (progressCallback && progress.status === 'progress') {
-            const percent = Math.round(progress.progress || 0);
-            console.log(`模型加载进度: ${percent}%`);
-          }
-        }
-      });
+      this.extractor = await pipeline('feature-extraction', this.modelName);
 
       if (progressCallback) progressCallback(2, 3, '正在创建数据库...');
 
@@ -65,15 +58,19 @@ class OramaSearchService {
           type: 'string',
           title: 'string',
           content: 'string',
-          timestamp: 'number',
+          startTime: 'number',
+          endTime: 'number',
+          isAllDay: 'boolean',
           embedding: `vector[${this.dimensions}]`,
-          tags: 'string[]',
-          category: 'string',
+          status: 'string',
+          createdAt: 'number',
+          updatedAt: 'number',
           metadata: {
-            date: 'string',
-            priority: 'string',
-            completed: 'boolean',
             location: 'string',
+            tags: 'string[]',
+            priority: 'string',
+            color: 'string',
+            description: 'string',
             eventType: 'string',
           }
         }
@@ -102,137 +99,47 @@ class OramaSearchService {
     return Array.from(output.data);
   }
 
-  async indexEvent(event: CalendarEvent): Promise<void> {
+  async indexItem(item: UnifiedCalendarItem): Promise<void> {
     await this.initialize();
 
     const text = [
-      event.title,
-      event.description || '',
-      event.location || '',
+      item.title,
+      item.content,
+      item.metadata.location || '',
+      item.metadata.description || '',
     ].filter(Boolean).join(' ');
 
-    const embedding = await this.embed(text);
+    const embedding = item.embedding.length > 0 ? item.embedding : await this.embed(text);
 
     await insert(this.db, {
-      id: event.id,
-      type: 'event',
-      title: event.title,
+      id: item.id,
+      type: item.type,
+      title: item.title,
       content: text,
-      timestamp: event.startTime?.getTime() || Date.now(),
+      startTime: item.startTime || 0,
+      endTime: item.endTime || 0,
+      isAllDay: item.isAllDay,
       embedding,
-      tags: [],
-      category: event.eventType || 'regular',
+      status: item.status,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
       metadata: {
-        date: event.startTime?.toISOString(),
-        location: event.location,
-        eventType: event.eventType,
+        location: item.metadata.location || '',
+        tags: item.metadata.tags || [],
+        priority: item.metadata.priority || 'medium',
+        color: item.metadata.color || '',
+        description: item.metadata.description || '',
+        eventType: item.metadata.eventType || 'regular',
       }
     });
 
-    console.log(`Indexed event: ${event.id}`);
-  }
-
-  async indexTask(task: Task): Promise<void> {
-    await this.initialize();
-
-    const text = [
-      task.title,
-      task.description || '',
-    ].filter(Boolean).join(' ');
-
-    const embedding = await this.embed(text);
-
-    await insert(this.db, {
-      id: task.id,
-      type: 'task',
-      title: task.title,
-      content: text,
-      timestamp: task.createdAt?.getTime() || Date.now(),
-      embedding,
-      tags: [],
-      category: task.priority || 'medium',
-      metadata: {
-        priority: task.priority,
-        completed: task.completed,
-      }
-    });
-
-    console.log(`Indexed task: ${task.id}`);
-  }
-
-  async indexInspiration(inspiration: Inspiration): Promise<void> {
-    await this.initialize();
-
-    const text = inspiration.content;
-    const embedding = await this.embed(text);
-
-    await insert(this.db, {
-      id: inspiration.id,
-      type: 'inspiration',
-      title: inspiration.content.substring(0, 50),
-      content: text,
-      timestamp: inspiration.captureTime?.getTime() || Date.now(),
-      embedding,
-      tags: [],
-      category: inspiration.type || 'thought',
-      metadata: {
-        date: inspiration.captureTime?.toISOString(),
-      }
-    });
-
-    console.log(`Indexed inspiration: ${inspiration.id}`);
-  }
-
-  async indexDocument(
-    type: EntityType,
-    id: string,
-    text: string,
-    metadata?: Record<string, unknown>
-  ): Promise<string> {
-    await this.initialize();
-
-    const embedding = await this.embed(text);
-
-    await insert(this.db, {
-      id,
-      type,
-      title: (metadata?.title as string) || text.substring(0, 50),
-      content: text,
-      timestamp: (metadata?.timestamp as number) || Date.now(),
-      embedding,
-      tags: (metadata?.tags as string[]) || [],
-      category: (metadata?.category as string) || 'default',
-      metadata: metadata || {}
-    });
-
-    console.log(`Indexed ${type} document: ${id}`);
-    return id;
-  }
-
-  async indexDocuments(
-    documents: Array<{ type: EntityType; id: string; text: string; metadata?: Record<string, unknown> }>,
-    progressCallback?: (current: number, total: number) => void
-  ): Promise<string[]> {
-    await this.initialize();
-    const results: string[] = [];
-
-    for (let i = 0; i < documents.length; i++) {
-      const doc = documents[i];
-      const id = await this.indexDocument(doc.type, doc.id, doc.text, doc.metadata);
-      results.push(id);
-
-      if (progressCallback) {
-        progressCallback(i + 1, documents.length);
-      }
-    }
-
-    return results;
+    console.log(`Indexed ${item.type}: ${item.id}`);
   }
 
   async search(
     query: string,
     options?: SearchOptions
-  ): Promise<SearchResult[]> {
+  ): Promise<Array<{ id: string; type: EntityType; score: number; title: string; content: string; metadata: any }>> {
     await this.initialize();
 
     const queryEmbedding = await this.embed(query);
@@ -264,9 +171,9 @@ class OramaSearchService {
           }
         }
 
-        if (options?.filters?.dateRange && hit.document.metadata?.date) {
-          const docDate = new Date(hit.document.metadata.date);
-          if (docDate < options.filters.dateRange.start || docDate > options.filters.dateRange.end) {
+        if (options?.filters?.dateRange && hit.document.startTime > 0) {
+          if (hit.document.startTime < options.filters.dateRange.start || 
+              hit.document.startTime > options.filters.dateRange.end) {
             return false;
           }
         }
@@ -275,7 +182,6 @@ class OramaSearchService {
       })
       .map((hit: any) => ({
         id: hit.id,
-        originalId: hit.id,
         type: hit.document.type as EntityType,
         score: hit.score,
         title: hit.document.title,
@@ -287,7 +193,7 @@ class OramaSearchService {
   async hybridSearch(
     query: string,
     options?: HybridSearchOptions
-  ): Promise<SearchResult[]> {
+  ): Promise<Array<{ id: string; type: EntityType; score: number; title: string; content: string; metadata: any }>> {
     await this.initialize();
 
     const queryEmbedding = await this.embed(query);
@@ -320,9 +226,9 @@ class OramaSearchService {
           }
         }
 
-        if (options?.filters?.dateRange && hit.document.metadata?.date) {
-          const docDate = new Date(hit.document.metadata.date);
-          if (docDate < options.filters.dateRange.start || docDate > options.filters.dateRange.end) {
+        if (options?.filters?.dateRange && hit.document.startTime > 0) {
+          if (hit.document.startTime < options.filters.dateRange.start || 
+              hit.document.startTime > options.filters.dateRange.end) {
             return false;
           }
         }
@@ -331,7 +237,6 @@ class OramaSearchService {
       })
       .map((hit: any) => ({
         id: hit.id,
-        originalId: hit.id,
         type: hit.document.type as EntityType,
         score: hit.score,
         title: hit.document.title,
@@ -432,9 +337,8 @@ class OramaSearchService {
 
   getStats(): { totalDocuments: number; byType: Record<EntityType, number> } {
     const byType: Record<EntityType, number> = {
+      idea: 0,
       event: 0,
-      task: 0,
-      inspiration: 0,
     };
 
     return {

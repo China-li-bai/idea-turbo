@@ -1,12 +1,2 @@
-export { 
-  useCalendarStore, 
-} from './calendarStore';
-export { 
-  useEvents, 
-  useTasks, 
-  useInspirations, 
-  useSettings,
-  useSchedules,
-  useDataStore,
-} from '../hooks/useUnifiedData';
+export { useUnifiedStore } from './unifiedStore';
 export { useUIStore } from './uiStore';
