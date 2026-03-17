@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useUnifiedItems, useAIStatus } from '@/lib/hooks/useUnifiedItems';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
+import { smartScheduler } from '@/lib/services/smartScheduler';
 import styles from './SecretaryView.module.scss';
 
 interface Message {
@@ -108,25 +109,19 @@ export default function SecretaryView() {
           } else if (firstResult.type === 'idea') {
             const item = allItems.find(i => i.id === firstResult.id);
             if (item) {
-              let suggestedTime: Date;
-              
-              if (item.metadata.extractedDate) {
-                suggestedTime = new Date(item.metadata.extractedDate);
-                if (item.metadata.extractedTime) {
-                  const [hours, minutes] = item.metadata.extractedTime.split(':').map(Number);
-                  suggestedTime.setHours(hours || 0, minutes || 0, 0, 0);
-                }
-              } else {
-                suggestedTime = new Date();
-                suggestedTime.setDate(suggestedTime.getDate() + 1);
-                suggestedTime.setHours(14, 0, 0, 0);
-              }
-              
-              const endTime = new Date(suggestedTime.getTime() + 60 * 60 * 1000);
+              const suggestion = smartScheduler.findBestTimeSlot(
+                60,
+                {
+                  preferredDate: item.metadata.extractedDate,
+                  preferredTime: item.metadata.extractedTime,
+                  avoidWeekends: true
+                },
+                allItems
+              );
               
               proposal = {
                 title: firstResult.title || item.title,
-                time: suggestedTime.toLocaleString('zh-CN', { 
+                time: suggestion.suggestedStart.toLocaleString('zh-CN', { 
                   month: 'long', 
                   day: 'numeric',
                   hour: '2-digit', 
@@ -135,6 +130,22 @@ export default function SecretaryView() {
                 location: item.metadata.extractedLocation || '待定',
                 itemId: firstResult.id
               };
+              
+              if (suggestion.conflicts.length > 0) {
+                assistantResponse += `\n\n⚠️ 注意：检测到时间冲突，已为您调整到最近的空闲时间。`;
+              }
+              
+              if (suggestion.alternatives.length > 0) {
+                assistantResponse += `\n\n备选时间：`;
+                suggestion.alternatives.slice(0, 2).forEach((alt, i) => {
+                  assistantResponse += `\n${i + 1}. ${alt.start.toLocaleString('zh-CN', { 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}`;
+                });
+              }
             }
           }
         }
@@ -193,23 +204,21 @@ export default function SecretaryView() {
     if (!item) return;
     
     if (item.type === 'idea') {
-      let suggestedTime: Date;
+      const suggestion = smartScheduler.findBestTimeSlot(
+        60,
+        {
+          preferredDate: item.metadata.extractedDate,
+          preferredTime: item.metadata.extractedTime,
+          avoidWeekends: true
+        },
+        allItems
+      );
       
-      if (item.metadata.extractedDate) {
-        suggestedTime = new Date(item.metadata.extractedDate);
-        if (item.metadata.extractedTime) {
-          const [hours, minutes] = item.metadata.extractedTime.split(':').map(Number);
-          suggestedTime.setHours(hours || 0, minutes || 0, 0, 0);
-        }
-      } else {
-        suggestedTime = new Date();
-        suggestedTime.setDate(suggestedTime.getDate() + 1);
-        suggestedTime.setHours(14, 0, 0, 0);
-      }
-      
-      const endTime = new Date(suggestedTime.getTime() + 60 * 60 * 1000);
-      
-      await toEvent(item.id, suggestedTime.getTime(), endTime.getTime());
+      await toEvent(
+        item.id, 
+        suggestion.suggestedStart.getTime(), 
+        suggestion.suggestedEnd.getTime()
+      );
     }
     
     setMessages(prev => prev.map(msg => {

@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { unifiedItemService } from '@/lib/services/unifiedItemService';
+import { parseNaturalLanguage } from '@/lib/utils/nlpParserLegacy';
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
 
 export function useUnifiedItems(options?: {
@@ -27,7 +28,17 @@ export function useUnifiedItems(options?: {
   }, [allItems, options?.type, options?.status]);
 
   const createIdea = useCallback(async (content: string, metadata?: Partial<UnifiedCalendarItem['metadata']>) => {
-    const idea = await unifiedItemService.createIdea(content, metadata, (update) => {
+    const nlpResult = await parseNaturalLanguage(content);
+    
+    const enrichedMetadata: Partial<UnifiedCalendarItem['metadata']> = {
+      ...metadata,
+      extractedDate: nlpResult.date ? nlpResult.date.getTime() : undefined,
+      extractedTime: nlpResult.time,
+      extractedLocation: nlpResult.location,
+      extractedPeople: nlpResult.people,
+    };
+    
+    const idea = await unifiedItemService.createIdea(content, enrichedMetadata, (update) => {
       updateEmbedding(update);
     });
     await addItem(idea);

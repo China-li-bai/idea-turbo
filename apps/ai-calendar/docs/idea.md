@@ -160,3 +160,186 @@ Boss 视图不需要懂 AI，它只需要极速的标量查询（Scalar Query）
 *   **UI 主线程：** 保持极其轻量，只负责展现乔布斯式的视觉魔法。
 
 只要按照这个双线程 + 本地统一 Schema 的蓝图去敲代码，这个智程日历不仅能跑起来，而且在保护隐私和响应速度上，将对现有的所有云端日历形成降维打击。
+
+---
+
+## 五、实现进展记录 (2026-03-17)
+
+### 5.1 已完成的关键改进
+
+#### ✅ 时间分块分配算法 (Time-blocking Heuristics)
+
+**问题**：之前 SecretaryView 中的时间建议是硬编码的：
+```typescript
+// 旧代码 - 硬编码明天下午2点
+suggestedTime = new Date();
+suggestedTime.setDate(suggestedTime.getDate() + 1);
+suggestedTime.setHours(14, 0, 0, 0);
+```
+
+**解决方案**：实现 `smartScheduler.ts` 服务，借鉴 FullCalendar 的冲突解决算法：
+
+```typescript
+// 新代码 - 智能时间分块
+const suggestion = smartScheduler.findBestTimeSlot(
+  60,  // 持续时间（分钟）
+  {
+    preferredDate: item.metadata.extractedDate,
+    preferredTime: item.metadata.extractedTime,
+    avoidWeekends: true
+  },
+  allItems  // 用于冲突检测
+);
+
+// 返回结果包含：
+// - suggestedStart / suggestedEnd: 最佳时间
+// - alternatives: 备选时间
+// - conflicts: 冲突事件
+// - confidence: 置信度
+// - reason: 建议原因
+```
+
+**核心算法**：
+
+1. **空闲时间段识别** (`findFreeSlots`)：
+   - 遍历工作日的工作时间（默认 9:00-18:00）
+   - 按 30 分钟间隔生成时间槽
+   - 使用 `date-fns.areIntervalsOverlapping` 检测冲突
+
+2. **最佳时间选择** (`findBestTimeSlot`)：
+   - 优先匹配用户偏好时间
+   - 自动跳过周末（可配置）
+   - 返回多个备选方案
+
+3. **冲突检测** (`checkConflict`)：
+   - 检查新事件是否与现有日程重叠
+   - 返回冲突事件列表
+
+**技术栈**：
+- `date-fns`：轻量级日期操作库（替代 moment.js）
+- 纯函数设计，无副作用，易于测试
+
+#### ✅ 本地 NLP 解析 (chrono-node)
+
+**问题**：`nlpParserLegacy.ts` 使用正则表达式，维护困难。
+
+**解决方案**：集成 `chrono-node` 中文解析器：
+
+```typescript
+import { zh } from 'chrono-node';
+
+const results = zh.parse("明天下午3点和王总开会", new Date());
+// 结果: { start: { year: 2024, month: 3, day: 18, hour: 15 }, ... }
+```
+
+**支持的中文时间表达式**：
+- "明天下午3点"
+- "下周五"
+- "3月15日下午2点"
+- "后天上午"
+- "从今天到明天"
+
+### 5.2 架构差距分析
+
+| 架构要点 | 文档设计 | 当前实现 | 状态 |
+|---------|---------|---------|------|
+| 双线程隔离 | Web Worker 运行 AI + Orama | 全部在主线程 | 🔴 待实现 |
+| 本地 NLP | chrono-node 中文优化 | ✅ 已实现 | ✅ 完成 |
+| 向量生成 | WebGPU + Worker | 主线程 Transformers.js | 🟡 部分完成 |
+| Orama 索引 | Worker 内存驻留 | 主线程内存 | 🟡 部分完成 |
+| Boss 视图分离 | 标量查询分离 | ✅ 已实现 | ✅ 完成 |
+| Secretary RAG | 混合检索 + LLM 推理 | 简单搜索 + 提案 | 🟡 部分完成 |
+| 软删除归档 | status: cancelled 保留记忆 | 有 status 但未完整使用 | 🟡 部分完成 |
+| 时间分块算法 | 本地贪心算法 + LLM 挑选 | ✅ 已实现 | ✅ 完成 |
+| 防抖持久化 | 2秒防抖 + beforeunload | 直接同步写入 | 🟡 部分完成 |
+
+### 5.3 下一步计划
+
+**P1 - Web Worker 隔离**（预计 3 天）：
+```
+lib/workers/
+├── aiWorker.ts           # AI 引擎 Worker
+├── workerMessageTypes.ts # 消息类型定义
+└── workerPool.ts         # Worker 池管理
+```
+
+**P2 - 完整 RAG 流程**（预计 2 天）：
+- 增强 Orama 混合搜索的 where 条件
+- 实现时间范围精确过滤
+- 集成远程 LLM API（DeepSeek/Claude）
+
+**P3 - 防抖持久化**（预计 0.5 天）：
+- 实现 2 秒防抖的 serialize()
+- 添加 beforeunload 钩子
+
+### 5.4 关键文件变更
+
+| 文件 | 变更类型 | 说明 |
+|------|---------|------|
+| `lib/services/smartScheduler.ts` | 🆕 新增 | 时间分块分配算法服务 |
+| `lib/utils/nlpParserLegacy.ts` | 🔧 重构 | 使用 chrono-node 替代正则 |
+| `lib/hooks/useUnifiedItems.ts` | 🔧 重构 | createIdea 集成 NLP 解析 |
+| `components/ui/SecretaryView.tsx` | 🔧 重构 | 集成 smartScheduler |
+| `package.json` | 🔧 更新 | 添加 date-fns 依赖 |
+
+### 5.5 Bug 修复记录
+
+#### 🐛 Schedule Proposal 时间不正确 (2026-03-17)
+
+**问题**：用户输入"今天晚上12点睡觉"，返回的时间建议是"3月17日 09:00"，而不是用户期望的晚上12点。
+
+**原因分析**：
+1. `createIdea` 函数没有调用 NLP 解析，导致 `metadata.extractedDate` 和 `metadata.extractedTime` 为空
+2. `smartScheduler` 只在工作时间（9:00-18:00）内寻找空闲时间，忽略了用户指定的非工作时间
+
+**修复方案**：
+
+1. **useUnifiedItems.ts** - 在创建 idea 时调用 NLP 解析：
+```typescript
+const createIdea = useCallback(async (content: string, metadata?: ...) => {
+  // 先调用 NLP 解析提取时间信息
+  const nlpResult = await parseNaturalLanguage(content);
+  
+  // 将提取的信息存入 metadata
+  const enrichedMetadata = {
+    ...metadata,
+    extractedDate: nlpResult.date ? nlpResult.date.getTime() : undefined,
+    extractedTime: nlpResult.time,
+    extractedLocation: nlpResult.location,
+    extractedPeople: nlpResult.people,
+  };
+  
+  const idea = await unifiedItemService.createIdea(content, enrichedMetadata, ...);
+  // ...
+});
+```
+
+2. **smartScheduler.ts** - 优先使用用户指定的时间：
+```typescript
+findBestTimeSlot(duration, preferences, allItems) {
+  // 如果用户指定了时间，先检查是否可用（不管是否在工作时间内）
+  if (preferences.preferredDate || preferences.preferredTime) {
+    const preferredStart = this.buildPreferredDateTime(preferences);
+    const preferredEnd = addMinutes(preferredStart, duration);
+    const conflicts = this.checkConflict(preferredStart, preferredEnd, events);
+    
+    // 如果没有冲突，直接返回用户指定的时间
+    if (conflicts.length === 0) {
+      return {
+        suggestedStart: preferredStart,
+        suggestedEnd: preferredEnd,
+        confidence: 0.95,
+        reason: `按照您指定的时间安排：...`
+      };
+    }
+  }
+  
+  // 否则在工作时间内寻找替代时间
+  // ...
+}
+```
+
+**修复后效果**：
+- 用户输入"今天晚上12点睡觉" → 提取时间 → 返回"今天 00:00"（凌晨）
+- 用户输入"明天下午3点开会" → 提取时间 → 返回"明天 15:00"
+- 如果指定时间有冲突 → 在工作时间内寻找替代时间并提示
