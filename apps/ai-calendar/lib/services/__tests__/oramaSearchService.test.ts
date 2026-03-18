@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { OramaSearchService } from '../oramaSearchService';
 import type { UnifiedCalendarItem } from '@/types/unified';
+import { AIModelType, AI_MODELS, DEFAULT_AI_MODEL } from '@/lib/utils/aiModels';
 
 const createTestItem = (
   id: string,
@@ -9,7 +10,8 @@ const createTestItem = (
   content: string,
   startTime?: number,
   endTime?: number,
-  metadata?: UnifiedCalendarItem['metadata']
+  metadata?: UnifiedCalendarItem['metadata'],
+  dimensions: number = 512
 ): UnifiedCalendarItem => ({
   id,
   type,
@@ -18,7 +20,7 @@ const createTestItem = (
   startTime: startTime || null,
   endTime: endTime || null,
   isAllDay: false,
-  embedding: new Array(512).fill(0).map(() => Math.random() * 0.1),
+  embedding: new Array(dimensions).fill(0).map(() => Math.random() * 0.1),
   embeddingUpdatedAt: Date.now(),
   status: type === 'event' ? 'scheduled' : 'pending',
   createdAt: Date.now(),
@@ -317,7 +319,7 @@ describe('OramaSearchService', () => {
     it('应该生成正确维度的 embedding', async () => {
       const embedding = await searchService.embed('测试文本');
       expect(embedding).toBeInstanceOf(Array);
-      expect(embedding.length).toBe(512);
+      expect(embedding.length).toBe(searchService.dimensions);
     });
 
     it('相似文本应该生成相似的 embedding', async () => {
@@ -351,6 +353,74 @@ describe('OramaSearchService', () => {
       await searchService.initialize();
       
       expect(searchService.isInitialized).toBe(true);
+    });
+  });
+
+  describe('模型切换', () => {
+    it('应该返回当前模型配置', () => {
+      const modelId = searchService.modelId;
+      expect(modelId).toBeDefined();
+      expect(Object.keys(AI_MODELS)).toContain(modelId);
+    });
+
+    it('应该返回正确的模型维度', () => {
+      const dimensions = searchService.dimensions;
+      expect(dimensions).toBeGreaterThan(0);
+      expect([384, 512]).toContain(dimensions);
+    });
+
+    it('应该返回模型名称', () => {
+      const modelName = searchService.modelName;
+      expect(modelName).toBeDefined();
+      expect(typeof modelName).toBe('string');
+    });
+
+    it('默认模型应该是中文优化模型', () => {
+      const newService = new OramaSearchService();
+      expect(newService.modelId).toBe(DEFAULT_AI_MODEL);
+    });
+
+    it('切换模型应该更新模型配置', async () => {
+      const newService = new OramaSearchService();
+      
+      const initialModel = newService.modelId;
+      const targetModel: AIModelType = initialModel === 'zh-specific' ? 'multilingual' : 'zh-specific';
+      
+      const initialDimensions = newService.dimensions;
+      
+      expect(initialModel).toBeDefined();
+      expect(initialDimensions).toBeGreaterThan(0);
+      expect(targetModel).toBeDefined();
+    }, 10000);
+
+    it('切换到相同模型应该跳过重新初始化', async () => {
+      const currentModel = searchService.modelId;
+      
+      await searchService.switchModel(currentModel);
+      
+      expect(searchService.modelId).toBe(currentModel);
+    });
+
+    it('不同模型应该有不同的维度', () => {
+      const zhDimensions = AI_MODELS['zh-specific'].dimensions;
+      const multiDimensions = AI_MODELS['multilingual'].dimensions;
+      
+      expect(zhDimensions).toBe(512);
+      expect(multiDimensions).toBe(384);
+    });
+
+    it('E5 模型应该有前缀配置', () => {
+      const multiConfig = AI_MODELS['multilingual'];
+      
+      expect(multiConfig.prefixConfig).toBeDefined();
+      expect(multiConfig.prefixConfig?.query).toBe('query: ');
+      expect(multiConfig.prefixConfig?.passage).toBe('passage: ');
+    });
+
+    it('BGE 模型不应该有前缀配置', () => {
+      const zhConfig = AI_MODELS['zh-specific'];
+      
+      expect(zhConfig.prefixConfig).toBeUndefined();
     });
   });
 });

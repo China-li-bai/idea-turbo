@@ -3,6 +3,15 @@
 import { create, insert, search, remove, update, getByID } from "@orama/orama";
 import { persist, restore } from "@orama/plugin-data-persistence";
 import type { UnifiedCalendarItem, ItemType } from "@/types/unified";
+import { 
+  AIModelType, 
+  AIModelConfig, 
+  AI_MODELS, 
+  DEFAULT_AI_MODEL,
+  getModelConfig,
+  formatTextForEmbedding,
+  EmbeddingTask
+} from "@/lib/utils/aiModels";
 const { pipeline } = await import("@huggingface/transformers");
 
 type EntityType = ItemType;
@@ -21,12 +30,50 @@ interface HybridSearchOptions extends SearchOptions {
 }
 
 export class OramaSearchService {
-  private dimensions = 512;
-  private modelName = "Xenova/bge-small-zh-v1.5";
+  private currentModelType: AIModelType = DEFAULT_AI_MODEL;
+  private modelConfig: AIModelConfig = AI_MODELS[DEFAULT_AI_MODEL];
   private db: any = null;
   private extractor: any = null;
   private isReady = false;
   private initPromise: Promise<void> | null = null;
+
+  get dimensions(): number {
+    return this.modelConfig.dimensions;
+  }
+
+  get modelName(): string {
+    return this.modelConfig.name;
+  }
+
+  get modelId(): AIModelType {
+    return this.currentModelType;
+  }
+
+  get currentModel(): AIModelConfig {
+    return this.modelConfig;
+  }
+
+  async switchModel(
+    modelType: AIModelType,
+    progressCallback?: (
+      current: number,
+      total: number,
+      message?: string,
+    ) => void,
+  ): Promise<void> {
+    if (this.currentModelType === modelType && this.isReady) {
+      return;
+    }
+
+    this.currentModelType = modelType;
+    this.modelConfig = getModelConfig(modelType);
+    this.isReady = false;
+    this.initPromise = null;
+    this.db = null;
+    this.extractor = null;
+
+    await this.initialize(progressCallback);
+  }
 
   async initialize(
     progressCallback?: (
@@ -55,11 +102,11 @@ export class OramaSearchService {
     ) => void,
   ): Promise<void> {
     try {
-      if (progressCallback) progressCallback(0, 3, "正在加载向量模型...");
+      if (progressCallback) progressCallback(0, 3, `正在加载 ${this.modelConfig.name}...`);
 
-      if (progressCallback) progressCallback(1, 3, "正在初始化 BGE 模型...");
+      if (progressCallback) progressCallback(1, 3, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
-      this.extractor = await pipeline("feature-extraction", this.modelName);
+      this.extractor = await pipeline("feature-extraction", this.modelConfig.modelName);
 
       if (progressCallback) progressCallback(2, 3, "正在创建数据库...");
 
@@ -72,7 +119,7 @@ export class OramaSearchService {
           startTime: "number",
           endTime: "number",
           isAllDay: "boolean",
-          embedding: `vector[${this.dimensions}]`,
+          embedding: `vector[${this.modelConfig.dimensions}]`,
           status: "string",
           createdAt: "number",
           updatedAt: "number",
@@ -90,19 +137,21 @@ export class OramaSearchService {
       if (progressCallback) progressCallback(3, 3, "初始化完成");
 
       this.isReady = true;
-      console.log("OramaSearchService initialized successfully");
+      console.log(`OramaSearchService initialized with model: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
     } catch (error) {
       console.error("Failed to initialize OramaSearchService:", error);
       throw error;
     }
   }
 
-  private async embed(text: string): Promise<number[]> {
+  private async embed(text: string, task: EmbeddingTask = 'passage'): Promise<number[]> {
     if (!this.extractor) {
       throw new Error("模型未初始化，请先调用 initialize()");
     }
 
-    const output = await this.extractor(text, {
+    const formattedText = formatTextForEmbedding(text, task, this.modelConfig);
+
+    const output = await this.extractor(formattedText, {
       pooling: "mean",
       normalize: true,
     });
@@ -169,7 +218,7 @@ export class OramaSearchService {
   > {
     await this.initialize();
 
-    const queryEmbedding = await this.embed(query);
+    const queryEmbedding = await this.embed(query, 'query');
     const k = options?.k || 10;
     const similarity = options?.similarity || 0.5;
 
@@ -249,7 +298,7 @@ export class OramaSearchService {
   > {
     await this.initialize();
 
-    const queryEmbedding = await this.embed(query);
+    const queryEmbedding = await this.embed(query, 'query');
     const k = options?.k || 10;
     const similarity = options?.similarity || 0.5;
 
