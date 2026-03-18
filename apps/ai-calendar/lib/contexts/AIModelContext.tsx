@@ -19,6 +19,7 @@ interface AIModelContextType {
   isLoading: boolean;
   isReady: boolean;
   switchModel: (modelType: AIModelType) => Promise<void>;
+  switchModelWithReindex: (modelType: AIModelType, items: any[]) => Promise<void>;
   getRecommendedModelForLocale: (locale: SupportedLocale) => AIModelType;
   isModelCompatible: (modelType: AIModelType, locale: SupportedLocale) => boolean;
 }
@@ -91,6 +92,29 @@ export function AIModelProvider({
     }
   }, [currentModel, isReady]);
 
+  const switchModelWithReindex = useCallback(async (modelType: AIModelType, items: any[]) => {
+    if (modelType === currentModel && isReady) {
+      return;
+    }
+
+    setIsLoading(true);
+    setIsReady(false);
+    
+    try {
+      await oramaSearchService.switchModelWithReindex(modelType, items, (current, total, message) => {
+        console.log(`Model reindex: ${current}/${total} - ${message}`);
+      });
+      setCurrentModel(modelType);
+      localStorage.setItem(STORAGE_KEY, modelType);
+      setIsReady(true);
+    } catch (error) {
+      console.error('Failed to switch AI model with reindex:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentModel, isReady]);
+
   const getRecommendedModelForLocale = useCallback((locale: SupportedLocale): AIModelType => {
     return getRecommendedModel(locale);
   }, []);
@@ -106,6 +130,7 @@ export function AIModelProvider({
     isLoading,
     isReady,
     switchModel,
+    switchModelWithReindex,
     getRecommendedModelForLocale,
     isModelCompatible,
   };

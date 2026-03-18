@@ -32,6 +32,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'cache.clickToClear': '点击清除模型缓存',
     'cache.clearConfirm': '确定要清除模型缓存吗？下次加载需要重新下载模型。',
     'cache.reloadConfirm': '镜像源设置已更改，需要刷新页面才能生效。是否立即刷新？',
+    'cache.reindexConfirm': '切换模型将需要重新生成所有项目的向量索引，可能需要几分钟时间。是否继续？',
   },
   'zh-TW': {
     'app.title': '智程日曆',
@@ -47,6 +48,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'cache.clickToClear': '點擊清除模型快取',
     'cache.clearConfirm': '確定要清除模型快取嗎？下次載入需要重新下載模型。',
     'cache.reloadConfirm': '鏡像源設定已更改，需要重新整理頁面才能生效。是否立即重新整理？',
+    'cache.reindexConfirm': '切換模型將需要重新生成所有項目的向量索引，可能需要幾分鐘時間。是否繼續？',
   },
   'en-US': {
     'app.title': 'SmartJourney',
@@ -62,6 +64,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'cache.clickToClear': 'Click to clear model cache',
     'cache.clearConfirm': 'Are you sure you want to clear the model cache? You will need to re-download models next time.',
     'cache.reloadConfirm': 'Mirror source setting changed. Page reload required. Reload now?',
+    'cache.reindexConfirm': 'Switching models requires regenerating vector embeddings for all items. This may take a few minutes. Continue?',
   },
   'ja-JP': {
     'app.title': 'スマートジャーニー',
@@ -77,6 +80,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'cache.clickToClear': 'クリックしてモデルキャッシュをクリア',
     'cache.clearConfirm': 'モデルキャッシュをクリアしますか？次回はモデルを再ダウンロードする必要があります。',
     'cache.reloadConfirm': 'ミラーソース設定が変更されました。ページを再読み込みする必要があります。今すぐ再読み込みしますか？',
+    'cache.reindexConfirm': 'モデルの切り替えには、すべてのアイテムのベクトル埋め込みを再生成する必要があります。これには数分かかる場合があります。続けますか？',
   },
   'ko-KR': {
     'app.title': '스마트저니',
@@ -92,6 +96,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'cache.clickToClear': '클릭하여 모델 캐시 지우기',
     'cache.clearConfirm': '모델 캐시를 지우시겠습니까? 다음에 모델을 다시 다운로드해야 합니다.',
     'cache.reloadConfirm': '미러 소스 설정이 변경되었습니다. 페이지를 새로고침해야 합니다. 지금 새로고침하시겠습니까?',
+    'cache.reindexConfirm': '모델을 전환하려면 모든 아이템의 벡터 임베딩을 다시 생성해야 합니다. 몇 분이 걸릴 수 있습니다. 계속하시겠습니까?',
   },
 };
 

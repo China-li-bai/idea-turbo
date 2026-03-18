@@ -17,8 +17,9 @@ export default function AppLayout() {
   const [useMirror, setUseMirror] = useState<boolean>(true);
   
   const initialize = useUnifiedStore((state) => state.initialize);
+  const items = useUnifiedStore((state) => state.items);
   const { locale, setLocale, t } = useLocale();
-  const { currentModel, modelConfig, isLoading, isReady, switchModel, availableModels } = useAIModel();
+  const { currentModel, modelConfig, isLoading, isReady, switchModelWithReindex, availableModels } = useAIModel();
 
   useEffect(() => {
     initialize();
@@ -130,7 +131,20 @@ export default function AppLayout() {
           <div className={styles.modelSelector}>
             <select
               value={currentModel}
-              onChange={(e) => switchModel(e.target.value as any)}
+              onChange={(e) => {
+                const newModel = e.target.value as any;
+                if (newModel !== currentModel) {
+                  const dimensions = availableModels.find(m => m.id === newModel)?.dimensions;
+                  const currentDimensions = modelConfig?.dimensions;
+                  if (dimensions && currentDimensions && dimensions !== currentDimensions) {
+                    if (confirm(t('cache.reindexConfirm') || `切换模型将需要重新生成所有 ${items.length} 个项目的向量索引，可能需要几分钟时间。是否继续？`)) {
+                      switchModelWithReindex(newModel, items);
+                    }
+                  } else {
+                    switchModelWithReindex(newModel, items);
+                  }
+                }
+              }}
               disabled={isLoading}
               className={styles.modelSelect}
             >

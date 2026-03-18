@@ -168,6 +168,78 @@ export class OramaSearchService {
     await this.initialize(progressCallback);
   }
 
+  async switchModelWithReindex(
+    modelType: AIModelType,
+    items: UnifiedCalendarItem[],
+    progressCallback?: (
+      current: number,
+      total: number,
+      message?: string,
+    ) => void,
+  ): Promise<void> {
+    if (this.currentModelType === modelType && this.isReady) {
+      return;
+    }
+
+    console.log(`[OramaSearchService] Switching model to ${modelType} and reindexing ${items.length} items`);
+
+    this.currentModelType = modelType;
+    this.modelConfig = getModelConfig(modelType);
+    this.isReady = false;
+    this.initPromise = null;
+    this.db = null;
+    this.extractor = null;
+
+    await this.initialize(progressCallback);
+
+    if (progressCallback) progressCallback(0, items.length + 3, '正在重建索引...');
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      try {
+        const text = [
+          item.title,
+          item.content,
+          item.metadata.location || '',
+          item.metadata.description || '',
+        ].filter(Boolean).join(' ');
+
+        const newEmbedding = await this.embed(text);
+
+        await insert(this.db, {
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          content: text,
+          startTime: item.startTime || 0,
+          endTime: item.endTime || 0,
+          isAllDay: item.isAllDay,
+          embedding: newEmbedding,
+          status: item.status,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          metadata: {
+            location: item.metadata.location || '',
+            tags: item.metadata.tags || [],
+            priority: item.metadata.priority || 'medium',
+            color: item.metadata.color || '',
+            description: item.metadata.description || '',
+            eventType: item.metadata.eventType || 'regular',
+          },
+        });
+
+        if (progressCallback && i % 5 === 0) {
+          progressCallback(i + 1, items.length + 3, `正在重建索引 ${i + 1}/${items.length}...`);
+        }
+      } catch (error) {
+        console.error(`Failed to reindex item ${item.id}:`, error);
+      }
+    }
+
+    if (progressCallback) progressCallback(items.length + 3, items.length + 3, '索引重建完成');
+    console.log(`[OramaSearchService] Reindexing completed for model ${modelType}`);
+  }
+
   async initialize(
     progressCallback?: (
       current: number,
@@ -502,9 +574,10 @@ export class OramaSearchService {
     }
 
     const data = await persist(this.db, "json");
+    const dbName = `OramaSearchDB_${this.currentModelType}`;
 
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open("OramaSearchDB", 1);
+      const request = indexedDB.open(dbName, 1);
 
       request.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
@@ -527,8 +600,9 @@ export class OramaSearchService {
   }
 
   async load(name: string = "ai-calendar-vectors"): Promise<boolean> {
+    const dbName = `OramaSearchDB_${this.currentModelType}`;
     const data = await new Promise<string | undefined>((resolve, reject) => {
-      const request = indexedDB.open("OramaSearchDB", 1);
+      const request = indexedDB.open(dbName, 1);
 
       request.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
@@ -573,6 +647,40 @@ export class OramaSearchService {
 
   get isInitialized(): boolean {
     return this.isReady;
+  }
+
+  async clearModelData(): Promise<void> {
+    const dbName = `OramaSearchDB_${this.currentModelType}`;
+    
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(dbName);
+      
+      request.onsuccess = () => {
+        console.log(`Deleted IndexedDB: ${dbName}`);
+        resolve();
+      };
+      
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  static async clearAllModelData(): Promise<void> {
+    const modelTypes: AIModelType[] = ['zh-specific', 'multilingual'];
+    
+    for (const modelType of modelTypes) {
+      const dbName = `OramaSearchDB_${modelType}`;
+      
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(dbName);
+        
+        request.onsuccess = () => {
+          console.log(`Deleted IndexedDB: ${dbName}`);
+          resolve();
+        };
+        
+        request.onerror = () => reject(request.error);
+      });
+    }
   }
 }
 
