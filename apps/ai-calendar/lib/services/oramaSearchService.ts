@@ -20,7 +20,7 @@ interface HybridSearchOptions extends SearchOptions {
   useHybrid?: boolean;
 }
 
-class OramaSearchService {
+export class OramaSearchService {
   private dimensions = 512;
   private modelName = "Xenova/bge-small-zh-v1.5";
   private db: any = null;

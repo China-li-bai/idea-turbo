@@ -16,6 +16,7 @@ const TODO_KEYWORDS = ['待办', 'todo', '任务', '要做', '需要做', '记�
 const NOTE_KEYWORDS = ['笔记', 'note', '记录', '想法', '感悟', '总结'];
 const LOCATION_PREFIXES = ['在', '于', '地点', '位置', '地址', '去', '到'];
 const PEOPLE_PREFIXES = ['见', '和', '与', '同', '跟'];
+const ACTION_VERBS = ['开会', '见面', '讨论', '商量', '汇报', '沟通', '交流', '约', '谈', '聊', '吃饭', '聚餐', '活动'];
 
 function hasAnyKeyword(input: string, keywords: string[]): boolean {
   const lowerInput = input.toLowerCase();
@@ -24,7 +25,8 @@ function hasAnyKeyword(input: string, keywords: string[]): boolean {
 
 function extractByPrefix(input: string, prefixes: string[], maxLength: number = 20): string | null {
   for (const prefix of prefixes) {
-    const regex = new RegExp(`${prefix}\\s*([^，,\\s]{2,${maxLength}})`);
+    const actionPattern = ACTION_VERBS.join('|');
+    const regex = new RegExp(`${prefix}([\\u4e00-\\u9fa5a-zA-Z0-9]{2,${maxLength}}?)(?=(?:${actionPattern}|[和与同跟，,。！？\\s])|$)`);
     const match = input.match(regex);
     if (match) {
       return match[1].trim();
@@ -96,8 +98,22 @@ export async function parseNaturalLanguage(input: string): Promise<ParsedResult>
       result.date = start.date();
 
       if (hasTime) {
-        const hour = start.get('hour') ?? 0;
+        let hour = start.get('hour') ?? 0;
         const minute = start.get('minute') ?? 0;
+        
+        if (input.includes('晚上') && hour === 12) {
+          hour = 0;
+          if (result.date) {
+            const nextDay = new Date(result.date);
+            nextDay.setDate(nextDay.getDate() + 1);
+            result.date = nextDay;
+          }
+        } else if (input.includes('晚上') && hour < 12) {
+          hour += 12;
+        } else if (input.includes('凌晨') && hour === 12) {
+          hour = 0;
+        }
+        
         result.time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       }
 

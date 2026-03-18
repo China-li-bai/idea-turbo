@@ -51,7 +51,7 @@ const DEFAULT_OPTIONS: SchedulerOptions = {
   maxSearchDays: 14
 };
 
-class SmartScheduler {
+export class SmartScheduler {
   private options: SchedulerOptions;
 
   constructor(options?: Partial<SchedulerOptions>) {
