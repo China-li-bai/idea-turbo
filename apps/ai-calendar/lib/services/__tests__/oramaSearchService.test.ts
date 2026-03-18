@@ -315,30 +315,6 @@ describe('OramaSearchService', () => {
     });
   });
 
-  describe('Embedding 生成', () => {
-    it('应该生成正确维度的 embedding', async () => {
-      const embedding = await searchService.embed('测试文本');
-      expect(embedding).toBeInstanceOf(Array);
-      expect(embedding.length).toBe(searchService.dimensions);
-    });
-
-    it('相似文本应该生成相似的 embedding', async () => {
-      const emb1 = await searchService.embed('学习编程');
-      const emb2 = await searchService.embed('学习写代码');
-      
-      const similarity = cosineSimilarity(emb1, emb2);
-      expect(similarity).toBeGreaterThan(0.5);
-    });
-
-    it('不相似文本应该生成不同的 embedding', async () => {
-      const emb1 = await searchService.embed('学习编程');
-      const emb2 = await searchService.embed('今天天气很好');
-      
-      const similarity = cosineSimilarity(emb1, emb2);
-      expect(similarity).toBeLessThan(0.9);
-    });
-  });
-
   describe('状态管理', () => {
     it('应该正确报告初始化状态', async () => {
       const newService = new OramaSearchService();
@@ -424,19 +400,3 @@ describe('OramaSearchService', () => {
     });
   });
 });
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
-  
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}

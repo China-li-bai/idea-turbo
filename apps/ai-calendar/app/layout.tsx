@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "temporal-polyfill/global";
 import "./globals.css";
+import { ClientProviders } from "@/lib/contexts/ClientProviders";
 
 export const metadata: Metadata = {
   title: "智程日历 - AI 智能日程管理 | 本地优先 Boss/秘书双视图",
@@ -30,7 +31,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ClientProviders>
+          {children}
+        </ClientProviders>
+      </body>
     </html>
   );
 }

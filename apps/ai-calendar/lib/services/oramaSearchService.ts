@@ -12,7 +12,15 @@ import {
   formatTextForEmbedding,
   EmbeddingTask
 } from "@/lib/utils/aiModels";
+
+const env = await import("@huggingface/transformers").then(m => m.env);
 const { pipeline } = await import("@huggingface/transformers");
+
+if (typeof window !== 'undefined') {
+  env.allowLocalModels = false;
+  env.useBrowserCache = true;
+  console.log('[Transformers.js] Browser cache enabled:', env.useBrowserCache);
+}
 
 type EntityType = ItemType;
 
@@ -27,6 +35,75 @@ interface SearchOptions {
 
 interface HybridSearchOptions extends SearchOptions {
   useHybrid?: boolean;
+}
+
+const MODEL_CACHE_NAME = 'transformers-models-v1';
+
+export async function getModelCache(): Promise<Cache | null> {
+  if (typeof caches === 'undefined') {
+    return null;
+  }
+  return caches.open(MODEL_CACHE_NAME);
+}
+
+export async function isModelCached(modelName: string): Promise<boolean> {
+  const cache = await getModelCache();
+  if (!cache) return false;
+  
+  const keys = await cache.keys();
+  return keys.some(key => key.url.includes(modelName));
+}
+
+export async function getCacheStats(): Promise<{
+  entryCount: number;
+  totalSize: number;
+  models: Set<string>;
+}> {
+  const cache = await getModelCache();
+  if (!cache) {
+    return { entryCount: 0, totalSize: 0, models: new Set() };
+  }
+  
+  const keys = await cache.keys();
+  const models = new Set<string>();
+  let totalSize = 0;
+  
+  for (const request of keys) {
+    const response = await cache.match(request);
+    if (response) {
+      const blob = await response.clone().blob();
+      totalSize += blob.size;
+      
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
+      const modelPart = pathParts.find(p => p.startsWith('Xenova') || p.includes('bge') || p.includes('e5'));
+      if (modelPart) {
+        models.add(modelPart);
+      }
+    }
+  }
+  
+  return {
+    entryCount: keys.length,
+    totalSize,
+    models
+  };
+}
+
+export async function clearModelCache(): Promise<void> {
+  if (typeof caches === 'undefined') return;
+  await caches.delete(MODEL_CACHE_NAME);
+  console.log('Model cache cleared');
+}
+
+export async function getCacheSizeFormatted(): Promise<string> {
+  const stats = await getCacheStats();
+  const mb = stats.totalSize / (1024 * 1024);
+  if (mb >= 1) {
+    return `${mb.toFixed(2)} MB`;
+  }
+  const kb = stats.totalSize / 1024;
+  return `${kb.toFixed(2)} KB`;
 }
 
 export class OramaSearchService {
@@ -103,6 +180,9 @@ export class OramaSearchService {
   ): Promise<void> {
     try {
       if (progressCallback) progressCallback(0, 3, `正在加载 ${this.modelConfig.name}...`);
+
+      const cachedModel = await isModelCached(this.modelConfig.modelName);
+      console.log(`[Transformers.js] Model ${this.modelConfig.modelName} cached:`, cachedModel);
 
       if (progressCallback) progressCallback(1, 3, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
