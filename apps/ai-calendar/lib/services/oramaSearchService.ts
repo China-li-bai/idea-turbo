@@ -267,16 +267,27 @@ export class OramaSearchService {
     ) => void,
   ): Promise<void> {
     try {
-      if (progressCallback) progressCallback(0, 3, `正在加载 ${this.modelConfig.name}...`);
+      if (progressCallback) progressCallback(0, 4, `正在加载 ${this.modelConfig.name}...`);
 
       const cachedModel = await isModelCached(this.modelConfig.modelName);
       console.log(`[Transformers.js] Model ${this.modelConfig.modelName} cached:`, cachedModel);
 
-      if (progressCallback) progressCallback(1, 3, `正在初始化模型 ${this.modelConfig.modelName}...`);
+      if (progressCallback) progressCallback(1, 4, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
       this.extractor = await pipeline("feature-extraction", this.modelConfig.modelName);
 
-      if (progressCallback) progressCallback(2, 3, "正在创建数据库...");
+      if (progressCallback) progressCallback(2, 4, "正在加载本地数据...");
+
+      const loaded = await this._loadFromIndexedDB();
+      
+      if (loaded) {
+        if (progressCallback) progressCallback(4, 4, "从本地数据恢复完成");
+        this.isReady = true;
+        console.log(`OramaSearchService restored from IndexedDB: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
+        return;
+      }
+
+      if (progressCallback) progressCallback(3, 4, "正在创建数据库...");
 
       this.db = await create({
         schema: {
@@ -302,13 +313,52 @@ export class OramaSearchService {
         },
       });
 
-      if (progressCallback) progressCallback(3, 3, "初始化完成");
+      if (progressCallback) progressCallback(4, 4, "初始化完成");
 
       this.isReady = true;
       console.log(`OramaSearchService initialized with model: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
     } catch (error) {
       console.error("Failed to initialize OramaSearchService:", error);
       throw error;
+    }
+  }
+
+  private async _loadFromIndexedDB(): Promise<boolean> {
+    const dbName = `OramaSearchDB_${this.currentModelType}`;
+    
+    try {
+      const data = await new Promise<string | undefined>((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+
+        request.onupgradeneeded = (e) => {
+          const db = (e.target as IDBOpenDBRequest).result;
+          if (!db.objectStoreNames.contains("databases")) {
+            db.createObjectStore("databases");
+          }
+        };
+
+        request.onsuccess = (e) => {
+          const db = (e.target as IDBOpenDBRequest).result;
+          const tx = db.transaction(["databases"], "readonly");
+          const store = tx.objectStore("databases");
+          const getReq = store.get("ai-calendar-vectors");
+
+          getReq.onsuccess = () => resolve(getReq.result);
+          getReq.onerror = () => reject(getReq.error);
+        };
+
+        request.onerror = () => reject(request.error);
+      });
+
+      if (data) {
+        this.db = await restore("json", data);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.log(`[OramaSearchService] No cached data found for ${this.currentModelType}`);
+      return false;
     }
   }
 
@@ -339,8 +389,11 @@ export class OramaSearchService {
       .filter(Boolean)
       .join(" ");
 
-    const embedding =
-      item.embedding.length > 0 ? item.embedding : await this.embed(text);
+    const needsRegenerate = 
+      item.embedding.length === 0 || 
+      item.embedding.length !== this.dimensions;
+
+    const embedding = needsRegenerate ? await this.embed(text) : item.embedding;
 
     await insert(this.db, {
       id: item.id,
@@ -665,7 +718,7 @@ export class OramaSearchService {
   }
 
   static async clearAllModelData(): Promise<void> {
-    const modelTypes: AIModelType[] = ['zh-specific', 'multilingual'];
+    const modelTypes: AIModelType[] = ['zh-specific', 'multilingual', 'english'];
     
     for (const modelType of modelTypes) {
       const dbName = `OramaSearchDB_${modelType}`;
