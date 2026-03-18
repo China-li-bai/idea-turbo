@@ -18,8 +18,24 @@ const { pipeline } = await import("@huggingface/transformers");
 
 if (typeof window !== 'undefined') {
   env.allowLocalModels = false;
-  env.useBrowserCache = true;
-  console.log('[Transformers.js] Browser cache enabled:', env.useBrowserCache);
+  
+  const isSecureContext = window.isSecureContext;
+  const isLocalhost = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
+  
+  if (isSecureContext || isLocalhost) {
+    env.useBrowserCache = true;
+    console.log('[Transformers.js] Browser cache enabled (secure context)');
+  } else {
+    env.useBrowserCache = false;
+    console.log('[Transformers.js] Browser cache disabled (non-secure context: IP access)');
+  }
+  
+  const useMirror = localStorage.getItem('use-hf-mirror') !== 'false';
+  if (useMirror) {
+    env.remoteHost = 'https://hf-mirror.com';
+    console.log('[Transformers.js] Using HF mirror: hf-mirror.com');
+  }
 }
 
 type EntityType = ItemType;

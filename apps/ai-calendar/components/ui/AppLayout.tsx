@@ -14,6 +14,7 @@ type ViewMode = 'boss' | 'secretary';
 export default function AppLayout() {
   const [viewMode, setViewMode] = useState<ViewMode>('boss');
   const [cacheSize, setCacheSize] = useState<string>('');
+  const [useMirror, setUseMirror] = useState<boolean>(true);
   
   const initialize = useUnifiedStore((state) => state.initialize);
   const { locale, setLocale, t } = useLocale();
@@ -22,6 +23,11 @@ export default function AppLayout() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    const savedMirror = localStorage.getItem('use-hf-mirror');
+    setUseMirror(savedMirror !== 'false');
+  }, []);
 
   useEffect(() => {
     const updateCacheSize = async () => {
@@ -52,6 +58,15 @@ export default function AppLayout() {
     if (confirm(t('cache.clearConfirm') || '确定要清除模型缓存吗？下次加载需要重新下载模型。')) {
       await clearModelCache();
       setCacheSize('0 KB');
+    }
+  };
+
+  const handleToggleMirror = () => {
+    const newValue = !useMirror;
+    setUseMirror(newValue);
+    localStorage.setItem('use-hf-mirror', String(newValue));
+    if (confirm(t('cache.reloadConfirm') || '镜像源设置已更改，需要刷新页面才能生效。是否立即刷新？')) {
+      window.location.reload();
     }
   };
 
@@ -140,6 +155,13 @@ export default function AppLayout() {
                 📦 {cacheSize}
               </span>
             )}
+            <button
+              className={`${styles.mirrorToggle} ${useMirror ? styles.mirrorOn : styles.mirrorOff}`}
+              onClick={handleToggleMirror}
+              title={useMirror ? '使用 HF 镜像源 (国内加速)' : '使用 HF 官方源'}
+            >
+              {useMirror ? '🇨🇳 镜像' : '🌐 官方'}
+            </button>
           </div>
 
           <div className={styles.viewToggle}>
