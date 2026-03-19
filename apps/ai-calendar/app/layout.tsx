@@ -1,7 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "temporal-polyfill/global";
 import "./globals.css";
 import { ClientProviders } from "@/lib/contexts/ClientProviders";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "智程日历 - AI 智能日程管理 | 本地优先 Boss/秘书双视图",

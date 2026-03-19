@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useUnifiedItems, useAIStatus } from '@/lib/hooks/useUnifiedItems';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { smartScheduler } from '@/lib/services/smartScheduler';
+import { useLocale } from '@/lib/contexts/ClientProviders';
 import styles from './SecretaryView.module.scss';
 
 interface Message {
@@ -37,6 +38,7 @@ export default function SecretaryView() {
   
   const { items: allItems, toEvent } = useUnifiedItems();
   const aiStatus = useAIStatus();
+  const { t, locale } = useLocale();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,23 +72,23 @@ export default function SecretaryView() {
         console.log('Orama search results:', searchResults);
         
         if (searchResults.length === 0) {
-          assistantResponse = '抱歉，我没有找到相关的信息。您可以尝试用不同的关键词搜索。';
+          assistantResponse = t('secretary.noResults');
         } else {
-          assistantResponse = `我找到了 ${searchResults.length} 个相关项目：\n\n`;
+          assistantResponse = t('secretary.foundItems').replace('{count}', String(searchResults.length)) + '\n\n';
           
           searchResults.slice(0, 3).forEach((result, index) => {
-            const title = result.title || '未知标题';
+            const title = result.title || t('secretary.unknownTitle');
             const type = result.type || 'idea';
-            assistantResponse += `${index + 1}. **${title}** (${type === 'idea' ? '灵感' : '日程'})\n`;
+            assistantResponse += `${index + 1}. **${title}** (${type === 'idea' ? t('secretary.idea') : t('secretary.event')})\n`;
             if (type === 'event') {
               const item = allItems.find(i => i.id === result.id);
               if (item?.startTime) {
                 const date = new Date(item.startTime);
-                assistantResponse += `   时间：${date.toLocaleString('zh-CN')}\n`;
+                assistantResponse += `   ${t('secretary.time')}：${date.toLocaleString(locale)}\n`;
               }
             }
             if (result.metadata?.location) {
-              assistantResponse += `   地点：${result.metadata.location}\n`;
+              assistantResponse += `   ${t('secretary.location')}：${result.metadata.location}\n`;
             }
           });
           
@@ -96,13 +98,13 @@ export default function SecretaryView() {
             if (item?.startTime) {
               proposal = {
                 title: firstResult.title || item.title,
-                time: new Date(item.startTime).toLocaleString('zh-CN', { 
+                time: new Date(item.startTime).toLocaleString(locale, { 
                   month: 'long', 
                   day: 'numeric',
                   hour: '2-digit', 
                   minute: '2-digit' 
                 }),
-                location: firstResult.metadata?.location || '原定会议室',
+                location: firstResult.metadata?.location || '',
                 itemId: firstResult.id
               };
             }
@@ -121,24 +123,24 @@ export default function SecretaryView() {
               
               proposal = {
                 title: firstResult.title || item.title,
-                time: suggestion.suggestedStart.toLocaleString('zh-CN', { 
+                time: suggestion.suggestedStart.toLocaleString(locale, { 
                   month: 'long', 
                   day: 'numeric',
                   hour: '2-digit', 
                   minute: '2-digit' 
                 }),
-                location: item.metadata.extractedLocation || '待定',
+                location: item.metadata.extractedLocation || '',
                 itemId: firstResult.id
               };
               
               if (suggestion.conflicts.length > 0) {
-                assistantResponse += `\n\n⚠️ 注意：检测到时间冲突，已为您调整到最近的空闲时间。`;
+                assistantResponse += `\n\n⚠️ ${locale.startsWith('zh') ? '注意：检测到时间冲突，已为您调整到最近的空闲时间。' : 'Note: Time conflict detected, adjusted to nearest available slot.'}`;
               }
               
               if (suggestion.alternatives.length > 0) {
-                assistantResponse += `\n\n备选时间：`;
+                assistantResponse += `\n\n${t('secretary.proposalTime')}：`;
                 suggestion.alternatives.slice(0, 2).forEach((alt, i) => {
-                  assistantResponse += `\n${i + 1}. ${alt.start.toLocaleString('zh-CN', { 
+                  assistantResponse += `\n${i + 1}. ${alt.start.toLocaleString(locale, { 
                     month: 'long', 
                     day: 'numeric',
                     hour: '2-digit', 
@@ -159,15 +161,15 @@ export default function SecretaryView() {
         });
         
         if (relevantItems.length === 0) {
-          assistantResponse = '抱歉，我没有找到相关的信息。您可以尝试用不同的关键词搜索。';
+          assistantResponse = t('secretary.noResults');
         } else {
-          assistantResponse = `我找到了 ${relevantItems.length} 个相关项目（本地搜索）：\n\n`;
+          assistantResponse = t('secretary.foundItems').replace('{count}', String(relevantItems.length)) + ` (${locale.startsWith('zh') ? '本地搜索' : 'local search'})\n\n`;
           
           relevantItems.slice(0, 3).forEach((item, index) => {
-            assistantResponse += `${index + 1}. **${item.title}** (${item.type === 'idea' ? '灵感' : '日程'})\n`;
+            assistantResponse += `${index + 1}. **${item.title}** (${item.type === 'idea' ? t('secretary.idea') : t('secretary.event')})\n`;
             if (item.type === 'event' && item.startTime) {
               const date = new Date(item.startTime);
-              assistantResponse += `   时间：${date.toLocaleString('zh-CN')}\n`;
+              assistantResponse += `   ${t('secretary.time')}：${date.toLocaleString(locale)}\n`;
             }
           });
         }
@@ -182,19 +184,19 @@ export default function SecretaryView() {
       
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
-      console.error('搜索失败:', error);
+      console.error('Search failed:', error);
       
       const errorMessage: Message = {
         id: generateUUID(),
         role: 'assistant',
-        content: '抱歉，搜索时出现了错误。请稍后再试。',
+        content: locale.startsWith('zh') ? '抱歉，搜索时出现了错误。请稍后再试。' : 'Sorry, an error occurred during search. Please try again later.',
       };
       
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsProcessing(false);
     }
-  }, [inputValue, isProcessing, allItems]);
+  }, [inputValue, isProcessing, allItems, t, locale]);
 
   const handleApprove = useCallback(async (messageId: string) => {
     const message = messages.find(m => m.id === messageId);
@@ -225,20 +227,20 @@ export default function SecretaryView() {
       if (msg.id === messageId && msg.proposal) {
         return {
           ...msg,
-          content: msg.content + '\n\n✅ 已批准此安排',
+          content: msg.content + `\n\n✅ ${locale.startsWith('zh') ? '已批准此安排' : 'Approved'}`,
           proposal: undefined
         };
       }
       return msg;
     }));
-  }, [messages, allItems, toEvent]);
+  }, [messages, allItems, toEvent, locale]);
 
   return (
     <div className={styles.container}>
       {!aiStatus.isReady && (
         <div className={styles.statusBar}>
           {aiStatus.isLoading ? (
-            <span className={styles.loading}>🔄 AI 引擎加载中...</span>
+            <span className={styles.loading}>🔄 {t('boss.aiLoading')}</span>
           ) : aiStatus.error ? (
             <span className={styles.error}>⚠️ {aiStatus.error}</span>
           ) : null}
@@ -249,12 +251,16 @@ export default function SecretaryView() {
         {messages.length === 0 ? (
           <div className={styles.welcome}>
             <div className={styles.welcomeIcon}>🤖</div>
-            <h2 className={styles.welcomeTitle}>欢迎使用 AI 秘书</h2>
-            <p className={styles.welcomeText}>您可以问我关于日程的任何问题，例如：</p>
+            <h2 className={styles.welcomeTitle}>
+              {locale.startsWith('zh') ? '欢迎使用 AI 秘书' : locale === 'ja-JP' ? 'AI 秘書へようこそ' : 'Welcome to AI Secretary'}
+            </h2>
+            <p className={styles.welcomeText}>
+              {locale.startsWith('zh') ? '您可以问我关于日程的任何问题，例如：' : locale === 'ja-JP' ? 'スケジュールについて何でも聞いてください：' : 'Ask me anything about your schedule, for example:'}
+            </p>
             <ul className={styles.examples}>
-              <li>"我明天有什么安排？"</li>
-              <li>"帮我找一下关于项目的想法"</li>
-              <li>"我之前是不是有个关于读书的想法？"</li>
+              <li>{locale.startsWith('zh') ? '"我明天有什么安排？"' : locale === 'ja-JP' ? '"明日の予定は？"' : '"What\'s my schedule tomorrow?"'}</li>
+              <li>{locale.startsWith('zh') ? '"帮我找一下关于项目的想法"' : locale === 'ja-JP' ? '"プロジェクトについてのアイデアを探して"' : '"Find my project ideas"'}</li>
+              <li>{locale.startsWith('zh') ? '"我之前是不是有个关于读书的想法？"' : locale === 'ja-JP' ? '"読書についてのアイデアがあったっけ？"' : '"Did I have an idea about reading?"'}</li>
             </ul>
           </div>
         ) : (
@@ -275,22 +281,22 @@ export default function SecretaryView() {
                     <div className={styles.proposalCard}>
                       <div className={styles.proposalHeader}>
                         <div className={styles.statusDot} />
-                        <span>Schedule Proposal</span>
+                        <span>{t('secretary.proposalTitle')}</span>
                       </div>
                       <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
                       <div className={styles.proposalDetails}>
-                        <p className={styles.detailLabel}>时间</p>
+                        <p className={styles.detailLabel}>{t('secretary.time')}</p>
                         <p className={styles.detailValue}>{message.proposal.time}</p>
-                        <p>📍 {message.proposal.location}</p>
+                        <p>📍 {message.proposal.location || (locale.startsWith('zh') ? '待定' : 'TBD')}</p>
                       </div>
                       <div className={styles.proposalActions}>
                         <button 
                           className={styles.approveBtn}
                           onClick={() => handleApprove(message.id)}
                         >
-                          批准 (Approve)
+                          {t('secretary.confirmSchedule')}
                         </button>
-                        <button className={styles.editBtn}>修改 (Edit)</button>
+                        <button className={styles.editBtn}>{t('secretary.cancel')}</button>
                       </div>
                     </div>
                   ) : (
@@ -310,7 +316,7 @@ export default function SecretaryView() {
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="告诉秘书你想怎么调整日程..."
+            placeholder={t('secretary.inputPlaceholder')}
             className={styles.input}
             disabled={isProcessing}
           />

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTodayEvents, usePendingIdeas, useAIStatus } from '@/lib/hooks/useUnifiedItems';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
+import { useLocale } from '@/lib/contexts/ClientProviders';
 import styles from './BossView.module.scss';
 
 interface BossViewProps {
@@ -19,6 +20,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
   const { items: pendingIdeas, createIdea, remove: deleteIdea, toEvent } = usePendingIdeas();
   const convertToEvent = useUnifiedStore((state) => state.convertToEvent);
   const aiStatus = useAIStatus();
+  const { t, locale } = useLocale();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -41,12 +43,12 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
       setInputValue('');
       inputRef.current?.focus();
     } catch (err) {
-      console.error('创建灵感失败:', err);
-      setError('创建失败，请重试');
+      console.error('Failed to create idea:', err);
+      setError(t('boss.createFailed'));
     } finally {
       setIsCreating(false);
     }
-  }, [inputValue, isCreating, createIdea]);
+  }, [inputValue, isCreating, createIdea, t]);
 
   const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -61,7 +63,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
       const oneHour = 60 * 60 * 1000;
       await toEvent(ideaId, now, now + oneHour);
     } catch (err) {
-      console.error('转换灵感失败:', err);
+      console.error('Failed to convert idea:', err);
     }
   }, [toEvent]);
 
@@ -69,7 +71,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
     try {
       await deleteIdea(ideaId);
     } catch (err) {
-      console.error('删除灵感失败:', err);
+      console.error('Failed to delete idea:', err);
     }
   }, [deleteIdea]);
 
@@ -77,7 +79,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
     try {
       await updateEvent(eventId, { status: 'completed' });
     } catch (err) {
-      console.error('完成事件失败:', err);
+      console.error('Failed to complete event:', err);
     }
   }, [updateEvent]);
 
@@ -85,13 +87,13 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
     try {
       await deleteEvent(eventId);
     } catch (err) {
-      console.error('删除事件失败:', err);
+      console.error('Failed to delete event:', err);
     }
   }, [deleteEvent]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -99,7 +101,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
       {!aiStatus.isReady && (
         <div className={styles.aiStatusBar}>
           {aiStatus.isLoading ? (
-            <span className={styles.aiLoading}>🔄 AI 引擎加载中...</span>
+            <span className={styles.aiLoading}>🔄 {t('boss.aiLoading')}</span>
           ) : aiStatus.error ? (
             <span className={styles.aiError}>⚠️ {aiStatus.error}</span>
           ) : null}
@@ -113,7 +115,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
-          placeholder="在这里输入明天的会议，或是突发的灵感..."
+          placeholder={t('boss.inputPlaceholder')}
           className={styles.canvasInput}
           autoComplete="off"
           spellCheck={false}
@@ -124,11 +126,11 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
 
       <div className={styles.main}>
         <div className={styles.timeline}>
-          <p className={styles.sectionTitle}>Today / 执行线</p>
+          <p className={styles.sectionTitle}>{t('boss.todayTitle')}</p>
           
           <div className={styles.eventList}>
             {todayEvents.length === 0 ? (
-              <div className={styles.emptyState}>暂无日程</div>
+              <div className={styles.emptyState}>{t('boss.noEvents')}</div>
             ) : (
               todayEvents.map((event) => (
                 <div 
@@ -150,7 +152,7 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
                       e.stopPropagation();
                       handleDeleteEvent(event.id);
                     }}
-                    aria-label="删除事件"
+                    aria-label={t('boss.deleteEvent')}
                   >
                     ×
                   </button>
@@ -161,12 +163,12 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
         </div>
 
         <div className={styles.ideas}>
-          <p className={styles.sectionTitle}>Ideas / 灵感胶囊</p>
+          <p className={styles.sectionTitle}>{t('boss.ideasTitle')}</p>
           
           <div className={styles.ideaList}>
             {pendingIdeas.length === 0 ? (
               <div className={styles.emptyIdea}>
-                按 <kbd>Cmd</kbd> + <kbd>K</kbd> 快速捕捉
+                {t('boss.quickCapture')}
               </div>
             ) : (
               pendingIdeas.map((idea) => (
@@ -176,16 +178,16 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
                     <button
                       className={styles.ideaBtn}
                       onClick={() => handleProcessIdea(idea.id)}
-                      aria-label="转换为日程"
-                      title="转换为日程"
+                      aria-label={t('boss.convertToEvent')}
+                      title={t('boss.convertToEvent')}
                     >
                       ✓
                     </button>
                     <button
                       className={styles.ideaBtn}
                       onClick={() => handleDeleteIdea(idea.id)}
-                      aria-label="删除灵感"
-                      title="删除灵感"
+                      aria-label={t('boss.deleteIdea')}
+                      title={t('boss.deleteIdea')}
                     >
                       ×
                     </button>
