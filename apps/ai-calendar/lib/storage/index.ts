@@ -1,5 +1,4 @@
 import localforage from 'localforage';
-import type { CalendarEvent, Task, Inspiration, ShiftSchedule } from '@/types';
 import type { AIConfig } from '@/lib/ai/types';
 
 localforage.config({
@@ -10,34 +9,9 @@ localforage.config({
 });
 
 export const db = {
-  events: localforage.createInstance({
-    name: 'ai-calendar',
-    storeName: 'events',
-  }),
-  
-  tasks: localforage.createInstance({
-    name: 'ai-calendar',
-    storeName: 'tasks',
-  }),
-  
-  inspirations: localforage.createInstance({
-    name: 'ai-calendar',
-    storeName: 'inspirations',
-  }),
-  
-  schedules: localforage.createInstance({
-    name: 'ai-calendar',
-    storeName: 'schedules',
-  }),
-  
   settings: localforage.createInstance({
     name: 'ai-calendar',
     storeName: 'settings',
-  }),
-  
-  searchHistory: localforage.createInstance({
-    name: 'ai-calendar',
-    storeName: 'searchHistory',
   }),
 };
 
@@ -55,11 +29,6 @@ export async function getAllFromStore<T>(store: LocalForage): Promise<T[]> {
 
 export async function clearAllStores(): Promise<void> {
   await Promise.all([
-    db.events.clear(),
-    db.tasks.clear(),
-    db.inspirations.clear(),
-    db.schedules.clear(),
     db.settings.clear(),
-    db.searchHistory.clear(),
   ]);
 }

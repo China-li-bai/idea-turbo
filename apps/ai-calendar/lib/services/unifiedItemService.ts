@@ -23,9 +23,7 @@ class UnifiedItemService {
   private isReady: boolean = true;
   private listeners: Set<(ready: boolean) => void> = new Set();
 
-  async initialize(
-    progressCallback?: (status: string) => void
-  ): Promise<void> {
+  async initialize(progressCallback?: (status: string) => void): Promise<void> {
     progressCallback?.('服务已就绪');
     this.isReady = true;
     this.notifyListeners(true);
@@ -46,15 +44,14 @@ class UnifiedItemService {
     return this.isReady;
   }
 
-  async createIdea(
+  createIdea(
     content: string,
-    metadata?: Partial<UnifiedCalendarItem['metadata']>,
-    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
-  ): Promise<UnifiedCalendarItem> {
+    metadata?: Partial<UnifiedCalendarItem['metadata']>
+  ): UnifiedCalendarItem {
     const now = Date.now();
     const id = generateUUID();
-    
-    const item: UnifiedCalendarItem = {
+
+    return {
       id,
       type: 'idea',
       title: content.substring(0, 100),
@@ -69,22 +66,19 @@ class UnifiedItemService {
       updatedAt: now,
       metadata: metadata || {}
     };
-    
-    return item;
   }
 
-  async createEvent(
+  createEvent(
     title: string,
     startTime: number,
     endTime: number,
-    metadata?: Partial<UnifiedCalendarItem['metadata']>,
-    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
-  ): Promise<UnifiedCalendarItem> {
+    metadata?: Partial<UnifiedCalendarItem['metadata']>
+  ): UnifiedCalendarItem {
     const content = metadata?.description || title;
     const now = Date.now();
     const id = generateUUID();
-    
-    const item: UnifiedCalendarItem = {
+
+    return {
       id,
       type: 'event',
       title,
@@ -99,21 +93,19 @@ class UnifiedItemService {
       updatedAt: now,
       metadata: metadata || {}
     };
-    
-    return item;
   }
 
-  async convertToEvent(
+  transformToEvent(
     item: UnifiedCalendarItem,
     startTime: number,
     endTime: number,
     additionalMetadata?: Partial<UnifiedCalendarItem['metadata']>
-  ): Promise<UnifiedCalendarItem> {
+  ): UnifiedCalendarItem {
     if (item.type !== 'idea') {
       throw new Error('Only ideas can be converted to events');
     }
-    
-    const event: UnifiedCalendarItem = {
+
+    return {
       ...item,
       type: 'event',
       startTime,
@@ -127,19 +119,17 @@ class UnifiedItemService {
         convertedAt: Date.now()
       }
     };
-    
-    return event;
   }
 
-  async convertToIdea(
+  transformToIdea(
     item: UnifiedCalendarItem,
     additionalMetadata?: Partial<UnifiedCalendarItem['metadata']>
-  ): Promise<UnifiedCalendarItem> {
+  ): UnifiedCalendarItem {
     if (item.type !== 'event') {
       throw new Error('Only events can be converted to ideas');
     }
-    
-    const idea: UnifiedCalendarItem = {
+
+    return {
       ...item,
       type: 'idea',
       startTime: null,
@@ -153,22 +143,37 @@ class UnifiedItemService {
         convertedAt: Date.now()
       }
     };
-    
-    return idea;
   }
 
-  async updateItem(
+  updateItem(
     item: UnifiedCalendarItem,
-    updates: Partial<UnifiedCalendarItem>,
-    onEmbeddingUpdate?: (update: EmbeddingUpdate) => void
-  ): Promise<UnifiedCalendarItem> {
-    const updatedItem: UnifiedCalendarItem = {
+    updates: Partial<UnifiedCalendarItem>
+  ): UnifiedCalendarItem {
+    return {
       ...item,
       ...updates,
       updatedAt: Date.now()
     };
-    
-    return updatedItem;
+  }
+
+  updateEmbedding(
+    item: UnifiedCalendarItem,
+    embedding: number[]
+  ): { item: UnifiedCalendarItem; embeddingUpdate: EmbeddingUpdate } {
+    const embeddingUpdate: EmbeddingUpdate = {
+      id: item.id,
+      embedding,
+      embeddingUpdatedAt: Date.now()
+    };
+
+    return {
+      item: {
+        ...item,
+        embedding,
+        embeddingUpdatedAt: embeddingUpdate.embeddingUpdatedAt
+      },
+      embeddingUpdate
+    };
   }
 
   isIdea(item: UnifiedCalendarItem): boolean {

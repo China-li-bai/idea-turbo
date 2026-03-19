@@ -329,7 +329,8 @@ export class OramaSearchService {
   private async _loadFromIndexedDB(): Promise<boolean> {
     const dataKey = `OramaSearchDB_${this.currentModelType}_data`;
     const versionKey = `OramaSearchDB_${this.currentModelType}_version`;
-    
+    const backupKey = `OramaSearchDB_${this.currentModelType}_data_backup`;
+
     try {
       const [data, version] = await Promise.all([
         localforage.getItem<string>(dataKey),
@@ -345,14 +346,47 @@ export class OramaSearchService {
         return false;
       }
 
-      if (data) {
-        this.db = await restore("json", data);
-        return true;
+      if (!data) {
+        return false;
       }
 
-      return false;
+      try {
+        this.db = await restore("json", data);
+
+        if (!this.db || !this.db.schema) {
+          throw new Error("Restored database has invalid schema");
+        }
+
+        return true;
+      } catch (restoreError) {
+        console.error(`[OramaSearchService] Failed to restore database, attempting backup recovery:`, restoreError);
+
+        try {
+          const backupData = await localforage.getItem<string>(backupKey);
+          if (backupData) {
+            this.db = await restore("json", backupData);
+            if (this.db && this.db.schema) {
+              console.log(`[OramaSearchService] Successfully restored from backup`);
+              await this.save();
+              return true;
+            }
+          }
+        } catch (backupError) {
+          console.error(`[OramaSearchService] Backup recovery also failed:`, backupError);
+        }
+
+        console.log(`[OramaSearchService] Creating backup of corrupted data for diagnostics...`);
+        await localforage.setItem(backupKey, data).catch(() => {});
+
+        await Promise.all([
+          localforage.removeItem(dataKey),
+          localforage.removeItem(versionKey)
+        ]);
+
+        return false;
+      }
     } catch (error) {
-      console.log(`[OramaSearchService] No cached data found for ${this.currentModelType}`);
+      console.error(`[OramaSearchService] Error loading from IndexedDB:`, error);
       return false;
     }
   }
