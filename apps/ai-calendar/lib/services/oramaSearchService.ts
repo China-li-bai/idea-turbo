@@ -502,6 +502,10 @@ export class OramaSearchService {
 
     return results.hits
       .filter((hit: any) => {
+        if (hit.score < similarity) {
+          return false;
+        }
+
         if (options?.filters?.types && options.filters.types.length > 1) {
           if (!options.filters.types.includes(hit.document.type)) {
             return false;
@@ -580,6 +584,10 @@ export class OramaSearchService {
 
     return results.hits
       .filter((hit: any) => {
+        if (hit.score < similarity) {
+          return false;
+        }
+
         if (options?.filters?.types && options.filters.types.length > 1) {
           if (!options.filters.types.includes(hit.document.type)) {
             return false;
