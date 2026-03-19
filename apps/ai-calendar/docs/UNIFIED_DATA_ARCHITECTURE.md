@@ -112,47 +112,63 @@ const calendarSchema = {
 };
 ```
 
-### 2.2 Orama 在架构中的位置
+### 2.2 架构中的位置（当前实现）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      应用层 (UI Layer)                       │
 │  ┌──────────────────┐              ┌──────────────────┐     │
-│  │   Boss View      │              │ Secretary View   │     │
+│  │   BossView       │              │ SecretaryView    │     │
 │  │  - 时间轴         │              │  - AI 对话       │     │
 │  │  - 灵感胶囊       │              │  - 智能建议      │     │
 │  └────────┬─────────┘              └────────┬─────────┘     │
 └───────────┼──────────────────────────────────┼───────────────┘
             │                                  │
-            │ useItems({ type: 'event' })      │ vectorSearch()
-            │ useItems({ type: 'idea' })       │
+            │ useUnifiedItems()               │ vectorSearch()
+            │ useTodayEvents()                 │
+            │ usePendingIdeas()                │
             │                                  │
 ┌───────────┼──────────────────────────────────┼───────────────┐
 │           │      统一服务层 (Unified Service) │               │
 │  ┌────────▼──────────────────────────────────▼─────────┐     │
-│  │            unifiedItemService                        │     │
-│  │  - create(item)                                      │     │
-│  │  - convert(id, toType)                               │     │
-│  │  - search(query, options)                            │     │
-│  │  - update(id, updates)                               │     │
-│  └────────┬──────────────────────────────┬──────────────┘     │
-└───────────┼──────────────────────────────┼───────────────────┘
-            │                              │
-   ┌────────▼────────┐          ┌─────────▼──────────┐
-   │  Zustand Store  │          │  Orama Database    │
-   │  ┌───────────┐  │          │  ┌──────────────┐  │
-   │  │  items    │  │          │  │ Vector Index │  │
-   │  │ (统一数组) │  │          │  │ (HNSW)       │  │
-   │  └───────────┘  │          │  └──────────────┘  │
-   │       ↓         │          │  ┌──────────────┐  │
-   │  IndexedDB      │          │  │ Full-text    │  │
-   │  (持久化)        │          │  │ Index        │  │
-   └─────────────────┘          │  └──────────────┘  │
-                                │       ↓            │
-                                │  IndexedDB         │
-                                │  (向量持久化)       │
-                                └────────────────────┘
+│  │              unifiedItemService                     │     │
+│  │  - createIdea() / createEvent() ← 值对象工厂         │     │
+│  │  - transformToEvent() ← 类型转换（值不变）           │     │
+│  │  - transformToIdea()                                │     │
+│  │  - updateItem() / updateEmbedding()                 │     │
+│  └─────────────────────────┬───────────────────────────┘     │
+└────────────────────────────┼─────────────────────────────────┘
+                             │
+┌────────────────────────────┼─────────────────────────────────┐
+│                            │      Zustand Store               │
+│  ┌─────────────────────────▼───────────────────────────┐    │
+│  │              useUnifiedStore                          │    │
+│  │  - items: UnifiedCalendarItem[] (单一数据源)           │    │
+│  │  - addItem() / updateItem() / deleteItem()           │    │
+│  │  - convertToEvent() / convertToIdea()                │    │
+│  │  - 自动同步到 Orama 索引                              │    │
+│  └────────────────────┬────────────────┬─────────────────┘    │
+└───────────────────────┼────────────────┼──────────────────────┘
+                        │                │
+           ┌────────────▼───┐    ┌────────▼──────────────────┐
+           │  localStorage  │    │    oramaSearchService     │
+           │  (Zustand      │    │  ┌────────────────────┐  │
+           │   persist)     │    │  │ Vector Index (HNSW) │  │
+           └────────────────┘    │  └────────────────────┘  │
+                                │  ┌────────────────────┐  │
+                                │  │ Full-text Index    │  │
+                                │  └────────────────────┘  │
+                                │         ↓                 │
+                                │  localforage (blob)      │
+                                │  (带版本校验+备份恢复)     │
+                                └───────────────────────────┘
 ```
+
+**关键设计决策**：
+- `unifiedItemService` 是**值对象工厂**，只负责创建和转换对象，**不做存储**
+- `useUnifiedStore` 是**状态管理层**，负责 Zustand 状态更新 + Orama 索引同步
+- `localStorage` 通过 Zustand persist middleware 自动持久化 `items` 数组
+- `localforage` 存储 Orama 的 vector index blob（与 Zustand 分开，避免序列化向量）
 
 ### 2.3 Orama 的核心作用
 
@@ -464,40 +480,37 @@ if (event.metadata.previousType === 'idea') {
 
 ---
 
-## 六、实施计划
+## 六、实施计划（已更新）
 
-### 6.1 阶段一：类型定义（1天）
+### 6.1 阶段一：类型定义（✅ 已完成）
 
-1. 定义 `UnifiedCalendarItem` 接口
-2. 定义 `RepeatRule`、`ShiftMetadata` 等子类型
-3. 创建类型守卫和工具函数
+1. ✅ 定义 `UnifiedCalendarItem` 接口 — `types/unified.ts`
+2. ✅ 定义 `RepeatRule`、`ShiftMetadata` 等子类型
+3. ✅ 创建类型守卫和工具函数 — `unifiedItemService.ts`
 
-### 6.2 阶段二：服务层重构（2天）
+### 6.2 阶段二：服务层重构（✅ 已完成）
 
-1. 创建 `unifiedItemService`
-2. 实现状态转换逻辑
-3. 集成 Orama 统一索引
-4. 更新向量生成逻辑
+1. ✅ 创建 `unifiedItemService` — 值对象工厂 + 转换规则
+2. ✅ 实现状态转换逻辑 — `transformToEvent()` / `transformToIdea()`
+3. ✅ 集成 Orama 统一索引 — `oramaSearchService.ts`
+4. ✅ 更新向量生成逻辑 — `updateEmbedding()`
 
-### 6.3 阶段三：数据存储重构（1天）
+### 6.3 阶段三：数据存储重构（✅ 已完成）
 
-1. 重构 Zustand store 为单一 `items` 数组
-2. 更新持久化逻辑
-3. 实现数据迁移脚本
+1. ✅ 重构 Zustand store 为单一 `items` 数组 — `unifiedStore.ts`
+2. ✅ 更新持久化逻辑 — Zustand persist middleware
+3. ✅ 清理遗留的分离式存储 — `lib/storage/index.ts` 只保留 `db.settings`
 
-### 6.4 阶段四：UI 层更新（2天）
+### 6.4 阶段四：UI 层更新（✅ 已完成）
 
-1. 更新 Hooks：`useItems({ type: 'idea' | 'event' })`
-2. 重构 BossView 数据访问
-3. 重构 SecretaryView AI 检索
-4. 实现转换 UI（确认对话框）
+1. ✅ 更新 Hooks：`useUnifiedItems()` / `useIdeas()` / `useEvents()`
+2. ✅ 重构 BossView 数据访问 — `useTodayEvents()` / `usePendingIdeas()`
+3. ✅ 重构 SecretaryView AI 检索 — `vectorSearch()`
+4. ✅ 实现转换 UI — `convertToEvent()` / `convertToIdea()`
 
-### 6.5 阶段五：数据迁移（1天）
+### 6.5 阶段五：数据迁移（✅ 可跳过）
 
-1. 编写迁移脚本
-2. 将现有 `events` 和 `inspirations` 转换为 `items`
-3. 重建 Orama 索引
-4. 测试数据完整性
+由于是全新项目，无需数据迁移。现有代码已基于统一架构实现。
 
 ---
 
