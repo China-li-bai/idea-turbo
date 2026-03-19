@@ -2,10 +2,6 @@
 
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
 
-function generateEmptyEmbedding(): number[] {
-  return new Array(512).fill(0).map(() => Math.random() * 0.001 - 0.0005);
-}
-
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -24,40 +20,16 @@ export interface EmbeddingUpdate {
 }
 
 class UnifiedItemService {
-  private extractor: any = null;
-  private initPromise: Promise<void> | null = null;
-  private isReady: boolean = false;
+  private isReady: boolean = true;
   private listeners: Set<(ready: boolean) => void> = new Set();
 
   async initialize(
     progressCallback?: (status: string) => void
   ): Promise<void> {
-    if (this.extractor) return;
-    
-    if (this.initPromise) return this.initPromise;
-    
-    this.initPromise = this._initialize(progressCallback);
-    return this.initPromise;
-  }
-
-  private async _initialize(
-    progressCallback?: (status: string) => void
-  ): Promise<void> {
-    try {
-      progressCallback?.('正在加载 AI 模型...');
-      
-      const { pipeline } = await import('@huggingface/transformers');
-      this.extractor = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5');
-      
-      this.isReady = true;
-      this.notifyListeners(true);
-      
-      console.log('UnifiedItemService: AI engine initialized');
-    } catch (error) {
-      console.warn('UnifiedItemService: Failed to initialize embedding model:', error);
-      this.isReady = false;
-      this.notifyListeners(false);
-    }
+    progressCallback?.('服务已就绪');
+    this.isReady = true;
+    this.notifyListeners(true);
+    console.log('UnifiedItemService: Service initialized');
   }
 
   private notifyListeners(ready: boolean): void {
@@ -72,24 +44,6 @@ class UnifiedItemService {
 
   getIsReady(): boolean {
     return this.isReady;
-  }
-
-  async generateEmbedding(text: string): Promise<number[]> {
-    try {
-      await this.initialize();
-      
-      if (this.extractor) {
-        const output = await this.extractor(text, {
-          pooling: 'mean',
-          normalize: true
-        });
-        return Array.from(output.data);
-      }
-    } catch (error) {
-      console.warn('Failed to generate embedding:', error);
-    }
-    
-    return generateEmptyEmbedding();
   }
 
   async createIdea(
@@ -108,23 +62,13 @@ class UnifiedItemService {
       startTime: null,
       endTime: null,
       isAllDay: false,
-      embedding: generateEmptyEmbedding(),
-      embeddingUpdatedAt: now,
+      embedding: [],
+      embeddingUpdatedAt: 0,
       status: 'pending',
       createdAt: now,
       updatedAt: now,
       metadata: metadata || {}
     };
-    
-    this.generateEmbedding(content).then(embedding => {
-      if (onEmbeddingUpdate) {
-        onEmbeddingUpdate({
-          id,
-          embedding,
-          embeddingUpdatedAt: Date.now()
-        });
-      }
-    }).catch(console.error);
     
     return item;
   }
@@ -148,23 +92,13 @@ class UnifiedItemService {
       startTime,
       endTime,
       isAllDay: false,
-      embedding: generateEmptyEmbedding(),
-      embeddingUpdatedAt: now,
+      embedding: [],
+      embeddingUpdatedAt: 0,
       status: 'scheduled',
       createdAt: now,
       updatedAt: now,
       metadata: metadata || {}
     };
-    
-    this.generateEmbedding(content).then(embedding => {
-      if (onEmbeddingUpdate) {
-        onEmbeddingUpdate({
-          id,
-          embedding,
-          embeddingUpdatedAt: Date.now()
-        });
-      }
-    }).catch(console.error);
     
     return item;
   }
@@ -233,22 +167,6 @@ class UnifiedItemService {
       ...updates,
       updatedAt: Date.now()
     };
-    
-    if (updates.title || updates.content) {
-      const newContent = updates.content || item.content;
-      this.generateEmbedding(newContent).then(embedding => {
-        updatedItem.embedding = embedding;
-        updatedItem.embeddingUpdatedAt = Date.now();
-        
-        if (onEmbeddingUpdate) {
-          onEmbeddingUpdate({
-            id: updatedItem.id,
-            embedding,
-            embeddingUpdatedAt: updatedItem.embeddingUpdatedAt
-          });
-        }
-      }).catch(console.error);
-    }
     
     return updatedItem;
   }

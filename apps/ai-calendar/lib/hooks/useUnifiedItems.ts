@@ -11,7 +11,6 @@ export function useUnifiedItems(options?: {
   const allItems = useUnifiedStore((state) => state.items);
   const addItem = useUnifiedStore((state) => state.addItem);
   const updateItem = useUnifiedStore((state) => state.updateItem);
-  const updateEmbedding = useUnifiedStore((state) => state.updateEmbedding);
   const deleteItem = useUnifiedStore((state) => state.deleteItem);
   const convertToEvent = useUnifiedStore((state) => state.convertToEvent);
   const convertToIdea = useUnifiedStore((state) => state.convertToIdea);
@@ -38,12 +37,10 @@ export function useUnifiedItems(options?: {
       extractedPeople: nlpResult.people,
     };
     
-    const idea = await unifiedItemService.createIdea(content, enrichedMetadata, (update) => {
-      updateEmbedding(update);
-    });
+    const idea = await unifiedItemService.createIdea(content, enrichedMetadata);
     await addItem(idea);
     return idea;
-  }, [addItem, updateEmbedding]);
+  }, [addItem]);
 
   const createEvent = useCallback(async (
     title: string,
@@ -51,12 +48,10 @@ export function useUnifiedItems(options?: {
     endTime: number,
     metadata?: Partial<UnifiedCalendarItem['metadata']>
   ) => {
-    const event = await unifiedItemService.createEvent(title, startTime, endTime, metadata, (update) => {
-      updateEmbedding(update);
-    });
+    const event = await unifiedItemService.createEvent(title, startTime, endTime, metadata);
     await addItem(event);
     return event;
-  }, [addItem, updateEmbedding]);
+  }, [addItem]);
 
   const update = useCallback(async (id: string, updates: Partial<UnifiedCalendarItem>) => {
     await updateItem(id, updates);

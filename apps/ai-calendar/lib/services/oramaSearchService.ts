@@ -2,6 +2,7 @@
 
 import { create, insert, search, remove, update, getByID } from "@orama/orama";
 import { persist, restore } from "@orama/plugin-data-persistence";
+import localforage from "localforage";
 import type { UnifiedCalendarItem, ItemType } from "@/types/unified";
 import { 
   AIModelType, 
@@ -39,6 +40,8 @@ if (typeof window !== 'undefined') {
 }
 
 type EntityType = ItemType;
+
+const EMBEDDING_SCHEMA_VERSION = 2;
 
 interface SearchOptions {
   k?: number;
@@ -204,7 +207,7 @@ export class OramaSearchService {
           item.metadata.description || '',
         ].filter(Boolean).join(' ');
 
-        const newEmbedding = await this.embed(text);
+        const newEmbedding = await this.embed(text, 'passage');
 
         await insert(this.db, {
           id: item.id,
@@ -324,31 +327,23 @@ export class OramaSearchService {
   }
 
   private async _loadFromIndexedDB(): Promise<boolean> {
-    const dbName = `OramaSearchDB_${this.currentModelType}`;
+    const dataKey = `OramaSearchDB_${this.currentModelType}_data`;
+    const versionKey = `OramaSearchDB_${this.currentModelType}_version`;
     
     try {
-      const data = await new Promise<string | undefined>((resolve, reject) => {
-        const request = indexedDB.open(dbName, 1);
+      const [data, version] = await Promise.all([
+        localforage.getItem<string>(dataKey),
+        localforage.getItem<number>(versionKey)
+      ]);
 
-        request.onupgradeneeded = (e) => {
-          const db = (e.target as IDBOpenDBRequest).result;
-          if (!db.objectStoreNames.contains("databases")) {
-            db.createObjectStore("databases");
-          }
-        };
-
-        request.onsuccess = (e) => {
-          const db = (e.target as IDBOpenDBRequest).result;
-          const tx = db.transaction(["databases"], "readonly");
-          const store = tx.objectStore("databases");
-          const getReq = store.get("ai-calendar-vectors");
-
-          getReq.onsuccess = () => resolve(getReq.result);
-          getReq.onerror = () => reject(getReq.error);
-        };
-
-        request.onerror = () => reject(request.error);
-      });
+      if (version !== EMBEDDING_SCHEMA_VERSION) {
+        console.log(`[OramaSearchService] Schema version mismatch (stored: ${version}, current: ${EMBEDDING_SCHEMA_VERSION}), clearing old data...`);
+        await Promise.all([
+          localforage.removeItem(dataKey),
+          localforage.removeItem(versionKey)
+        ]);
+        return false;
+      }
 
       if (data) {
         this.db = await restore("json", data);
@@ -360,6 +355,14 @@ export class OramaSearchService {
       console.log(`[OramaSearchService] No cached data found for ${this.currentModelType}`);
       return false;
     }
+  }
+
+  private async _clearIndexedDB(dbName: string): Promise<void> {
+    await Promise.all([
+      localforage.removeItem(`${dbName}_data`),
+      localforage.removeItem(`${dbName}_version`)
+    ]);
+    console.log(`[OramaSearchService] Cleared storage: ${dbName}`);
   }
 
   private async embed(text: string, task: EmbeddingTask = 'passage'): Promise<number[]> {
@@ -393,7 +396,7 @@ export class OramaSearchService {
       item.embedding.length === 0 || 
       item.embedding.length !== this.dimensions;
 
-    const embedding = needsRegenerate ? await this.embed(text) : item.embedding;
+    const embedding = needsRegenerate ? await this.embed(text, 'passage') : item.embedding;
 
     await insert(this.db, {
       id: item.id,
@@ -441,7 +444,7 @@ export class OramaSearchService {
 
     const queryEmbedding = await this.embed(query, 'query');
     const k = options?.k || 10;
-    const similarity = options?.similarity || 0.5;
+    const similarity = options?.similarity || 0.8;
 
     const searchOptions: any = {
       mode: "vector",
@@ -521,7 +524,7 @@ export class OramaSearchService {
 
     const queryEmbedding = await this.embed(query, 'query');
     const k = options?.k || 10;
-    const similarity = options?.similarity || 0.5;
+    const similarity = options?.similarity || 0.8;
 
     const searchOptions: any = {
       mode: "hybrid",
@@ -627,55 +630,20 @@ export class OramaSearchService {
     }
 
     const data = await persist(this.db, "json");
-    const dbName = `OramaSearchDB_${this.currentModelType}`;
+    const dataKey = `OramaSearchDB_${this.currentModelType}_${name}`;
+    const versionKey = `OramaSearchDB_${this.currentModelType}_${name}_version`;
 
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(dbName, 1);
-
-      request.onupgradeneeded = (e) => {
-        const db = (e.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains("databases")) {
-          db.createObjectStore("databases");
-        }
-      };
-
-      request.onsuccess = (e) => {
-        const db = (e.target as IDBOpenDBRequest).result;
-        const tx = db.transaction(["databases"], "readwrite");
-        const store = tx.objectStore("databases");
-        store.put(data, name);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    await Promise.all([
+      localforage.setItem(dataKey, data),
+      localforage.setItem(versionKey, EMBEDDING_SCHEMA_VERSION)
+    ]);
+    
+    console.log(`[OramaSearchService] Saved to localforage: ${dataKey}`);
   }
 
   async load(name: string = "ai-calendar-vectors"): Promise<boolean> {
-    const dbName = `OramaSearchDB_${this.currentModelType}`;
-    const data = await new Promise<string | undefined>((resolve, reject) => {
-      const request = indexedDB.open(dbName, 1);
-
-      request.onupgradeneeded = (e) => {
-        const db = (e.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains("databases")) {
-          db.createObjectStore("databases");
-        }
-      };
-
-      request.onsuccess = (e) => {
-        const db = (e.target as IDBOpenDBRequest).result;
-        const tx = db.transaction(["databases"], "readonly");
-        const store = tx.objectStore("databases");
-        const getReq = store.get(name);
-
-        getReq.onsuccess = () => resolve(getReq.result);
-        getReq.onerror = () => reject(getReq.error);
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    const dataKey = `OramaSearchDB_${this.currentModelType}_${name}`;
+    const data = await localforage.getItem<string>(dataKey);
 
     if (data) {
       this.db = await restore("json", data);
@@ -702,37 +670,31 @@ export class OramaSearchService {
     return this.isReady;
   }
 
+  getIsReady(): boolean {
+    return this.isReady;
+  }
+
   async clearModelData(): Promise<void> {
-    const dbName = `OramaSearchDB_${this.currentModelType}`;
+    const prefix = `OramaSearchDB_${this.currentModelType}`;
     
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.deleteDatabase(dbName);
-      
-      request.onsuccess = () => {
-        console.log(`Deleted IndexedDB: ${dbName}`);
-        resolve();
-      };
-      
-      request.onerror = () => reject(request.error);
-    });
+    await localforage.removeItem(`${prefix}_data`);
+    await localforage.removeItem(`${prefix}_version`);
+    await localforage.removeItem(`${prefix}_ai-calendar-vectors`);
+    await localforage.removeItem(`${prefix}_ai-calendar-vectors_version`);
+    
+    console.log(`[OramaSearchService] Cleared localforage data for: ${prefix}`);
   }
 
   static async clearAllModelData(): Promise<void> {
     const modelTypes: AIModelType[] = ['zh-specific', 'multilingual', 'english'];
     
     for (const modelType of modelTypes) {
-      const dbName = `OramaSearchDB_${modelType}`;
-      
-      await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.deleteDatabase(dbName);
-        
-        request.onsuccess = () => {
-          console.log(`Deleted IndexedDB: ${dbName}`);
-          resolve();
-        };
-        
-        request.onerror = () => reject(request.error);
-      });
+      const prefix = `OramaSearchDB_${modelType}`;
+      await localforage.removeItem(`${prefix}_data`);
+      await localforage.removeItem(`${prefix}_version`);
+      await localforage.removeItem(`${prefix}_ai-calendar-vectors`);
+      await localforage.removeItem(`${prefix}_ai-calendar-vectors_version`);
+      console.log(`[OramaSearchService] Cleared localforage data for: ${prefix}`);
     }
   }
 }

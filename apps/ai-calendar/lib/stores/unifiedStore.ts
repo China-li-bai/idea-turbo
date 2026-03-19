@@ -3,7 +3,6 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
-import { generateDemoData, shouldLoadDemoData } from '@/lib/services/demoDataService';
 
 interface AIStatus {
   isReady: boolean;
@@ -57,39 +56,12 @@ export const useUnifiedStore = create<UnifiedStore>()(
         set({ aiStatus: { isReady: false, isLoading: true, error: null } });
         
         try {
-          await Promise.all([
-            oramaSearchService.initialize(),
-            unifiedItemService.initialize()
-          ]);
-          
-          unifiedItemService.onReadyChange((ready) => {
-            set({ 
-              aiStatus: { 
-                isReady: ready, 
-                isLoading: false, 
-                error: ready ? null : 'AI 模型加载失败' 
-              } 
-            });
-          });
-          
-          if (shouldLoadDemoData()) {
-            const demoData = generateDemoData();
-            set({ items: demoData });
-            
-            for (const item of demoData) {
-              try {
-                await oramaSearchService.indexItem(item);
-              } catch (e) {
-                console.warn('Failed to index demo item:', item.id, e);
-              }
-            }
-            console.log('Demo data loaded and indexed:', demoData.length, 'items');
-          }
+          await oramaSearchService.initialize();
           
           set({ 
             _initialized: true,
             aiStatus: { 
-              isReady: unifiedItemService.getIsReady(), 
+              isReady: oramaSearchService.getIsReady(), 
               isLoading: false, 
               error: null 
             }
