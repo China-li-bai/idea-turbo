@@ -3,6 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
+import { localforage } from '@/lib/storage';
+
+const STATE_KEY = 'unified-calendar-state';
+
+const localforageStorage = createJSONStorage(() => localforage);
 
 interface AIStatus {
   isReady: boolean;
@@ -205,8 +210,9 @@ export const useUnifiedStore = create<UnifiedStore>()(
       }
     }),
     {
-      name: 'unified-calendar-storage',
-      storage: createJSONStorage(() => localStorage),
+      name: STATE_KEY,
+      storage: localforageStorage,
+      version: 1,
       partialize: (state) => ({
         items: state.items,
         settings: state.settings

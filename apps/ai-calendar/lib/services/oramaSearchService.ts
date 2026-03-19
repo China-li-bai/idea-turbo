@@ -2,12 +2,12 @@
 
 import { create, insert, search, remove, update, getByID } from "@orama/orama";
 import { persist, restore } from "@orama/plugin-data-persistence";
-import localforage from "localforage";
+import { localforage } from "@/lib/storage";
 import type { UnifiedCalendarItem, ItemType } from "@/types/unified";
-import { 
-  AIModelType, 
-  AIModelConfig, 
-  AI_MODELS, 
+import {
+  AIModelType,
+  AIModelConfig,
+  AI_MODELS,
   DEFAULT_AI_MODEL,
   getModelConfig,
   formatTextForEmbedding,
