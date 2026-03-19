@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import BossView from './BossView';
 import SecretaryView from './SecretaryView';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { useAIModel } from '@/lib/contexts/ClientProviders';
-import { getCacheStats, getCacheSizeFormatted, clearModelCache } from '@/lib/services/oramaSearchService';
+import { getCacheSizeFormatted, clearModelCache } from '@/lib/services/oramaSearchService';
+import type { AIModelType } from '@/lib/utils/aiModels';
 import styles from './AppLayout.module.scss';
 
 type ViewMode = 'boss' | 'secretary';
@@ -15,6 +16,8 @@ export default function AppLayout() {
   const [viewMode, setViewMode] = useState<ViewMode>('boss');
   const [cacheSize, setCacheSize] = useState<string>('');
   const [useMirror, setUseMirror] = useState<boolean>(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
   
   const initialize = useUnifiedStore((state) => state.initialize);
   const items = useUnifiedStore((state) => state.items);
@@ -37,7 +40,6 @@ export default function AppLayout() {
     };
     
     updateCacheSize();
-    
     const interval = setInterval(updateCacheSize, 5000);
     return () => clearInterval(interval);
   }, [isReady]);
@@ -50,6 +52,22 @@ export default function AppLayout() {
       document.body.style.color = '';
     };
   }, [viewMode]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    
+    if (settingsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [settingsOpen]);
 
   const toggleViewMode = () => {
     setViewMode((prev) => (prev === 'boss' ? 'secretary' : 'boss'));
@@ -71,35 +89,18 @@ export default function AppLayout() {
     }
   };
 
-  const getLocaleFlag = (loc: string): string => {
-    const flagMap: Record<string, string> = {
-      'zh-CN': '🇨🇳',
-      'zh-TW': '🇹🇼',
-      'en-US': '🇺🇸',
-      'ja-JP': '🇯🇵',
-      'ko-KR': '🇰🇷',
-    };
-    return flagMap[loc] || '🌐';
-  };
-
-  const getLocaleName = (loc: string): string => {
-    const names: Record<string, string> = {
-      'zh-CN': '中文',
-      'zh-TW': '繁體',
-      'en-US': 'EN',
-      'ja-JP': '日本語',
-      'ko-KR': '한국어',
-    };
-    return names[loc] || loc;
-  };
-
-  const getModelIcon = (): string => {
-    const iconMap: Record<string, string> = {
-      'zh-specific': '🇨🇳',
-      'multilingual': '🌐',
-      'english': '🇺🇸',
-    };
-    return iconMap[currentModel] || '🤖';
+  const handleModelChange = (newModel: AIModelType) => {
+    if (newModel !== currentModel) {
+      const dimensions = availableModels.find(m => m.id === newModel)?.dimensions;
+      const currentDimensions = modelConfig?.dimensions;
+      if (dimensions && currentDimensions && dimensions !== currentDimensions) {
+        if (confirm(t('cache.reindexConfirm') || `切换模型将需要重新生成所有 ${items.length} 个项目的向量索引，可能需要几分钟时间。是否继续？`)) {
+          switchModelWithReindex(newModel, items);
+        }
+      } else {
+        switchModelWithReindex(newModel, items);
+      }
+    }
   };
 
   return (
@@ -113,85 +114,107 @@ export default function AppLayout() {
           </div>
         </div>
 
-        <div className={styles.controls}>
-          <div className={styles.localeSelector}>
-            <select 
-              value={locale} 
-              onChange={(e) => setLocale(e.target.value as any)}
-              className={styles.localeSelect}
-            >
-              <option value="zh-CN">🇨🇳 中文</option>
-              <option value="zh-TW">🇹🇼 繁體</option>
-              <option value="en-US">🇺🇸 English</option>
-              <option value="ja-JP">🇯🇵 日本語</option>
-              <option value="ko-KR">🇰🇷 한국어</option>
-            </select>
-          </div>
-
-          <div className={styles.modelSelector}>
-            <select
-              value={currentModel}
-              onChange={(e) => {
-                const newModel = e.target.value as any;
-                if (newModel !== currentModel) {
-                  const dimensions = availableModels.find(m => m.id === newModel)?.dimensions;
-                  const currentDimensions = modelConfig?.dimensions;
-                  if (dimensions && currentDimensions && dimensions !== currentDimensions) {
-                    if (confirm(t('cache.reindexConfirm') || `切换模型将需要重新生成所有 ${items.length} 个项目的向量索引，可能需要几分钟时间。是否继续？`)) {
-                      switchModelWithReindex(newModel, items);
-                    }
-                  } else {
-                    switchModelWithReindex(newModel, items);
-                  }
-                }
-              }}
-              disabled={isLoading}
-              className={styles.modelSelect}
-            >
-              {availableModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.id === 'zh-specific' && '🇨🇳 '}
-                  {model.id === 'multilingual' && '🌐 '}
-                  {model.id === 'english' && '🇺🇸 '}
-                  {model.name} ({model.dimensions}D)
-                </option>
-              ))}
-            </select>
-            <span className={`${styles.modelStatus} ${isReady ? styles.ready : styles.loading}`}>
-              {isReady ? t('model.ready') : t('model.loading')}
-            </span>
-            {cacheSize && (
-              <span 
-                className={styles.cacheSize} 
-                onClick={handleClearCache}
-                title={t('cache.clickToClear') || '点击清除缓存'}
-              >
-                📦 {cacheSize}
-              </span>
-            )}
-            <button
-              className={`${styles.mirrorToggle} ${useMirror ? styles.mirrorOn : styles.mirrorOff}`}
-              onClick={handleToggleMirror}
-              title={useMirror ? '使用 HF 镜像源 (国内加速)' : '使用 HF 官方源'}
-            >
-              {useMirror ? '🇨🇳 镜像' : '🌐 官方'}
-            </button>
-          </div>
-
+        <div className={styles.headerRight}>
           <div className={styles.viewToggle}>
-            <span className={`${styles.toggleLabel} ${viewMode === 'boss' ? styles.activeLabel : ''}`}>
-              {t('view.boss')}
-            </span>
             <button
-              className={styles.toggleSwitch}
-              onClick={toggleViewMode}
-              aria-label="切换视图模式"
+              className={`${styles.viewBtn} ${viewMode === 'boss' ? styles.activeView : ''}`}
+              onClick={() => setViewMode('boss')}
             >
-              <span className={`${styles.toggleSlider} ${viewMode === 'secretary' ? styles.sliderRight : ''}`} />
+              {t('view.boss')}
             </button>
-            <span className={`${styles.toggleLabel} ${viewMode === 'secretary' ? styles.activeLabel : ''}`}>
+            <button
+              className={`${styles.viewBtn} ${viewMode === 'secretary' ? styles.activeView : ''}`}
+              onClick={() => setViewMode('secretary')}
+            >
               {t('view.secretary')}
-            </span>
+            </button>
+          </div>
+
+          <div className={styles.settingsWrapper} ref={settingsRef}>
+            <button 
+              className={styles.settingsBtn}
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              aria-label="设置"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+
+            {settingsOpen && (
+              <div className={styles.settingsPanel}>
+                <div className={styles.settingsSection}>
+                  <label className={styles.settingsLabel}>{t('model.title')}</label>
+                  <div className={styles.modelRow}>
+                    <select
+                      value={currentModel}
+                      onChange={(e) => handleModelChange(e.target.value as AIModelType)}
+                      disabled={isLoading}
+                      className={styles.modelSelect}
+                    >
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} ({model.dimensions}D)
+                        </option>
+                      ))}
+                    </select>
+                    <span className={`${styles.modelStatus} ${isReady ? styles.ready : styles.loading}`}>
+                      {isReady ? t('model.ready') : t('model.loading')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.settingsSection}>
+                  <label className={styles.settingsLabel}>
+                    {locale.startsWith('zh') ? '语言 / Language' : 'Language / 语言'}
+                  </label>
+                  <div className={styles.localeGrid}>
+                    {[
+                      { code: 'zh-CN', flag: '🇨🇳', name: '中文' },
+                      { code: 'zh-TW', flag: '🇹🇼', name: '繁體' },
+                      { code: 'en-US', flag: '🇺🇸', name: 'English' },
+                      { code: 'ja-JP', flag: '🇯🇵', name: '日本語' },
+                      { code: 'ko-KR', flag: '🇰🇷', name: '한국어' },
+                    ].map((lang) => (
+                      <button
+                        key={lang.code}
+                        className={`${styles.localeBtn} ${locale === lang.code ? styles.activeLocale : ''}`}
+                        onClick={() => {
+                          setLocale(lang.code as any);
+                          setSettingsOpen(false);
+                        }}
+                      >
+                        <span className={styles.localeFlag}>{lang.flag}</span>
+                        <span className={styles.localeName}>{lang.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.settingsSection}>
+                  <div className={styles.toggleRow}>
+                    <span className={styles.toggleLabel}>
+                      {useMirror ? '🇨🇳 HF 镜像源' : '🌐 HF 官方源'}
+                    </span>
+                    <button
+                      className={`${styles.toggleSwitch} ${useMirror ? styles.toggleOn : ''}`}
+                      onClick={handleToggleMirror}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.settingsSection}>
+                  <button 
+                    className={styles.cacheBtn}
+                    onClick={handleClearCache}
+                  >
+                    <span>📦 {cacheSize}</span>
+                    <span className={styles.cacheHint}>{t('cache.clickToClear')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
