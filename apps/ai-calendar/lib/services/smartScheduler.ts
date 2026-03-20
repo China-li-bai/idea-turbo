@@ -446,6 +446,351 @@ export class SmartScheduler {
 
     return ranges;
   }
+
+  suggestTimeBlocks(
+    duration: number,
+    options?: {
+      preferredDays?: number[];
+      preferredHours?: { start: number; end: number };
+      minBufferMinutes?: number;
+      maxDaysAhead?: number;
+    },
+    allItems?: UnifiedCalendarItem[]
+  ): Array<{
+    start: Date;
+    end: Date;
+    score: number;
+    reason: string;
+  }> {
+    const events = allItems ? this.getScheduledEvents(allItems) : [];
+    const suggestions: Array<{ start: Date; end: Date; score: number; reason: string }> = [];
+    
+    const preferredDays = options?.preferredDays || this.options.workDays;
+    const preferredHours = options?.preferredHours || { start: 10, end: 16 };
+    const maxDays = options?.maxDaysAhead || 7;
+    
+    let searchDate = new Date();
+    searchDate = startOfDay(searchDate);
+    
+    for (let day = 0; day < maxDays; day++) {
+      const dayOfWeek = getDay(searchDate);
+      
+      if (!preferredDays.includes(dayOfWeek)) {
+        searchDate = addMinutes(searchDate, 24 * 60);
+        continue;
+      }
+      
+      const daySlots = this.findFreeSlots(searchDate, duration, events, 30);
+      
+      for (const slot of daySlots) {
+        if (!slot.available) continue;
+        
+        let score = 0.5;
+        let reason = '';
+        
+        const hour = slot.start.getHours();
+        if (hour >= preferredHours.start && hour < preferredHours.end) {
+          score += 0.3;
+          reason = '黄金时间段';
+        } else if (hour >= this.options.workHours.start && hour < this.options.workHours.end) {
+          score += 0.1;
+          reason = '工作时间';
+        }
+        
+        if (hour === 10 || hour === 14) {
+          score += 0.1;
+          reason = '高效时段';
+        }
+        
+        if (day === 0) {
+          score += 0.05;
+          reason += reason ? '（今天）' : '今天';
+        } else if (day === 1) {
+          score += 0.03;
+        }
+        
+        suggestions.push({
+          start: slot.start,
+          end: slot.end,
+          score: Math.min(score, 1.0),
+          reason: reason || '可用时段'
+        });
+      }
+      
+      searchDate = addMinutes(searchDate, 24 * 60);
+    }
+    
+    return suggestions
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }
+
+  predictConflicts(
+    newEvent: { startTime: number; endTime: number; title?: string },
+    allItems: UnifiedCalendarItem[],
+    options?: {
+      lookAheadDays?: number;
+      checkRecurring?: boolean;
+    }
+  ): Array<{
+    type: 'overlap' | 'back_to_back' | 'tight_schedule' | 'outside_work_hours';
+    severity: 'high' | 'medium' | 'low';
+    conflictingEvent?: UnifiedCalendarItem;
+    message: string;
+    suggestion?: string;
+  }> {
+    const conflicts: Array<{
+      type: 'overlap' | 'back_to_back' | 'tight_schedule' | 'outside_work_hours';
+      severity: 'high' | 'medium' | 'low';
+      conflictingEvent?: UnifiedCalendarItem;
+      message: string;
+      suggestion?: string;
+    }> = [];
+    
+    const newStart = new Date(newEvent.startTime);
+    const newEnd = new Date(newEvent.endTime);
+    const scheduledEvents = this.getScheduledEvents(allItems);
+    
+    const overlapping = this.checkConflict(newStart, newEnd, scheduledEvents);
+    for (const event of overlapping) {
+      conflicts.push({
+        type: 'overlap',
+        severity: 'high',
+        conflictingEvent: event,
+        message: `与"${event.title}"时间冲突`,
+        suggestion: '请选择其他时间或调整现有日程'
+      });
+    }
+    
+    const bufferMinutes = this.options.bufferMinutes;
+    for (const event of scheduledEvents) {
+      if (!event.startTime || !event.endTime) continue;
+      
+      const eventStart = new Date(event.startTime);
+      const eventEnd = new Date(event.endTime);
+      
+      const gapBefore = differenceInMinutes(newStart, eventEnd);
+      if (gapBefore > 0 && gapBefore < bufferMinutes) {
+        conflicts.push({
+          type: 'back_to_back',
+          severity: 'medium',
+          conflictingEvent: event,
+          message: `与"${event.title}"间隔太近（仅${gapBefore}分钟）`,
+          suggestion: `建议至少预留${bufferMinutes}分钟缓冲时间`
+        });
+      }
+      
+      const gapAfter = differenceInMinutes(eventStart, newEnd);
+      if (gapAfter > 0 && gapAfter < bufferMinutes) {
+        conflicts.push({
+          type: 'back_to_back',
+          severity: 'medium',
+          conflictingEvent: event,
+          message: `与"${event.title}"间隔太近（仅${gapAfter}分钟）`,
+          suggestion: `建议至少预留${bufferMinutes}分钟缓冲时间`
+        });
+      }
+    }
+    
+    const newStartHour = newStart.getHours();
+    if (newStartHour < this.options.workHours.start || 
+        newStartHour >= this.options.workHours.end) {
+      conflicts.push({
+        type: 'outside_work_hours',
+        severity: 'low',
+        message: `时间在工作时间之外（${this.options.workHours.start}:00-${this.options.workHours.end}:00）`,
+        suggestion: '确认是否需要在非工作时间安排'
+      });
+    }
+    
+    const dayOfWeek = getDay(newStart);
+    if (!this.options.workDays.includes(dayOfWeek)) {
+      conflicts.push({
+        type: 'outside_work_hours',
+        severity: 'low',
+        message: '安排在周末',
+        suggestion: '确认是否需要在周末工作'
+      });
+    }
+    
+    const dayEvents = this.getEventsInDay(newStart, allItems);
+    const totalMinutes = dayEvents.reduce((sum, e) => {
+      if (!e.startTime || !e.endTime) return sum;
+      return sum + differenceInMinutes(new Date(e.endTime), new Date(e.startTime));
+    }, 0);
+    
+    const workDayMinutes = (this.options.workHours.end - this.options.workHours.start) * 60;
+    const newEventMinutes = differenceInMinutes(newEnd, newStart);
+    const utilizationAfter = (totalMinutes + newEventMinutes) / workDayMinutes;
+    
+    if (utilizationAfter > 0.8) {
+      conflicts.push({
+        type: 'tight_schedule',
+        severity: 'medium',
+        message: `当天日程已较满（${Math.round(utilizationAfter * 100)}%）`,
+        suggestion: '考虑分散到其他日期'
+      });
+    }
+    
+    return conflicts.sort((a, b) => {
+      const severityOrder = { high: 0, medium: 1, low: 2 };
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    });
+  }
+
+  optimizeSchedule(
+    date: Date,
+    allItems: UnifiedCalendarItem[],
+    options?: {
+      preferMorning?: boolean;
+      groupSimilar?: boolean;
+      minimizeContextSwitch?: boolean;
+    }
+  ): Array<{
+    itemId: string;
+    currentStart: number;
+    currentEnd: number;
+    suggestedStart: number;
+    suggestedEnd: number;
+    reason: string;
+  }> {
+    const suggestions: Array<{
+      itemId: string;
+      currentStart: number;
+      currentEnd: number;
+      suggestedStart: number;
+      suggestedEnd: number;
+      reason: string;
+    }> = [];
+    
+    const dayEvents = this.getEventsInDay(date, allItems)
+      .filter(e => e.startTime && e.endTime && e.status === 'scheduled')
+      .sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+    
+    if (dayEvents.length === 0) return suggestions;
+    
+    if (options?.preferMorning) {
+      const highPriorityEvents = dayEvents.filter(
+        e => e.metadata?.priority === 'high'
+      );
+      
+      for (const event of highPriorityEvents) {
+        const currentHour = new Date(event.startTime!).getHours();
+        if (currentHour >= 12) {
+          const morningSlots = this.findFreeSlots(date, 
+            differenceInMinutes(new Date(event.endTime!), new Date(event.startTime!)),
+            allItems.filter(i => i.id !== event.id)
+          ).filter(s => s.available && s.start.getHours() < 12);
+          
+          if (morningSlots.length > 0) {
+            suggestions.push({
+              itemId: event.id,
+              currentStart: event.startTime!,
+              currentEnd: event.endTime!,
+              suggestedStart: morningSlots[0].start.getTime(),
+              suggestedEnd: morningSlots[0].end.getTime(),
+              reason: '高优先级任务建议安排在上午'
+            });
+          }
+        }
+      }
+    }
+    
+    if (options?.minimizeContextSwitch) {
+      const meetingEvents = dayEvents.filter(
+        e => e.metadata?.eventType === 'meeting'
+      );
+      
+      if (meetingEvents.length > 1) {
+        let firstMeeting = meetingEvents[0];
+        let lastMeeting = meetingEvents[meetingEvents.length - 1];
+        
+        const totalGap = differenceInMinutes(
+          new Date(lastMeeting.startTime!),
+          new Date(firstMeeting.endTime!)
+        );
+        
+        if (totalGap > 60) {
+          suggestions.push({
+            itemId: firstMeeting.id,
+            currentStart: firstMeeting.startTime!,
+            currentEnd: firstMeeting.endTime!,
+            suggestedStart: firstMeeting.startTime!,
+            suggestedEnd: firstMeeting.endTime!,
+            reason: '会议之间有较长时间间隔，建议合并或调整'
+          });
+        }
+      }
+    }
+    
+    return suggestions;
+  }
+
+  getDayStatistics(
+    date: Date,
+    allItems: UnifiedCalendarItem[]
+  ): {
+    totalEvents: number;
+    totalMinutes: number;
+    utilization: number;
+    freeMinutes: number;
+    busiestHour: number;
+    suggestions: string[];
+  } {
+    const dayEvents = this.getEventsInDay(date, allItems)
+      .filter(e => e.startTime && e.endTime);
+    
+    const totalMinutes = dayEvents.reduce((sum, e) => {
+      return sum + differenceInMinutes(
+        new Date(e.endTime!),
+        new Date(e.startTime!)
+      );
+    }, 0);
+    
+    const workDayMinutes = (this.options.workHours.end - this.options.workHours.start) * 60;
+    const utilization = totalMinutes / workDayMinutes;
+    const freeMinutes = workDayMinutes - totalMinutes;
+    
+    const hourCounts = new Map<number, number>();
+    for (const event of dayEvents) {
+      const startHour = new Date(event.startTime!).getHours();
+      const endHour = new Date(event.endTime!).getHours();
+      for (let h = startHour; h < endHour; h++) {
+        hourCounts.set(h, (hourCounts.get(h) || 0) + 1);
+      }
+    }
+    
+    let busiestHour = this.options.workHours.start;
+    let maxCount = 0;
+    for (const [hour, count] of hourCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        busiestHour = hour;
+      }
+    }
+    
+    const suggestions: string[] = [];
+    if (utilization > 0.9) {
+      suggestions.push('日程过满，建议重新安排部分任务');
+    } else if (utilization > 0.7) {
+      suggestions.push('日程较满，注意预留休息时间');
+    } else if (utilization < 0.3) {
+      suggestions.push('空闲时间较多，可以考虑安排更多任务');
+    }
+    
+    if (busiestHour >= 11 && busiestHour <= 14) {
+      suggestions.push('中午时段会议较多，注意午餐时间');
+    }
+    
+    return {
+      totalEvents: dayEvents.length,
+      totalMinutes,
+      utilization,
+      freeMinutes,
+      busiestHour,
+      suggestions
+    };
+  }
 }
 
 export const smartScheduler = new SmartScheduler();
