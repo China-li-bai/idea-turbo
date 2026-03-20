@@ -31,6 +31,10 @@ interface UnifiedStore {
   updateEmbedding: (update: EmbeddingUpdate) => void;
   deleteItem: (id: string) => Promise<void>;
 
+  addBatchItems: (items: UnifiedCalendarItem[]) => Promise<void>;
+  updateBatchItems: (updates: Array<{ id: string; updates: Partial<UnifiedCalendarItem> }>) => Promise<void>;
+  deleteBatchItems: (ids: string[]) => Promise<void>;
+
   convertToEvent: (id: string, startTime: number, endTime: number, metadata?: Partial<UnifiedCalendarItem['metadata']>) => Promise<void>;
   convertToIdea: (id: string, metadata?: Partial<UnifiedCalendarItem['metadata']>) => Promise<void>;
 
@@ -143,6 +147,55 @@ export const useUnifiedStore = create<UnifiedStore>()(
           await oramaSearchService.deleteFromIndex(id);
         } catch (error) {
           console.error('Failed to delete item from index:', error);
+        }
+      },
+
+      addBatchItems: async (newItems) => {
+        set((state) => ({
+          items: [...state.items, ...newItems]
+        }));
+
+        for (const item of newItems) {
+          try {
+            await oramaSearchService.indexItem(item);
+          } catch (error) {
+            console.error('Failed to index item:', error);
+          }
+        }
+      },
+
+      updateBatchItems: async (updates) => {
+        const currentItems = get().items;
+        const updatedItems = currentItems.map(item => {
+          const update = updates.find(u => u.id === item.id);
+          if (update) {
+            return unifiedItemService.updateItem(item, update.updates);
+          }
+          return item;
+        });
+
+        set({ items: updatedItems });
+
+        for (const updateItem of updates) {
+          try {
+            await oramaSearchService.updateDocument(updateItem.id, updateItem.updates);
+          } catch (error) {
+            console.error('Failed to update item in index:', error);
+          }
+        }
+      },
+
+      deleteBatchItems: async (ids) => {
+        set((state) => ({
+          items: state.items.filter((item) => !ids.includes(item.id))
+        }));
+
+        for (const id of ids) {
+          try {
+            await oramaSearchService.deleteFromIndex(id);
+          } catch (error) {
+            console.error('Failed to delete item from index:', error);
+          }
         }
       },
 

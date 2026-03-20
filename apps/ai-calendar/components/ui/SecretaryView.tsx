@@ -6,7 +6,10 @@ import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { smartScheduler } from '@/lib/services/smartScheduler';
 import { secretaryAIService, type ActionPlan, type ScheduledAction } from '@/lib/services/secretaryAIService';
+import { taskDecomposerService, type DecompositionResult } from '@/lib/services/taskDecomposerService';
 import { useLocale } from '@/lib/contexts/ClientProviders';
+import { aiConfigManager } from '@/lib/ai/config';
+import AIConfigPanel from './AIConfigPanel';
 import styles from './SecretaryView.module.scss';
 
 interface ProposalAction {
@@ -50,6 +53,8 @@ function isComplexQuery(query: string): boolean {
     /顺便|同时|然后/,
     /周五|周[一二三四五六日]|monday|tuesday|wednesday|thursday|friday|saturday|sunday/i,
     /明天|后天|下周|tomorrow|next week/i,
+    /想|计划|规划|完成|学习|实现|开发|制作|建立|创建.*项目|目标/i,
+    /帮我|帮我规划|帮我制定|分解|拆分/,
   ];
   
   return complexPatterns.some(pattern => pattern.test(query));
@@ -59,9 +64,12 @@ export default function SecretaryView() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [isAIConfigured, setIsAIConfigured] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { items: allItems, toEvent } = useUnifiedItems();
+  const addItem = useUnifiedStore((state) => state.addItem);
   const updateItem = useUnifiedStore((state) => state.updateItem);
   const deleteItem = useUnifiedStore((state) => state.deleteItem);
   const aiStatus = useAIStatus();
@@ -70,6 +78,18 @@ export default function SecretaryView() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  const checkAIConfig = useCallback(async () => {
+    const config = await aiConfigManager.getConfig();
+    const providerConfig = config.providers[config.defaultProvider];
+    const apiKey = providerConfig?.apiKey || '';
+    const hasApiKey = apiKey.trim().length > 0;
+    setIsAIConfigured(hasApiKey);
+  }, []);
+  
+  useEffect(() => {
+    checkAIConfig();
+  }, [checkAIConfig]);
 
   const executeAction = useCallback(async (
     action: ProposalAction
@@ -109,6 +129,31 @@ export default function SecretaryView() {
           return { success: true };
         }
         
+        case 'create': {
+          const { startTime, endTime, priority, description } = action.params;
+          const newItem = {
+            id: action.targetId,
+            type: 'event' as const,
+            title: action.targetTitle,
+            content: (description as string) || action.targetTitle,
+            startTime: startTime as number | null,
+            endTime: endTime as number | null,
+            isAllDay: false,
+            embedding: [],
+            embeddingUpdatedAt: 0,
+            status: 'scheduled' as const,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            metadata: {
+              priority: priority as 'high' | 'medium' | 'low',
+              description: description as string
+            }
+          };
+          
+          await addItem(newItem);
+          return { success: true };
+        }
+        
         default:
           return { success: false, error: locale.startsWith('zh') ? '未知操作类型' : 'Unknown action type' };
       }
@@ -119,7 +164,7 @@ export default function SecretaryView() {
         error: error instanceof Error ? error.message : 'Unknown error' 
       };
     }
-  }, [allItems, updateItem, locale]);
+  }, [allItems, updateItem, addItem, locale]);
 
   const processWithAI = useCallback(async (
     userMessage: string
@@ -230,6 +275,94 @@ export default function SecretaryView() {
       }
       
       return { content };
+    }
+
+    if (plan.type === 'decompose_goal') {
+      const decomposeAction = plan.actions.find(a => a.type === 'decompose_goal');
+      if (decomposeAction) {
+        const goalDescription = (decomposeAction.params.goalDescription as string) || userMessage;
+        
+        const tempIdea = {
+          id: generateUUID(),
+          type: 'idea' as const,
+          title: goalDescription,
+          content: goalDescription,
+          startTime: null,
+          endTime: null,
+          isAllDay: false,
+          embedding: [],
+          embeddingUpdatedAt: 0,
+          status: 'pending' as const,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          metadata: {}
+        };
+        
+        const decompositionContext = {
+          existingEvents: allItems,
+          userPreferences: {
+            workHours: { start: 9, end: 18 },
+            workDays: [1, 2, 3, 4, 5],
+            defaultDuration: 60
+          },
+          currentDate: new Date()
+        };
+        
+        const result = await taskDecomposerService.decompose(tempIdea, decompositionContext);
+        const scheduledTasks = await taskDecomposerService.suggestSchedule(result.tasks, decompositionContext);
+        
+        const hours = Math.floor(result.totalEstimatedMinutes / 60);
+        const minutes = result.totalEstimatedMinutes % 60;
+        
+        let content = `📋 ${result.explanation}\n\n`;
+        content += locale.startsWith('zh')
+          ? `**任务列表** (${result.tasks.length} 项，预计 ${hours}小时${minutes > 0 ? minutes + '分钟' : ''})：\n`
+          : `**Tasks** (${result.tasks.length} items, ~${hours}h${minutes > 0 ? minutes + 'm' : ''}):\n`;
+        
+        const actions: ProposalAction[] = [];
+        
+        scheduledTasks.slice(0, 8).forEach((task, index) => {
+          const priorityIcon = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
+          const timeStr = task.suggestedStartTime 
+            ? new Date(task.suggestedStartTime).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+            : '';
+          content += `${index + 1}. ${priorityIcon} ${task.title} (${task.estimatedMinutes}分钟)${timeStr ? ' - ' + timeStr : ''}\n`;
+          
+          actions.push({
+            type: 'create',
+            targetId: task.id,
+            targetTitle: task.title,
+            params: {
+              startTime: task.suggestedStartTime,
+              endTime: task.suggestedEndTime,
+              priority: task.priority,
+              description: task.description
+            }
+          });
+        });
+        
+        if (scheduledTasks.length > 8) {
+          content += locale.startsWith('zh')
+            ? `\n... 还有 ${scheduledTasks.length - 8} 项任务`
+            : `\n... and ${scheduledTasks.length - 8} more tasks`;
+        }
+        
+        if (result.milestones.length > 0) {
+          content += locale.startsWith('zh')
+            ? `\n\n**里程碑**：\n`
+            : `\n\n**Milestones**:\n`;
+          result.milestones.slice(0, 3).forEach(m => {
+            const date = new Date(m.targetDate);
+            content += `🎯 ${m.title} (${date.toLocaleDateString(locale)})\n`;
+          });
+        }
+        
+        content += locale.startsWith('zh')
+          ? '\n\n💡 确认后将自动创建这些任务'
+          : '\n\n💡 Confirm to create these tasks';
+        
+        return { content, actions };
+      }
     }
 
     return { content: plan.explanation };
@@ -449,6 +582,30 @@ export default function SecretaryView() {
 
   return (
     <div className={styles.container}>
+      {isAIConfigured === false && (
+        <div className={styles.configWarning}>
+          <div className={styles.warningContent}>
+            <span className={styles.warningIcon}>⚠️</span>
+            <span>{locale.startsWith('zh') ? 'AI 服务未配置，请先设置 API Key' : 'AI service not configured. Please set up API Key first.'}</span>
+            <button 
+              className={styles.configBtn}
+              onClick={() => setShowConfigPanel(true)}
+            >
+              {locale.startsWith('zh') ? '配置 AI' : 'Configure AI'}
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {showConfigPanel && (
+        <div className={styles.configOverlay}>
+          <AIConfigPanel onClose={() => {
+            setShowConfigPanel(false);
+            checkAIConfig();
+          }} />
+        </div>
+      )}
+      
       {!aiStatus.isReady && (
         <div className={styles.statusBar}>
           {aiStatus.isLoading ? (
