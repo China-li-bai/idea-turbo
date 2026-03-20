@@ -54,6 +54,15 @@ export interface UnifiedCalendarItem {
     previousType?: 'idea' | 'event';
     convertedAt?: number;
     conversionNotes?: string;
+    
+    parentGoalId?: string;
+    milestones?: Array<{
+      id: string;
+      title: string;
+      targetDate: number;
+      completed?: boolean;
+    }>;
+    estimatedMinutes?: number;
   };
 }
 

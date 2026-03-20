@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import BossView from './BossView';
 import SecretaryView from './SecretaryView';
+import ProgressTrackerView from './ProgressTrackerView';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { useAIModel } from '@/lib/contexts/ClientProviders';
@@ -10,7 +11,7 @@ import { getCacheSizeFormatted, clearModelCache } from '@/lib/services/oramaSear
 import type { AIModelType } from '@/lib/utils/aiModels';
 import styles from './AppLayout.module.scss';
 
-type ViewMode = 'boss' | 'secretary';
+type ViewMode = 'boss' | 'secretary' | 'progress';
 
 export default function AppLayout() {
   const [viewMode, setViewMode] = useState<ViewMode>('boss');
@@ -128,6 +129,12 @@ export default function AppLayout() {
             >
               {t('view.secretary')}
             </button>
+            <button
+              className={`${styles.viewBtn} ${viewMode === 'progress' ? styles.activeView : ''}`}
+              onClick={() => setViewMode('progress')}
+            >
+              {locale.startsWith('zh') ? '进度' : 'Progress'}
+            </button>
           </div>
 
           <div className={styles.settingsWrapper} ref={settingsRef}>
@@ -225,6 +232,9 @@ export default function AppLayout() {
         </div>
         <div className={`${styles.viewContainer} ${viewMode === 'secretary' ? styles.visible : styles.hidden}`}>
           <SecretaryView />
+        </div>
+        <div className={`${styles.viewContainer} ${viewMode === 'progress' ? styles.visible : styles.hidden}`}>
+          <ProgressTrackerView />
         </div>
       </main>
 
