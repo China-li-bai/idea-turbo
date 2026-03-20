@@ -1,6 +1,8 @@
 import { db } from '@/lib/storage';
 import type { AIConfig } from './types';
 
+const GLM_API_KEY = process.env.NEXT_PUBLIC_GLM_API_KEY || '';
+
 const DEFAULT_CONFIG: AIConfig = {
   providers: {
     openai: {
@@ -17,7 +19,7 @@ const DEFAULT_CONFIG: AIConfig = {
     },
     glm: {
       baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-      apiKey: '',
+      apiKey: GLM_API_KEY,
       model: 'GLM-4-Flash',
       defaultModel: 'GLM-4-Flash',
     },
@@ -48,7 +50,16 @@ export class AIConfigManager {
     }
 
     const saved = await db.settings.getItem<AIConfig>('aiConfig');
-    this.config = saved || DEFAULT_CONFIG;
+    
+    if (saved) {
+      if (GLM_API_KEY && saved.providers.glm) {
+        saved.providers.glm.apiKey = GLM_API_KEY;
+      }
+      this.config = saved;
+    } else {
+      this.config = DEFAULT_CONFIG;
+    }
+    
     return this.config;
   }
 
