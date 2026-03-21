@@ -95,6 +95,31 @@ export default function SecretaryView() {
     action: ProposalAction
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      if (action.type === 'create') {
+        const { startTime, endTime, priority, description } = action.params;
+        const newItem = {
+          id: action.targetId,
+          type: 'event' as const,
+          title: action.targetTitle,
+          content: (description as string) || action.targetTitle,
+          startTime: startTime as number | null,
+          endTime: endTime as number | null,
+          isAllDay: false,
+          embedding: [],
+          embeddingUpdatedAt: 0,
+          status: 'scheduled' as const,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          metadata: {
+            priority: priority as 'high' | 'medium' | 'low',
+            description: description as string
+          }
+        };
+        
+        await addItem(newItem);
+        return { success: true };
+      }
+      
       const item = allItems.find(i => i.id === action.targetId);
       
       if (!item) {
@@ -126,31 +151,6 @@ export default function SecretaryView() {
         
         case 'cancel': {
           await updateItem(item.id, { status: 'cancelled' });
-          return { success: true };
-        }
-        
-        case 'create': {
-          const { startTime, endTime, priority, description } = action.params;
-          const newItem = {
-            id: action.targetId,
-            type: 'event' as const,
-            title: action.targetTitle,
-            content: (description as string) || action.targetTitle,
-            startTime: startTime as number | null,
-            endTime: endTime as number | null,
-            isAllDay: false,
-            embedding: [],
-            embeddingUpdatedAt: 0,
-            status: 'scheduled' as const,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            metadata: {
-              priority: priority as 'high' | 'medium' | 'low',
-              description: description as string
-            }
-          };
-          
-          await addItem(newItem);
           return { success: true };
         }
         
@@ -219,6 +219,57 @@ export default function SecretaryView() {
           context
         );
         return { content: summary };
+      }
+    }
+
+    if (plan.type === 'create_event') {
+      const createAction = plan.actions.find(a => a.type === 'create_event');
+      if (createAction) {
+        const { newDate, newTime, duration, goalDescription } = createAction.params;
+        const title = createAction.targetTitle || (goalDescription as string) || userMessage;
+        
+        let eventDate: Date;
+        if (newDate) {
+          eventDate = new Date(newDate as string);
+        } else {
+          eventDate = new Date();
+          eventDate.setDate(eventDate.getDate() + 1);
+        }
+        
+        if (newTime) {
+          const [hours, minutes] = (newTime as string).split(':').map(Number);
+          eventDate.setHours(hours || 9, minutes || 0, 0, 0);
+        }
+        
+        const eventDuration = (duration as number) || 60;
+        const endDate = new Date(eventDate.getTime() + eventDuration * 60000);
+        
+        const actions: ProposalAction[] = [{
+          type: 'create',
+          targetId: generateUUID(),
+          targetTitle: title as string,
+          params: {
+            startTime: eventDate.getTime(),
+            endTime: endDate.getTime(),
+            duration: eventDuration
+          },
+          afterPreview: eventDate.toLocaleString(locale, {
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        }];
+        
+        let content = plan.explanation + '\n\n';
+        content += `📅 **${title}**\n`;
+        content += `时间: ${actions[0].afterPreview}\n`;
+        content += `时长: ${eventDuration} 分钟\n\n`;
+        content += locale.startsWith('zh') 
+          ? '请点击下方按钮确认创建' 
+          : 'Click the button below to confirm';
+        
+        return { content, actions };
       }
     }
 

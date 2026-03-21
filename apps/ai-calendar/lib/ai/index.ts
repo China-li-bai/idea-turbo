@@ -57,6 +57,7 @@ export class AIService {
       max_tokens: options?.max_tokens,
       top_p: options?.top_p,
       stream: false,
+      response_format: options?.response_format,
     });
   }
 

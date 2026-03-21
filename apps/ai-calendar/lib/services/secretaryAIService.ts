@@ -23,7 +23,7 @@ export interface ActionPlan {
 }
 
 export interface ScheduledAction {
-  type: 'reschedule' | 'create' | 'cancel' | 'search' | 'find_free_time' | 'decompose_goal';
+  type: 'reschedule' | 'create' | 'create_event' | 'cancel' | 'search' | 'find_free_time' | 'decompose_goal';
   targetId?: string;
   targetTitle?: string;
   params: Record<string, unknown>;
@@ -47,7 +47,7 @@ export interface SecretaryContext {
   currentDate: Date;
 }
 
-const SYSTEM_PROMPT = `你是一个智能日程助手，帮助用户管理他们的日程和想法。
+const SYSTEM_PROMPT = `你是一个智能日程助手。你必须只输出有效的 JSON 格式，不要有任何其他文字或解释。
 
 你的任务是分析用户的请求，理解他们的意图，并规划需要执行的操作。
 
@@ -59,7 +59,7 @@ const SYSTEM_PROMPT = `你是一个智能日程助手，帮助用户管理他们
 5. cancel_event - 取消日程
 6. decompose_goal - 将复杂目标分解为可执行的任务
 
-## 输出格式（JSON）：
+## 输出格式（必须严格遵循）：
 {
   "intent": "<意图类型>",
   "confidence": <0.0-1.0>,
@@ -255,7 +255,8 @@ export class SecretaryAIService {
       const response = await aiService.chat(messages, {
         temperature: 0.3,
         max_tokens: 500,
-        provider: 'glm'
+        provider: 'glm',
+        response_format: { type: 'json_object' }
       });
 
       const content = response.choices[0]?.message?.content || '';
@@ -301,34 +302,35 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}`;
     actions: Array<{
       type: string;
       targetTitle?: string;
-      params: Record<string, unknown>;
+      params?: Record<string, unknown>;
     }>,
     context: SecretaryContext
   ): ScheduledAction[] {
     return actions.map(action => {
+      const params = action.params || {};
       const enriched: ScheduledAction = {
         type: action.type as ScheduledAction['type'],
         targetTitle: action.targetTitle,
-        params: { ...action.params }
+        params: { ...params }
       };
 
-      if (action.params.targetDate) {
+      if (params.targetDate) {
         enriched.params.resolvedTargetDate = resolveRelativeDate(
-          String(action.params.targetDate),
+          String(params.targetDate),
           context.currentDate
         ).toISOString();
       }
 
-      if (action.params.newDate) {
+      if (params.newDate) {
         enriched.params.resolvedNewDate = resolveRelativeDate(
-          String(action.params.newDate),
+          String(params.newDate),
           context.currentDate
         ).toISOString();
       }
 
-      if (action.params.timeRange) {
+      if (params.timeRange) {
         enriched.params.resolvedTimeRange = resolveTimeRange(
-          String(action.params.timeRange)
+          String(params.timeRange)
         );
       }
 

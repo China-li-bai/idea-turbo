@@ -634,7 +634,35 @@ export class OramaSearchService {
   async updateDocument(id: string, updates: any): Promise<void> {
     await this.initialize();
 
-    if (updates.embedding) {
+    const hasValidEmbedding = updates.embedding && Array.isArray(updates.embedding) && updates.embedding.length > 0;
+    
+    if (updates.embedding !== undefined && !hasValidEmbedding) {
+      try {
+        const existingDoc = await getByID(this.db, id);
+        if (existingDoc) {
+          const text = [
+            updates.title || existingDoc.title,
+            updates.content || existingDoc.content,
+            updates.metadata?.location || existingDoc.metadata?.location || "",
+            updates.metadata?.description || existingDoc.metadata?.description || "",
+          ].filter(Boolean).join(" ");
+          
+          const embedding = await this.embed(text, 'passage');
+          
+          await remove(this.db, id);
+          
+          const updatedDoc = {
+            ...existingDoc,
+            ...updates,
+            embedding,
+          };
+          
+          await insert(this.db, updatedDoc);
+        }
+      } catch (error) {
+        console.error('Failed to update document via remove/insert:', id, error);
+      }
+    } else if (hasValidEmbedding) {
       try {
         const existingDoc = await getByID(this.db, id);
         if (existingDoc) {
