@@ -2,6 +2,7 @@ import { aiService } from '@/lib/ai';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { smartScheduler } from '@/lib/services/smartScheduler';
 import { taskDecomposerService, type DecompositionResult, type DecompositionContext } from '@/lib/services/taskDecomposerService';
+import { resolveRelativeDate } from '@/lib/utils/nlpParserLegacy';
 import type { UnifiedCalendarItem } from '@/types/unified';
 import type { Message } from '@/lib/ai/types';
 
@@ -176,43 +177,6 @@ const SYSTEM_PROMPT = `你是一个智能日程助手。你必须只输出有效
 4. 如果用户请求不明确，confidence设为较低值
 5. 对于涉及修改的操作，需要包含targetTitle来定位目标
 6. 当用户表达一个需要多个步骤才能完成的目标时，使用 decompose_goal 意图`;
-
-function resolveRelativeDate(keyword: string, baseDate: Date): Date {
-  const result = new Date(baseDate);
-  const dayOfWeek = result.getDay();
-  
-  const dayMap: Record<string, number> = {
-    'today': 0,
-    'tomorrow': 1,
-    'monday': (1 - dayOfWeek + 7) % 7 || 7,
-    'tuesday': (2 - dayOfWeek + 7) % 7 || 7,
-    'wednesday': (3 - dayOfWeek + 7) % 7 || 7,
-    'thursday': (4 - dayOfWeek + 7) % 7 || 7,
-    'friday': (5 - dayOfWeek + 7) % 7 || 7,
-    'saturday': (6 - dayOfWeek + 7) % 7 || 7,
-    'sunday': (7 - dayOfWeek) % 7 || 7,
-  };
-  
-  const lowerKeyword = keyword.toLowerCase();
-  
-  if (lowerKeyword === 'today') {
-    return result;
-  }
-  
-  if (lowerKeyword === 'tomorrow') {
-    result.setDate(result.getDate() + 1);
-    return result;
-  }
-  
-  const targetDay = dayMap[lowerKeyword];
-  if (targetDay !== undefined) {
-    const daysToAdd = targetDay === 0 ? 7 : targetDay;
-    result.setDate(result.getDate() + daysToAdd);
-    return result;
-  }
-  
-  return result;
-}
 
 function resolveTimeRange(keyword: string): { start: number; end: number } {
   const lowerKeyword = keyword.toLowerCase();

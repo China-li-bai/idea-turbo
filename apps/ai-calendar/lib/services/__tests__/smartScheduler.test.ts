@@ -60,6 +60,12 @@ describe('SmartScheduler - 时间分块分配算法', () => {
     });
     today = new Date();
     today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay();
+    if (dayOfWeek === 0) {
+      today.setDate(today.getDate() + 1);
+    } else if (dayOfWeek === 6) {
+      today.setDate(today.getDate() + 2);
+    }
   });
 
   describe('findFreeSlots - 空闲时间段识别', () => {
@@ -71,7 +77,7 @@ describe('SmartScheduler - 时间分块分配算法', () => {
 
     it('应该识别已有事件的冲突', () => {
       const events: UnifiedCalendarItem[] = [
-        createTestEvent('event-1', 10, 11)
+        createTestEvent('event-1', 10, 11, today)
       ];
       const slots = scheduler.findFreeSlots(today, 60, events);
       const conflictSlot = slots.find(s => 
@@ -83,8 +89,8 @@ describe('SmartScheduler - 时间分块分配算法', () => {
 
     it('应该正确识别空闲时间段', () => {
       const events: UnifiedCalendarItem[] = [
-        createTestEvent('event-1', 9, 10),
-        createTestEvent('event-2', 14, 15)
+        createTestEvent('event-1', 9, 10, today),
+        createTestEvent('event-2', 14, 15, today)
       ];
       const slots = scheduler.findFreeSlots(today, 60, events);
       const availableSlots = slots.filter(s => s.available);
@@ -240,8 +246,8 @@ describe('SmartScheduler - 时间分块分配算法', () => {
   describe('getAvailableTimeRanges - 可用时间范围', () => {
     it('应该返回工作时间内未被占用的时间段', () => {
       const events: UnifiedCalendarItem[] = [
-        createTestEvent('event-1', 10, 12),
-        createTestEvent('event-2', 14, 15)
+        createTestEvent('event-1', 10, 12, today),
+        createTestEvent('event-2', 14, 15, today)
       ];
 
       const ranges = scheduler.getAvailableTimeRanges(today, events);
