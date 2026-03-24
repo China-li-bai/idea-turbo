@@ -49,3 +49,4 @@ English_MIF_Library
 
 # Temporary sherpa models directory (for deployment)
 temp-sherpa-models/
+.gstack/
