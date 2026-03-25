@@ -2,7 +2,7 @@ name: CI/CD Deploy to VPS (ai-calendar)
 
 on:
   push:
-    branches: ["main"]
+    branches: ["home"]
     paths:
       - "apps/ai-calendar/**"
       - "packages/local-first-sdk/**"
