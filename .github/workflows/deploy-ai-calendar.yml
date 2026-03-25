@@ -34,11 +34,9 @@ jobs:
 
       - name: Build local-first-sdk package
         run: pnpm --filter @idea-turbo/local-first-sdk build
-        continue-on-error: true
 
       - name: Build sherpa-onnx package
         run: pnpm --filter @idea-turbo/sherpa-onnx build
-        continue-on-error: true
 
       - name: Build ai-calendar app
         run: pnpm --filter ai-calendar build
