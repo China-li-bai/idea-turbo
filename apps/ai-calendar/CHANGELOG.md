@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-03-25
+
+### 新增: Monorepo 部署配置
+
+**文件**: 
+- `.github/workflows/deploy-ai-calendar.yml`
+- `apps/ai-calendar/ecosystem.config.cjs`
+- `apps/ai-calendar/nginx/privlocal.com.conf`
+
+**变更内容**:
+- 创建 GitHub Actions CI/CD 工作流
+- 配置 PM2 进程管理 (端口 3002)
+- 配置 Nginx 反向代理 (privlocal.com)
+- 添加 `transpilePackages` 支持 workspace 包
+
+**关键经验**:
+1. Workspace 包必须在 `next.config.ts` 中声明 `transpilePackages`
+2. 构建前清理 `.next` 缓存避免引用已删除文件
+3. tar 打包使用 `/tmp` 避免竞态条件
+4. 移除未使用的依赖避免构建错误
+
+**相关技能**: `monorepo-nextjs-deploy`
+
+---
+
+### 移除: 未使用的语音功能
+
+**文件**: 
+- `app/sherpa-test/` (删除)
+- `components/voice/` (删除)
+- `lib/services/speechService.ts` (删除)
+
+**原因**: `@idea-turbo/sherpa-onnx` 包未构建，导致部署失败
+
+---
+
 ## 2026-03-21
 
 ### 新增: NLP 时间解析引擎
