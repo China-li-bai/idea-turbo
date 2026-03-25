@@ -1,0 +1,145 @@
+name: CI/CD Deploy to VPS (ai-calendar)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/ai-calendar/**"
+      - "packages/local-first-sdk/**"
+      - "packages/sherpa-onnx/**"
+      - ".github/workflows/deploy-ai-calendar.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ai-calendar
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Install dependencies in monorepo
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build local-first-sdk package
+        run: pnpm --filter @idea-turbo/local-first-sdk build
+        continue-on-error: true
+
+      - name: Build sherpa-onnx package
+        run: pnpm --filter @idea-turbo/sherpa-onnx build
+        continue-on-error: true
+
+      - name: Build ai-calendar app
+        run: pnpm --filter ai-calendar build
+        env:
+          NODE_ENV: production
+
+      - name: Archive app with dependencies
+        run: |
+          tar -czf ai-calendar.tar.gz \
+            --exclude='node_modules/.cache' \
+            --exclude='.git' \
+            --exclude='apps/lead-gen' \
+            --exclude='apps/listen-book' \
+            .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-calendar-tarball
+          path: ai-calendar.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-calendar-tarball
+          path: .
+
+      - name: Copy tarball to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "ai-calendar.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            APP_NAME="ai-calendar"
+            APP_PORT=3002
+            TAR="/tmp/ai-calendar.tar.gz"
+            APP_DIR="/var/www/${APP_NAME}"
+            
+            echo "[INFO] Deploying ${APP_NAME}..."
+            
+            # Create directories
+            sudo mkdir -p "$APP_DIR"
+            sudo mkdir -p "$APP_DIR/backup"
+            sudo mkdir -p /var/log/pm2
+            
+            # Backup current version
+            if [ -f "$APP_DIR/apps/ai-calendar/.next/BUILD_ID" ]; then
+              TS=$(date +%Y%m%d-%H%M%S)
+              sudo tar -czf "$APP_DIR/backup/${APP_NAME}-${TS}.tar.gz" -C "$APP_DIR" . || true
+              echo "[INFO] Backed up to ${APP_NAME}-${TS}.tar.gz"
+            fi
+            
+            # Extract new version
+            sudo tar -xzf "$TAR" -C "$APP_DIR"
+            echo "[INFO] Files extracted successfully"
+            
+            # Set permissions
+            sudo chown -R www-data:www-data "$APP_DIR"
+            sudo chmod -R 755 "$APP_DIR"
+            
+            # Clean up tarball
+            rm -f "$TAR"
+            
+            # PM2 deployment
+            cd "$APP_DIR/apps/ai-calendar"
+            
+            # Stop existing process
+            pm2 stop $APP_NAME 2>/dev/null || true
+            pm2 delete $APP_NAME 2>/dev/null || true
+            
+            # Start with PM2
+            pm2 start ecosystem.config.cjs
+            pm2 save
+            
+            echo "[INFO] PM2 started $APP_NAME on port $APP_PORT"
+            
+            # Verify
+            sleep 3
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT | grep -q "200\|304"; then
+              echo "[INFO] ✅ Application is running on port $APP_PORT"
+            else
+              echo "[WARN] Application may not be responding correctly"
+              pm2 logs $APP_NAME --lines 20 --nostream
+            fi
+            
+            echo "[INFO] 🎉 Deployment completed!"
+            echo "[INFO] Access your app at: https://privlocal.com"
