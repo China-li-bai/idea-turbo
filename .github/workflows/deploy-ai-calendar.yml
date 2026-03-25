@@ -6,7 +6,6 @@ on:
     paths:
       - "apps/ai-calendar/**"
       - "packages/local-first-sdk/**"
-      - "packages/sherpa-onnx/**"
       - ".github/workflows/deploy-ai-calendar.yml"
   workflow_dispatch:
 
@@ -34,9 +33,6 @@ jobs:
 
       - name: Build local-first-sdk package
         run: pnpm --filter @idea-turbo/local-first-sdk build
-
-      - name: Build sherpa-onnx package
-        run: pnpm --filter @idea-turbo/sherpa-onnx build
 
       - name: Build ai-calendar app
         run: pnpm --filter ai-calendar build
