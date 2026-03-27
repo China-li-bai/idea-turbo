@@ -155,13 +155,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: [...state.items, ...newItems]
         }));
 
-        for (const item of newItems) {
-          try {
-            await oramaSearchService.indexItem(item);
-          } catch (error) {
-            console.error('Failed to index item:', error);
+        const results = await Promise.allSettled(
+          newItems.map(item => oramaSearchService.indexItem(item))
+        );
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`Failed to index item ${newItems[index].id}:`, result.reason);
           }
-        }
+        });
       },
 
       updateBatchItems: async (updates) => {
@@ -176,13 +178,17 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         set({ items: updatedItems });
 
-        for (const updateItem of updates) {
-          try {
-            await oramaSearchService.updateDocument(updateItem.id, updateItem.updates);
-          } catch (error) {
-            console.error('Failed to update item in index:', error);
+        const results = await Promise.allSettled(
+          updates.map(updateItem => 
+            oramaSearchService.updateDocument(updateItem.id, updateItem.updates)
+          )
+        );
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`Failed to update item ${updates[index].id}:`, result.reason);
           }
-        }
+        });
       },
 
       deleteBatchItems: async (ids) => {
@@ -190,13 +196,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: state.items.filter((item) => !ids.includes(item.id))
         }));
 
-        for (const id of ids) {
-          try {
-            await oramaSearchService.deleteFromIndex(id);
-          } catch (error) {
-            console.error('Failed to delete item from index:', error);
+        const results = await Promise.allSettled(
+          ids.map(id => oramaSearchService.deleteFromIndex(id))
+        );
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`Failed to delete item ${ids[index]}:`, result.reason);
           }
-        }
+        });
       },
 
       convertToEvent: async (id, startTime, endTime, metadata) => {
