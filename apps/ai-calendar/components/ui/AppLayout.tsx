@@ -26,7 +26,18 @@ export default function AppLayout() {
   const { currentModel, modelConfig, isLoading, isReady, switchModelWithReindex, availableModels } = useAIModel();
 
   useEffect(() => {
-    initialize();
+    const initApp = async () => {
+      try {
+        const masterPassword = 'ai-calendar-default-key';
+        await secureStorage.initialize(masterPassword);
+      } catch (error) {
+        console.error('Failed to initialize secure storage:', error);
+      }
+      
+      initialize();
+    };
+    
+    initApp();
   }, [initialize]);
 
   useEffect(() => {
@@ -243,6 +254,7 @@ export default function AppLayout() {
           {t('shortcut.hint')}
         </span>
       </div>
-    </div>
+      </div>
+    </GlobalErrorBoundary>
   );
 }
