@@ -57,6 +57,15 @@ function isComplexQuery(query: string): boolean {
     /帮我|帮我规划|帮我制定|分解|拆分/,
   ];
   
+  const simpleSearchPatterns = [
+    /有什么|有哪些|查找|搜索|显示|列出/,
+    /什么事|什么安排/,
+  ];
+  
+  if (simpleSearchPatterns.some(pattern => pattern.test(query))) {
+    return false;
+  }
+  
   return complexPatterns.some(pattern => pattern.test(query));
 }
 
@@ -448,9 +457,12 @@ export default function SecretaryView() {
       
       const shouldUseAI = isComplexQuery(userMessage.content);
       
-      if (shouldUseAI) {
+      if (shouldUseAI && isAIConfigured) {
         result = await processWithAI(userMessage.content);
       } else {
+        if (shouldUseAI && !isAIConfigured) {
+          console.log('Complex query detected but AI not configured, falling back to local search');
+        }
         result = await processSimpleQuery(userMessage.content);
       }
       

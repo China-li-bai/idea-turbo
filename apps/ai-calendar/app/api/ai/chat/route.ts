@@ -28,6 +28,8 @@ const VALID_ROLES = ['system', 'user', 'assistant', 'function', 'tool'] as const
 interface ChatMessage {
   role: typeof VALID_ROLES[number];
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  tool_calls?: unknown;
+  function_call?: unknown;
 }
 
 function validateMessages(messages: unknown): { valid: boolean; error?: string } {

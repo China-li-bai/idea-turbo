@@ -4,10 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import BossView from './BossView';
 import SecretaryView from './SecretaryView';
 import ProgressTrackerView from './ProgressTrackerView';
+import { GlobalErrorBoundary } from './GlobalErrorBoundary';
+import { ErrorToast } from './ErrorToast';
+import { ModelLoadingProgress } from './ModelLoadingProgress';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { useAIModel } from '@/lib/contexts/ClientProviders';
 import { getCacheSizeFormatted, clearModelCache } from '@/lib/services/oramaSearchService';
+import { secureStorage } from '@/lib/utils/secureStorage';
 import type { AIModelType } from '@/lib/utils/aiModels';
 import styles from './AppLayout.module.scss';
 
@@ -116,8 +120,12 @@ export default function AppLayout() {
   };
 
   return (
-    <div className={`${styles.container} ${viewMode === 'secretary' ? styles.darkContainer : ''}`}>
-      <header className={styles.header}>
+    <GlobalErrorBoundary>
+      <div className={`${styles.container} ${viewMode === 'secretary' ? styles.darkContainer : ''}`}>
+        <ErrorToast />
+        <ModelLoadingProgress />
+        
+        <header className={styles.header}>
         <div className={styles.logo}>
           <h1 className={styles.logoText}>{t('app.title')}</h1>
           <div className={styles.localBadge}>
