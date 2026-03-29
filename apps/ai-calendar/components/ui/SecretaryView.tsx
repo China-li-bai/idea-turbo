@@ -633,20 +633,30 @@ export default function SecretaryView() {
 
   return (
     <div className={styles.container}>
-      {isAIConfigured === false && (
-        <div className={styles.configWarning}>
-          <div className={styles.warningContent}>
-            <span className={styles.warningIcon}>⚠️</span>
-            <span>{locale.startsWith('zh') ? 'AI 服务未配置，请先设置 API Key' : 'AI service not configured. Please set up API Key first.'}</span>
-            <button 
-              className={styles.configBtn}
-              onClick={() => setShowConfigPanel(true)}
-            >
-              {locale.startsWith('zh') ? '配置 AI' : 'Configure AI'}
-            </button>
-          </div>
+      <div className={styles.capabilityStatus}>
+        <div className={styles.capability}>
+          <span className={styles.capabilityIcon}>✅</span>
+          <span className={styles.capabilityText}>
+            {locale.startsWith('zh') ? '本地语义搜索' : locale === 'ja-JP' ? 'ローカル意味検索' : 'Local Semantic Search'}
+          </span>
         </div>
-      )}
+        <div className={styles.capability}>
+          <span className={styles.capabilityIcon}>
+            {isAIConfigured ? '✅' : '⚠️'}
+          </span>
+          <span className={styles.capabilityText}>
+            {locale.startsWith('zh') ? '复杂指令理解' : locale === 'ja-JP' ? '複雑な命令理解' : 'Complex Commands'}
+          </span>
+        </div>
+        {isAIConfigured === false && (
+          <button 
+            className={styles.enhanceBtn}
+            onClick={() => setShowConfigPanel(true)}
+          >
+            {locale.startsWith('zh') ? '配置 AI 解锁完整功能' : locale === 'ja-JP' ? 'AI設定で全機能解放' : 'Configure AI for Full Features'}
+          </button>
+        )}
+      </div>
       
       {showConfigPanel && (
         <div className={styles.configOverlay}>
@@ -675,13 +685,45 @@ export default function SecretaryView() {
               {locale.startsWith('zh') ? '欢迎使用 AI 秘书' : locale === 'ja-JP' ? 'AI 秘書へようこそ' : 'Welcome to AI Secretary'}
             </h2>
             <p className={styles.welcomeText}>
-              {locale.startsWith('zh') ? '您可以问我关于日程的任何问题，例如：' : locale === 'ja-JP' ? 'スケジュールについて何でも聞いてください：' : 'Ask me anything about your schedule, for example:'}
+              {locale.startsWith('zh') 
+                ? '本地语义搜索已就绪，您可以搜索日程和想法：' 
+                : locale === 'ja-JP' 
+                  ? 'ローカル意味検索が準備完了。スケジュールとアイデアを検索：'
+                  : 'Local semantic search ready. Search your schedule and ideas:'}
             </p>
             <ul className={styles.examples}>
-              <li>{locale.startsWith('zh') ? '"我明天有什么安排？"' : locale === 'ja-JP' ? '"明日の予定は？"' : '"What\'s my schedule tomorrow?"'}</li>
-              <li>{locale.startsWith('zh') ? '"把明天的会议推迟到周五"' : '"Move tomorrow\'s meeting to Friday"'}</li>
-              <li>{locale.startsWith('zh') ? '"周五下午有空吗？"' : '"Am I free on Friday afternoon?"'}</li>
+              <li>
+                <span className={styles.exampleTag}>✅</span>
+                {locale.startsWith('zh') 
+                  ? '"明天的会议"' 
+                  : locale === 'ja-JP' 
+                    ? '"明日の会議"'
+                    : '"Tomorrow\'s meetings"'}
+              </li>
+              <li>
+                <span className={styles.exampleTag}>✅</span>
+                {locale.startsWith('zh') 
+                  ? '"关于项目的想法"' 
+                  : locale === 'ja-JP' 
+                    ? '"プロジェクトについてのアイデア"'
+                    : '"Ideas about projects"'}
+              </li>
+              <li>
+                <span className={styles.exampleTag}>{isAIConfigured ? '✅' : '⚠️'}</span>
+                {locale.startsWith('zh') 
+                  ? '"把明天的会议推迟到周五"' 
+                  : '"Move tomorrow\'s meeting to Friday"'}
+              </li>
             </ul>
+            {isAIConfigured === false && (
+              <p className={styles.hint}>
+                {locale.startsWith('zh')
+                  ? '💡 配置 AI 可解锁复杂指令理解能力'
+                  : locale === 'ja-JP'
+                    ? '💡 AI設定で複雑な命令理解が可能に'
+                    : '💡 Configure AI to unlock complex command understanding'}
+              </p>
+            )}
           </div>
         ) : (
           messages.map((message) => (

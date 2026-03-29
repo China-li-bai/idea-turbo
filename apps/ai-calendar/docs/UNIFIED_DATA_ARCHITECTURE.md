@@ -27,7 +27,7 @@ interface UnifiedCalendarItem {
   isAllDay: boolean;             // 是否全天事件
   
   // ===== AI 维度 =====
-  embedding: number[];           // 512维向量（BGE-small-zh）
+  本地语义搜索能力: number[];           // 512维向量（BGE-small-zh）
   embeddingUpdatedAt: number;    // 向量更新时间
   
   // ===== 状态维度 =====
