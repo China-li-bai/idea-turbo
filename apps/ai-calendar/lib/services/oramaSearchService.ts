@@ -414,7 +414,7 @@ export class OramaSearchService {
     return Array.from(output.data);
   }
 
-  async indexItem(item: UnifiedCalendarItem): Promise<void> {
+  async indexItem(item: UnifiedCalendarItem): Promise<{ embedding: number[]; embeddingUpdatedAt: number }> {
     await this.initialize();
 
     const text = [
@@ -431,6 +431,7 @@ export class OramaSearchService {
       item.embedding.length !== this.dimensions;
 
     const embedding = needsRegenerate ? await this.embed(text, 'passage') : item.embedding;
+    const embeddingUpdatedAt = needsRegenerate ? Date.now() : item.embeddingUpdatedAt;
 
     await insert(this.db, {
       id: item.id,
@@ -453,6 +454,8 @@ export class OramaSearchService {
         eventType: item.metadata.eventType || "regular",
       },
     });
+
+    return { embedding, embeddingUpdatedAt };
   }
 
   async search(
@@ -631,7 +634,7 @@ export class OramaSearchService {
     }
   }
 
-  async updateDocument(id: string, updates: any): Promise<void> {
+  async updateDocument(id: string, updates: any): Promise<{ embedding?: number[]; embeddingUpdatedAt?: number }> {
     await this.initialize();
 
     const hasValidEmbedding = updates.embedding && Array.isArray(updates.embedding) && updates.embedding.length > 0;
@@ -648,6 +651,7 @@ export class OramaSearchService {
           ].filter(Boolean).join(" ");
           
           const embedding = await this.embed(text, 'passage');
+          const embeddingUpdatedAt = Date.now();
           
           await remove(this.db, id);
           
@@ -658,6 +662,8 @@ export class OramaSearchService {
           };
           
           await insert(this.db, updatedDoc);
+          
+          return { embedding, embeddingUpdatedAt };
         }
       } catch (error) {
         console.error('Failed to update document via remove/insert:', id, error);
@@ -674,6 +680,8 @@ export class OramaSearchService {
           };
           
           await insert(this.db, updatedDoc);
+          
+          return { embedding: updates.embedding, embeddingUpdatedAt: Date.now() };
         }
       } catch (error) {
         console.error('Failed to update document via remove/insert:', id, error);
@@ -685,6 +693,8 @@ export class OramaSearchService {
         console.error('Failed to update document:', id, error);
       }
     }
+    
+    return {};
   }
 
   async deleteFromIndex(id: string): Promise<void> {

@@ -94,7 +94,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
         }));
 
         try {
-          await oramaSearchService.indexItem(item);
+          const { embedding, embeddingUpdatedAt } = await oramaSearchService.indexItem(item);
+          
+          set((state) => ({
+            items: state.items.map((i) =>
+              i.id === item.id
+                ? { ...i, embedding, embeddingUpdatedAt }
+                : i
+            )
+          }));
         } catch (error) {
           console.error('Failed to index item:', error);
         }
@@ -111,7 +119,17 @@ export const useUnifiedStore = create<UnifiedStore>()(
         }));
 
         try {
-          await oramaSearchService.updateDocument(id, updates);
+          const result = await oramaSearchService.updateDocument(id, updates);
+          
+          if (result.embedding && result.embeddingUpdatedAt) {
+            set((state) => ({
+              items: state.items.map((i) =>
+                i.id === id
+                  ? { ...i, embedding: result.embedding!, embeddingUpdatedAt: result.embeddingUpdatedAt! }
+                  : i
+              )
+            }));
+          }
         } catch (error) {
           console.error('Failed to update item in index:', error);
         }

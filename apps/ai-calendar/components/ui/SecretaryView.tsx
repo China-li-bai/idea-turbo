@@ -500,7 +500,7 @@ export default function SecretaryView() {
     };
 
     if (oramaSearchService.isInitialized) {
-      const searchResults = await oramaSearchService.hybridSearch(query, { k: 5 });
+      const searchResults = await oramaSearchService.hybridSearch(query, { k: 5, similarity: 0.6 });
       
       if (searchResults.length === 0) {
         return { content: t('secretary.noResults') };
