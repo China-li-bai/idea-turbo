@@ -41,7 +41,7 @@ export class SecureStorage {
     return crypto.subtle.deriveKey(
       {
         name: KEY_DERIVATION_ALGORITHM,
-        salt: actualSalt,
+        salt: actualSalt.buffer as ArrayBuffer,
         iterations: ITERATIONS,
         hash: 'SHA-256'
       },
@@ -68,7 +68,7 @@ export class SecureStorage {
     const encrypted = await crypto.subtle.encrypt(
       {
         name: ENCRYPTION_ALGORITHM,
-        iv: iv
+        iv: iv.buffer as ArrayBuffer
       },
       key,
       data
@@ -99,7 +99,7 @@ export class SecureStorage {
     const decrypted = await crypto.subtle.decrypt(
       {
         name: ENCRYPTION_ALGORITHM,
-        iv: iv
+        iv: iv.buffer as ArrayBuffer
       },
       key,
       encrypted
