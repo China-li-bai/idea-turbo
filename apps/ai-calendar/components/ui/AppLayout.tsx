@@ -12,6 +12,7 @@ import { useLocale } from '@/lib/contexts/ClientProviders';
 import { useAIModel } from '@/lib/contexts/ClientProviders';
 import { getCacheSizeFormatted, clearModelCache } from '@/lib/services/oramaSearchService';
 import { secureStorage } from '@/lib/utils/secureStorage';
+import { getDeviceFingerprint, generateSecureKey } from '@/lib/utils/deviceFingerprint';
 import type { AIModelType } from '@/lib/utils/aiModels';
 import styles from './AppLayout.module.scss';
 
@@ -32,7 +33,8 @@ export default function AppLayout() {
   useEffect(() => {
     const initApp = async () => {
       try {
-        const masterPassword = 'ai-calendar-default-key';
+        const deviceId = await getDeviceFingerprint();
+        const masterPassword = await generateSecureKey(deviceId);
         await secureStorage.initialize(masterPassword);
       } catch (error) {
         console.error('Failed to initialize secure storage:', error);
