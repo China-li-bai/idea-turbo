@@ -72,7 +72,7 @@ class ErrorHandlerClass {
 
   private createAppError(
     error: Error | string,
-    context?: string,
+    context: string | undefined,
     severity: ErrorSeverity,
     category: ErrorCategory
   ): AppError {
