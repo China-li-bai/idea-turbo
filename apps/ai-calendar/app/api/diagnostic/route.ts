@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'clear-orama') {
-      await oramaSearchService.clear();
+      await oramaSearchService.clearModelData();
       return NextResponse.json({
         success: true,
         message: 'Orama database cleared',
