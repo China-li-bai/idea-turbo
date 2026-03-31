@@ -7,6 +7,7 @@ import ProgressTrackerView from './ProgressTrackerView';
 import { GlobalErrorBoundary } from './GlobalErrorBoundary';
 import { ErrorToast } from './ErrorToast';
 import { ModelLoadingProgress } from './ModelLoadingProgress';
+import SyncWaitlistModal from './SyncWaitlistModal';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { useAIModel } from '@/lib/contexts/ClientProviders';
@@ -23,6 +24,7 @@ export default function AppLayout() {
   const [cacheSize, setCacheSize] = useState<string>('');
   const [useMirror, setUseMirror] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   
   const initialize = useUnifiedStore((state) => state.initialize);
@@ -137,6 +139,17 @@ export default function AppLayout() {
         </div>
 
         <div className={styles.headerRight}>
+          <button
+            className={styles.syncBtn}
+            onClick={() => setSyncModalOpen(true)}
+            aria-label={locale.startsWith('zh') ? '同步' : 'Sync'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 0 1 9-9"/>
+            </svg>
+            <span className={styles.syncLabel}>{locale.startsWith('zh') ? '同步' : 'Sync'}</span>
+          </button>
+
           <div className={styles.viewToggle}>
             <button
               className={`${styles.viewBtn} ${viewMode === 'boss' ? styles.activeView : ''}`}
@@ -265,6 +278,12 @@ export default function AppLayout() {
         </span>
       </div>
       </div>
+
+      <SyncWaitlistModal
+        isOpen={syncModalOpen}
+        onClose={() => setSyncModalOpen(false)}
+        locale={locale}
+      />
     </GlobalErrorBoundary>
   );
 }

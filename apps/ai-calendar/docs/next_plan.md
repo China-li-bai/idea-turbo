@@ -11,14 +11,7 @@
 
 ---
 
-### 第一步：零成本、全球边缘部署 (The Zero-Cost Deployment)
 
-因为 `privlocal.` 是一个纯静态的 SPA（单页应用），它的数据都在用户的浏览器里，所以你的**服务器成本是 0**。你要做的是让全球用户打开 `privlocal.com` 的速度无限接近于原生 App。
-
-*   **唯一指定主机：Cloudflare Pages**（或者 Vercel）。
-    *   **为什么：** Cloudflare 拥有全球最密集的边缘节点（CDN）。当用户访问你的域名时，页面的 HTML/CSS 和那一小段 JS 逻辑，会从离他物理距离最近的机房瞬间下发。
-    *   **品牌契合度：** Cloudflare 在极客圈本身就是“安全、抗 DDOS、网络基建”的代名词，这与 `privlocal.` 的隐私极客调性完美契合。
-    *   **操作：** 把你的代码推送到 GitHub，在 Cloudflare Pages 里一键绑定仓库，绑定你的 `privlocal.com` 域名。只要你 push 代码，几秒钟后全球生效。
 
 ### 第二步：埋下“印钞机”的钩子 (The Monetization Hook)
 

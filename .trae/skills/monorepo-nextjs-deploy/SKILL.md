@@ -19,8 +19,9 @@ description: "Turborepo Monorepo Next.js 子项目部署到 VPS。Invoke when de
 module.exports = {
   apps: [{
     name: "your-app",
-    script: "npm",
-    args: "start",
+    // ⚠️ 重要：在 monorepo 环境下，使用 npx next start 比 npm start 更可靠
+    script: "npx",
+    args: "next start --port 3002",
     cwd: "/var/www/your-app/apps/your-app",
     env: {
       NODE_ENV: "production",
@@ -28,10 +29,19 @@ module.exports = {
     },
     instances: 1,
     autorestart: true,
-    max_memory_restart: "1G"
+    max_memory_restart: "1G",
+    error_file: "/var/log/pm2/your-app-error.log",
+    out_file: "/var/log/pm2/your-app-out.log",
+    log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+    merge_logs: true
   }]
 };
 ```
+
+**关键经验**：
+- ✅ 使用 `npx next start` 而不是 `npm start`，避免 monorepo 工作目录问题
+- ✅ 明确指定 `--port` 参数，避免端口冲突
+- ✅ 配置日志文件路径，便于调试
 
 ### 2. Next.js 配置 (`apps/your-app/next.config.ts`)
 
@@ -205,7 +215,121 @@ sudo systemctl reload nginx
 **解决**:
 ```bash
 pm2 logs your-app --lines 50
-cd /var/www/your-app/apps/your-app && npm start  # 手动测试
+cd /var/www/your-app/apps/your-app && npx next start --port 3002  # 手动测试
+```
+
+**关键经验**：
+- ✅ 如果 `npm start` 失败，尝试 `npx next start --port 3002`
+- ✅ 检查 PM2 配置中的 `script` 和 `args` 是否正确
+- ✅ 确保端口未被占用：`lsof -i :3002`
+
+### 6. TypeScript 类型错误：可选参数后不能有必需参数
+
+**错误**: `A required parameter cannot follow an optional parameter`
+
+**原因**: TypeScript 不允许可选参数（`?`）后面跟着必需参数
+
+**解决**:
+```typescript
+// ❌ 错误
+function createAppError(
+  error: Error,
+  context?: string,        // 可选参数
+  severity: ErrorSeverity, // 必需参数（错误）
+  category: ErrorCategory
+): AppError
+
+// ✅ 正确
+function createAppError(
+  error: Error,
+  context: string | undefined, // 明确声明 undefined 类型
+  severity: ErrorSeverity,
+  category: ErrorCategory
+): AppError
+```
+
+### 7. Web Crypto API 类型错误：Uint8Array vs ArrayBuffer
+
+**错误**: `Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BufferSource'`
+
+**原因**: Web Crypto API 要求 `ArrayBuffer` 类型，而不是 `Uint8Array`
+
+**解决**:
+```typescript
+// ❌ 错误
+crypto.subtle.deriveKey({
+  name: 'PBKDF2',
+  salt: salt,  // Uint8Array
+  // ...
+})
+
+// ✅ 正确
+crypto.subtle.deriveKey({
+  name: 'PBKDF2',
+  salt: salt.buffer as ArrayBuffer,  // 转换为 ArrayBuffer
+  // ...
+})
+
+// 同样适用于 iv 参数
+crypto.subtle.encrypt({
+  name: 'AES-GCM',
+  iv: iv.buffer as ArrayBuffer,  // 转换为 ArrayBuffer
+  // ...
+})
+```
+
+### 8. Next.js 构建缓存警告
+
+**警告**: `No build cache found. Please configure build caching for faster rebuilds.`
+
+**原因**: CI/CD 环境中没有持久化 Next.js 缓存
+
+**解决**:
+```yaml
+# GitHub Actions 中添加缓存
+- name: Cache Next.js build
+  uses: actions/cache@v4
+  with:
+    path: |
+      apps/your-app/.next/cache
+    key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}
+    restore-keys: |
+      ${{ runner.os }}-nextjs-
+```
+
+**注意**: 首次构建或新项目可以忽略此警告。
+
+### 9. 设备指纹隐私保护最佳实践
+
+**问题**: 设备指纹可能泄露用户隐私信息
+
+**解决方案**:
+```typescript
+// ❌ 避免：收集敏感信息
+const components = [
+  navigator.userAgent,      // 浏览器+操作系统信息
+  navigator.deviceMemory,   // 硬件信息
+  // ...
+];
+
+// ✅ 推荐：只收集非敏感信息 + 随机数
+const components = [
+  navigator.language,
+  navigator.hardwareConcurrency,
+  screen.width + 'x' + screen.height,
+  Date.now().toString(),    // 时间戳
+  generateRandomString(),   // 随机数
+];
+
+// ✅ 提供用户控制
+export function resetDeviceFingerprint(): void {
+  localStorage.removeItem('device-id');
+  // 生成新的随机 ID
+}
+
+export function hasPrivacyConsent(): boolean {
+  return localStorage.getItem('privacy-consent') === 'true';
+}
 ```
 
 ---
@@ -213,12 +337,42 @@ cd /var/www/your-app/apps/your-app && npm start  # 手动测试
 ## 部署检查清单
 
 - [ ] `next.config.ts` 包含所有 workspace 包的 `transpilePackages`
+- [ ] PM2 配置使用 `npx next start` 而不是 `npm start`
 - [ ] PM2 配置中的端口未被占用
 - [ ] GitHub Secrets 已配置 (SSH_HOST, SSH_USER, SSH_PORT, VPS_SSH_KEY)
 - [ ] Nginx 配置已创建并启用
 - [ ] 构建前清理 `.next` 缓存
 - [ ] tar 打包使用 `/tmp` 避免竞态
 - [ ] 移除未使用的依赖和导入
+- [ ] TypeScript 类型定义正确（可选参数、ArrayBuffer 类型）
+- [ ] 设备指纹不收集敏感信息
+- [ ] 提供用户隐私控制功能（重置、同意机制）
+- [ ] 配置 GitHub Actions 缓存（可选，加速构建）
+
+---
+
+## 快速诊断命令
+
+```bash
+# 检查 PM2 状态
+pm2 list
+pm2 logs your-app --lines 50
+
+# 检查端口占用
+lsof -i :3002
+
+# 手动启动测试
+cd /var/www/your-app/apps/your-app
+npx next start --port 3002
+
+# 检查 Nginx 配置
+sudo nginx -t
+sudo systemctl status nginx
+
+# 检查应用响应
+curl -I http://localhost:3002
+curl -I https://your-domain.com
+```
 
 ---
 

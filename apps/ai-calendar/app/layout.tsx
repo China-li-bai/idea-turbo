@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "temporal-polyfill/global";
 import "./globals.css";
 import { ClientProviders } from "@/lib/contexts/ClientProviders";
@@ -39,6 +40,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
+      <head>
+        <Script
+          async
+          src={process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL || "https://analytics.umami.is/script.js"}
+          data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID || ""}
+          strategy="afterInteractive"
+        />
+      </head>
       <body className="antialiased">
         <ClientProviders>
           {children}
