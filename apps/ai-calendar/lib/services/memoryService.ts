@@ -18,6 +18,7 @@ import {
 import { memoryStorage } from '@/lib/storage/memoryStorage';
 import { validateMemoryItem, validateSearchOptions } from '@/types/memory.schemas';
 import { MEMORY_CONSTANTS, MEMORY_LIMITS } from '@/types/memory.constants';
+import { memoryCache } from '@/lib/utils/cache';
 
 class MemoryServiceImpl implements MemorySystem {
   private initialized: boolean = false;
@@ -86,7 +87,20 @@ class MemoryServiceImpl implements MemorySystem {
       await this.initialize();
     }
 
-    return await memoryStorage.get(id);
+    const cacheKey = `memory:${id}`;
+    const cached = memoryCache.get(cacheKey) as MemoryItem | null;
+    
+    if (cached) {
+      return cached;
+    }
+    
+    const memory = await memoryStorage.get(id);
+    
+    if (memory) {
+      memoryCache.set(cacheKey, memory);
+    }
+    
+    return memory;
   }
 
   async updateMemory(id: string, updates: Partial<MemoryItem>): Promise<MemoryItem | null> {
@@ -100,6 +114,11 @@ class MemoryServiceImpl implements MemorySystem {
     }
 
     const updated = await memoryStorage.update(id, updates);
+    
+    if (updated) {
+      memoryCache.set(`memory:${id}`, updated);
+    }
+    
     return updated;
   }
 
@@ -108,7 +127,13 @@ class MemoryServiceImpl implements MemorySystem {
       await this.initialize();
     }
 
-    return await memoryStorage.delete(id);
+    const result = await memoryStorage.delete(id);
+    
+    if (result) {
+      memoryCache.delete(`memory:${id}`);
+    }
+    
+    return result;
   }
 
   async searchMemories(options: MemorySearchOptions): Promise<MemorySearchResult> {
@@ -229,46 +254,73 @@ class MemoryServiceImpl implements MemorySystem {
       await this.initialize();
     }
 
-    const allMemories = await memoryStorage.query({ limit: 10000, includeEmbeddings: false });
+    const stats = await memoryStorage.getStats();
+    return stats;
+  }
 
-    const byType: Record<MemoryType, number> = {
-      'short-term': 0,
-      'long-term': 0,
-      'working': 0,
-    };
-
-    const byCategory: Record<MemoryCategory, number> = {
-      query: 0,
-      result: 0,
-      feedback: 0,
-      preference: 0,
-      pattern: 0,
-      context: 0,
-    };
-
-    let totalConfidence = 0;
-    let oldestMemory = Date.now();
-    let newestMemory = 0;
-    let totalSize = 0;
-
-    for (const memory of allMemories.memories) {
-      byType[memory.type]++;
-      byCategory[memory.category]++;
-      totalConfidence += memory.metadata.confidence;
-      oldestMemory = Math.min(oldestMemory, memory.metadata.timestamp);
-      newestMemory = Math.max(newestMemory, memory.metadata.timestamp);
-      totalSize += JSON.stringify(memory).length;
+  async addBatchMemories(
+    memories: Array<Omit<MemoryItem, 'id' | 'metadata'> & { metadata?: Partial<MemoryItem['metadata']> }>
+  ): Promise<MemoryItem[]> {
+    if (!this.initialized) {
+      await this.initialize();
     }
 
-    return {
-      totalMemories: allMemories.total,
-      byType,
-      byCategory,
-      averageConfidence: allMemories.total > 0 ? totalConfidence / allMemories.total : 0,
-      oldestMemory,
-      newestMemory,
-      totalSize,
-    };
+    const added: MemoryItem[] = [];
+    
+    for (const memory of memories) {
+      try {
+        const newMemory = await this.addMemory(memory);
+        added.push(newMemory);
+      } catch (error) {
+        console.error('[MemoryService] Failed to add memory in batch:', error);
+      }
+    }
+    
+    return added;
+  }
+
+  async updateBatchMemories(
+    updates: Array<{ id: string; updates: Partial<MemoryItem> }>
+  ): Promise<MemoryItem[]> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    const updated: MemoryItem[] = [];
+    
+    for (const { id, updates: memoryUpdates } of updates) {
+      try {
+        const memory = await this.updateMemory(id, memoryUpdates);
+        if (memory) {
+          updated.push(memory);
+        }
+      } catch (error) {
+        console.error('[MemoryService] Failed to update memory in batch:', error);
+      }
+    }
+    
+    return updated;
+  }
+
+  async deleteBatchMemories(ids: string[]): Promise<number> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    let deleted = 0;
+    
+    for (const id of ids) {
+      try {
+        const result = await this.deleteMemory(id);
+        if (result) {
+          deleted++;
+        }
+      } catch (error) {
+        console.error('[MemoryService] Failed to delete memory in batch:', error);
+      }
+    }
+    
+    return deleted;
   }
 
   async clear(): Promise<void> {

@@ -132,14 +132,59 @@ class MemoryStorageImpl implements MemoryStorage {
     const startTime = Date.now();
 
     try {
-      let memories = await this.getAllMemories();
+      let candidateIds: Set<string> | null = null;
 
       if (options.types && options.types.length > 0) {
-        memories = memories.filter(m => options.types!.includes(m.type));
+        const typeIndex = await this.getIndex<Record<MemoryType, string[]>>('type') || {} as Record<MemoryType, string[]>;
+        const ids = new Set<string>();
+        
+        for (const type of options.types) {
+          const typeIds = typeIndex[type] || [];
+          typeIds.forEach((id: string) => ids.add(id));
+        }
+        
+        if (candidateIds === null) {
+          candidateIds = ids;
+        } else {
+          candidateIds = new Set([...candidateIds].filter(id => ids.has(id)));
+        }
       }
 
       if (options.categories && options.categories.length > 0) {
-        memories = memories.filter(m => options.categories!.includes(m.category));
+        const categoryIndex = await this.getIndex<Record<MemoryCategory, string[]>>('category') || {} as Record<MemoryCategory, string[]>;
+        const ids = new Set<string>();
+        
+        for (const category of options.categories) {
+          const categoryIds = categoryIndex[category] || [];
+          categoryIds.forEach((id: string) => ids.add(id));
+        }
+        
+        if (candidateIds === null) {
+          candidateIds = ids;
+        } else {
+          candidateIds = new Set([...candidateIds].filter(id => ids.has(id)));
+        }
+      }
+
+      let memories: MemoryItem[];
+      
+      if (candidateIds !== null) {
+        memories = [];
+        const limit = options.limit || MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT;
+        const maxFetch = limit * 2;
+        let fetched = 0;
+        
+        for (const id of candidateIds) {
+          if (fetched >= maxFetch) break;
+          
+          const memory = await this.get(id);
+          if (memory) {
+            memories.push(memory);
+            fetched++;
+          }
+        }
+      } else {
+        memories = await this.getAllMemories();
       }
 
       if (options.tags && options.tags.length > 0) {
@@ -217,6 +262,68 @@ class MemoryStorageImpl implements MemoryStorage {
     } catch (error) {
       throw new MemoryStorageError(
         'Failed to count memories',
+        { error }
+      );
+    }
+  }
+
+  async getStats(): Promise<{
+    totalMemories: number;
+    byType: Record<MemoryType, number>;
+    byCategory: Record<MemoryCategory, number>;
+    averageConfidence: number;
+    oldestMemory: number;
+    newestMemory: number;
+    totalSize: number;
+  }> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    try {
+      const allMemories = await this.getAllMemories();
+      
+      const byType: Record<MemoryType, number> = {
+        'short-term': 0,
+        'long-term': 0,
+        'working': 0,
+      };
+      
+      const byCategory: Record<MemoryCategory, number> = {
+        query: 0,
+        result: 0,
+        feedback: 0,
+        preference: 0,
+        pattern: 0,
+        context: 0,
+      };
+      
+      let totalConfidence = 0;
+      let oldestMemory = Date.now();
+      let newestMemory = 0;
+      let totalSize = 0;
+      
+      for (const memory of allMemories) {
+        byType[memory.type]++;
+        byCategory[memory.category]++;
+        totalConfidence += memory.metadata.confidence;
+        oldestMemory = Math.min(oldestMemory, memory.metadata.timestamp);
+        newestMemory = Math.max(newestMemory, memory.metadata.timestamp);
+        totalSize += JSON.stringify(memory).length;
+      }
+      
+      return {
+        totalMemories: allMemories.length,
+        byType,
+        byCategory,
+        averageConfidence: allMemories.length > 0 ? totalConfidence / allMemories.length : 0,
+        oldestMemory,
+        newestMemory,
+        totalSize,
+      };
+    } catch (error) {
+      throw new MemoryStorageError(
+        'Failed to get stats',
         { error }
       );
     }
