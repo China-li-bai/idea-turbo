@@ -91,14 +91,15 @@ class HybridSearchServiceImpl {
         }
       );
       
-      return results.map(result => {
-        const { score, ...item } = result;
-        return {
-          item: item as UnifiedCalendarItem,
-          score,
-          source: 'calendar' as const,
-        };
-      });
+      return results.map(result => ({
+        item: {
+          ...result,
+          embedding: [],
+          embeddingUpdatedAt: 0,
+        } as UnifiedCalendarItem,
+        score: result.score,
+        source: 'calendar' as const,
+      }));
     } catch (error) {
       console.error('[HybridSearch] Calendar search failed:', error);
       return [];
