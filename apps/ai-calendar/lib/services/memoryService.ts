@@ -55,7 +55,7 @@ class MemoryServiceImpl implements MemorySystem {
     if (!validation.success) {
       throw new MemoryValidationError(
         'Invalid memory data',
-        { errors: validation.error.errors }
+        { errors: validation.error.issues }
       );
     }
 

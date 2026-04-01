@@ -1,4 +1,4 @@
-import localforage from 'localforage';
+import { db } from './index';
 import type { 
   MemoryItem, 
   MemorySearchOptions, 
@@ -12,24 +12,14 @@ import {
 } from '@/types/memory.errors';
 import { MEMORY_CONSTANTS } from '@/types/memory.constants';
 
-const MEMORY_STORE_NAME = 'ai-calendar-memory';
-const MEMORY_INDEX_STORE_NAME = 'ai-calendar-memory-index';
-
 class MemoryStorageImpl implements MemoryStorage {
   private store: LocalForage;
   private indexStore: LocalForage;
   private initialized: boolean = false;
 
   constructor() {
-    this.store = localforage.createInstance({
-      name: MEMORY_STORE_NAME,
-      storeName: 'memories',
-    });
-
-    this.indexStore = localforage.createInstance({
-      name: MEMORY_INDEX_STORE_NAME,
-      storeName: 'indices',
-    });
+    this.store = db.memory;
+    this.indexStore = db.memoryIndex;
   }
 
   async initialize(): Promise<void> {
