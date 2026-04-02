@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UnifiedCalendarItem, ItemType, ItemStatus } from '@/types/unified';
+import type { MemoryItem, MemorySearchOptions, MemorySearchResult, MemoryStats } from '@/types/memory';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
+import { memoryService } from '@/lib/services/memoryService';
 import { localforage } from '@/lib/storage';
 
 const STATE_KEY = 'unified-calendar-state';
@@ -17,6 +19,8 @@ interface AIStatus {
 
 interface UnifiedStore {
   items: UnifiedCalendarItem[];
+  memories: MemoryItem[];
+  memoryStats: MemoryStats;
   settings: {
     viewMode: 'boss' | 'secretary';
     theme: 'light' | 'dark' | 'system';
@@ -42,12 +46,39 @@ interface UnifiedStore {
   getItemById: (id: string) => UnifiedCalendarItem | undefined;
 
   updateSettings: (settings: Partial<UnifiedStore['settings']>) => void;
+
+  addMemory: (memory: Omit<MemoryItem, 'id' | 'metadata'> & { metadata?: Partial<MemoryItem['metadata']> }) => Promise<MemoryItem>;
+  updateMemory: (id: string, updates: Partial<MemoryItem>) => Promise<void>;
+  deleteMemory: (id: string) => Promise<void>;
+  searchMemories: (options: MemorySearchOptions) => Promise<MemorySearchResult>;
+  refreshMemoryStats: () => Promise<void>;
 }
 
 export const useUnifiedStore = create<UnifiedStore>()(
   persist(
     (set, get) => ({
       items: [],
+      memories: [],
+      memoryStats: {
+        totalMemories: 0,
+        byType: {
+          'short-term': 0,
+          'long-term': 0,
+          'working': 0,
+        },
+        byCategory: {
+          'query': 0,
+          'result': 0,
+          'feedback': 0,
+          'preference': 0,
+          'pattern': 0,
+          'context': 0,
+        },
+        averageConfidence: 0,
+        totalSize: 0,
+        oldestMemory: 0,
+        newestMemory: 0,
+      },
       settings: {
         viewMode: 'boss',
         theme: 'light'
@@ -66,6 +97,47 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         try {
           await oramaSearchService.initialize();
+
+          const items = get().items;
+          const stats = oramaSearchService.getStats();
+          
+          if (items.length > 0 && stats.totalDocuments !== items.length) {
+            console.log(`[UnifiedStore] Data inconsistency detected: ${items.length} items in store, ${stats.totalDocuments} in Orama. Reindexing...`);
+            
+            const itemsWithoutEmbedding = items.filter(item => 
+              !item.embedding || 
+              item.embedding.length === 0 || 
+              item.embedding.length !== oramaSearchService.dimensions
+            );
+            
+            if (itemsWithoutEmbedding.length > 0) {
+              console.log(`[UnifiedStore] Reindexing ${itemsWithoutEmbedding.length} items without valid embedding...`);
+              
+              for (const item of itemsWithoutEmbedding) {
+                try {
+                  const { embedding, embeddingUpdatedAt } = await oramaSearchService.indexItem(item);
+                  
+                  set((state) => ({
+                    items: state.items.map((i) =>
+                      i.id === item.id
+                        ? { ...i, embedding, embeddingUpdatedAt }
+                        : i
+                    )
+                  }));
+                } catch (error) {
+                  console.error(`[UnifiedStore] Failed to reindex item ${item.id}:`, error);
+                }
+              }
+            } else {
+              for (const item of items) {
+                try {
+                  await oramaSearchService.indexItem(item);
+                } catch (error) {
+                  console.error(`[UnifiedStore] Failed to index item ${item.id}:`, error);
+                }
+              }
+            }
+          }
 
           set({
             _initialized: true,
@@ -286,15 +358,60 @@ export const useUnifiedStore = create<UnifiedStore>()(
         set((state) => ({
           settings: { ...state.settings, ...newSettings }
         }));
-      }
+      },
+
+      addMemory: async (memory) => {
+        const newMemory = await memoryService.addMemory(memory);
+        
+        set((state) => ({
+          memories: [...state.memories, newMemory],
+        }));
+        
+        await get().refreshMemoryStats();
+        
+        return newMemory;
+      },
+
+      updateMemory: async (id, updates) => {
+        const updated = await memoryService.updateMemory(id, updates);
+        
+        if (updated) {
+          set((state) => ({
+            memories: state.memories.map((m) =>
+              m.id === id ? updated : m
+            ),
+          }));
+        }
+      },
+
+      deleteMemory: async (id) => {
+        await memoryService.deleteMemory(id);
+        
+        set((state) => ({
+          memories: state.memories.filter((m) => m.id !== id),
+        }));
+        
+        await get().refreshMemoryStats();
+      },
+
+      searchMemories: async (options) => {
+        return await memoryService.searchMemories(options);
+      },
+
+      refreshMemoryStats: async () => {
+        const stats = await memoryService.getStats();
+        
+        set({ memoryStats: stats });
+      },
     }),
     {
       name: STATE_KEY,
       storage: localforageStorage,
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         items: state.items,
-        settings: state.settings
+        settings: state.settings,
+        memories: state.memories,
       })
     }
   )

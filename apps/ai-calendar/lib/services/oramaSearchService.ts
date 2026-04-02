@@ -132,6 +132,21 @@ export class OramaSearchService {
   private extractor: any = null;
   private isReady = false;
   private initPromise: Promise<void> | null = null;
+  private needsSave = false;
+  private saveTimer: NodeJS.Timeout | null = null;
+  private readonly SAVE_DEBOUNCE_MS = 5000;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => {
+        if (this.needsSave && this.db) {
+          this.save().catch(err => {
+            console.error('[OramaSearchService] Failed to save on beforeunload:', err);
+          });
+        }
+      });
+    }
+  }
 
   get dimensions(): number {
     return this.modelConfig.dimensions;
@@ -147,6 +162,25 @@ export class OramaSearchService {
 
   get currentModel(): AIModelConfig {
     return this.modelConfig;
+  }
+
+  private scheduleSave(): void {
+    this.needsSave = true;
+    
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+    }
+    
+    this.saveTimer = setTimeout(async () => {
+      if (this.needsSave && this.db) {
+        try {
+          await this.save();
+          this.needsSave = false;
+        } catch (error) {
+          console.error('[OramaSearchService] Failed to save:', error);
+        }
+      }
+    }, this.SAVE_DEBOUNCE_MS);
   }
 
   async switchModel(
@@ -455,6 +489,8 @@ export class OramaSearchService {
       },
     });
 
+    this.scheduleSave();
+
     return { embedding, embeddingUpdatedAt };
   }
 
@@ -663,6 +699,8 @@ export class OramaSearchService {
           
           await insert(this.db, updatedDoc);
           
+          this.scheduleSave();
+          
           return { embedding, embeddingUpdatedAt };
         }
       } catch (error) {
@@ -681,6 +719,8 @@ export class OramaSearchService {
           
           await insert(this.db, updatedDoc);
           
+          this.scheduleSave();
+          
           return { embedding: updates.embedding, embeddingUpdatedAt: Date.now() };
         }
       } catch (error) {
@@ -689,6 +729,7 @@ export class OramaSearchService {
     } else {
       try {
         await update(this.db, id, updates);
+        this.scheduleSave();
       } catch (error) {
         console.error('Failed to update document:', id, error);
       }
@@ -701,6 +742,7 @@ export class OramaSearchService {
     await this.initialize();
 
     await remove(this.db, id);
+    this.scheduleSave();
     console.log("Deleted from index:", id);
   }
 

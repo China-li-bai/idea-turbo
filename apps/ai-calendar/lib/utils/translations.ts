@@ -1,6 +1,25 @@
 import type { SupportedLocale } from './i18n'
 
 export interface Translations {
+  waitlist: {
+    title: string
+    description: string
+    expectedDate: string
+    benefitsTitle: string
+    benefitEarlyAccess: string
+    benefitDiscount: string
+    benefitVoting: string
+    emailPlaceholder: string
+    submitButton: string
+    submitting: string
+    privacy: string
+    successTitle: string
+    successMessage: string
+    closeButton: string
+    errorInvalidEmail: string
+    errorSubmissionFailed: string
+    errorNetwork: string
+  }
   landing: {
     nav: {
       features: string
@@ -69,6 +88,25 @@ export interface Translations {
 
 export const translations: Record<SupportedLocale, Translations> = {
   'zh-CN': {
+    waitlist: {
+      title: '端到端加密同步（规划中）',
+      description: '你的数据极度神圣。我们正在构建军规级（AES-256）的跨设备同步通道。即使是 privlocal 的开发者，也看不到你的任何日程。',
+      expectedDate: '预计上线：2026 年 Q3',
+      benefitsTitle: '加入等待列表，获取：',
+      benefitEarlyAccess: '✓ 内测资格（提前 2 周体验）',
+      benefitDiscount: '✓ 早鸟折扣（终身 5 折）',
+      benefitVoting: '✓ 功能投票权（决定开发优先级）',
+      emailPlaceholder: 'your@email.com',
+      submitButton: '加入等待列表',
+      submitting: '提交中...',
+      privacy: '🔒 我们承诺：邮箱仅用于产品更新，绝不分享给第三方。可随时退订。',
+      successTitle: '已加入等待列表！',
+      successMessage: '我们会在功能上线时第一时间通知你。感谢你的支持！',
+      closeButton: '关闭',
+      errorInvalidEmail: '请输入有效的邮箱地址',
+      errorSubmissionFailed: '提交失败，请稍后重试',
+      errorNetwork: '网络错误，请稍后重试',
+    },
     landing: {
       nav: {
         features: '功能',
@@ -135,6 +173,25 @@ export const translations: Record<SupportedLocale, Translations> = {
     },
   },
   'zh-TW': {
+    waitlist: {
+      title: '端到端加密同步（規劃中）',
+      description: '你的數據極度神聖。我們正在構建軍規級（AES-256）的跨設備同步通道。即使是 privlocal 的開發者，也看不到你的任何日程。',
+      expectedDate: '預計上線：2026 年 Q3',
+      benefitsTitle: '加入等待列表，獲取：',
+      benefitEarlyAccess: '✓ 內測資格（提前 2 週體驗）',
+      benefitDiscount: '✓ 早鳥折扣（終身 5 折）',
+      benefitVoting: '✓ 功能投票權（決定開發優先級）',
+      emailPlaceholder: 'your@email.com',
+      submitButton: '加入等待列表',
+      submitting: '提交中...',
+      privacy: '🔒 我們承諾：郵箱僅用於產品更新，絕不分享給第三方。可隨時退訂。',
+      successTitle: '已加入等待列表！',
+      successMessage: '我們會在功能上線時第一時間通知你。感謝你的支持！',
+      closeButton: '關閉',
+      errorInvalidEmail: '請輸入有效的郵箱地址',
+      errorSubmissionFailed: '提交失敗，請稍後重試',
+      errorNetwork: '網絡錯誤，請稍後重試',
+    },
     landing: {
       nav: {
         features: '功能',
@@ -201,6 +258,25 @@ export const translations: Record<SupportedLocale, Translations> = {
     },
   },
   'en-US': {
+    waitlist: {
+      title: 'End-to-End Encrypted Sync (Coming Soon)',
+      description: 'Your data is sacred. We are building military-grade (AES-256) cross-device sync. Even privlocal developers cannot see your calendar.',
+      expectedDate: 'Expected: Q3 2026',
+      benefitsTitle: 'Join the waitlist to get:',
+      benefitEarlyAccess: '✓ Early access (2 weeks ahead)',
+      benefitDiscount: '✓ Early bird discount (50% off lifetime)',
+      benefitVoting: '✓ Feature voting rights',
+      emailPlaceholder: 'your@email.com',
+      submitButton: 'Join Waitlist',
+      submitting: 'Submitting...',
+      privacy: '🔒 We promise: Your email is only for product updates, never shared with third parties. Unsubscribe anytime.',
+      successTitle: 'You are on the list!',
+      successMessage: 'We will notify you as soon as it is ready. Thank you for your support!',
+      closeButton: 'Close',
+      errorInvalidEmail: 'Please enter a valid email address',
+      errorSubmissionFailed: 'Submission failed, please try again',
+      errorNetwork: 'Network error, please try again',
+    },
     landing: {
       nav: {
         features: 'Features',
@@ -267,6 +343,25 @@ export const translations: Record<SupportedLocale, Translations> = {
     },
   },
   'ja-JP': {
+    waitlist: {
+      title: 'エンドツーエンド暗号化同期（開発中）',
+      description: 'あなたのデーターは神聖です。軍事グレード（AES-256）のクロスデバイス同期を構築しています。privlocal の開発者でさえ、あなたのカレンダーを見ることはできません。',
+      expectedDate: '予定：2026年Q3',
+      benefitsTitle: 'ウェイトリストに参加して取得：',
+      benefitEarlyAccess: '✓ 早期アクセス（2週間先行）',
+      benefitDiscount: '✓ 早期鳥割引（终身50%オフ）',
+      benefitVoting: '✓ 機能投票権',
+      emailPlaceholder: 'your@email.com',
+      submitButton: 'ウェイトリストに参加',
+      submitting: '送信中...',
+      privacy: '🔒 お約束：メールは製品更新のみに使用し、第三方と共有しません。いつでも購読解除可能。',
+      successTitle: 'ウェイトリストに追加されました！',
+      successMessage: '機能が上线されたらすぐにお知らせします。ご支援ありがとうございます！',
+      closeButton: '閉じる',
+      errorInvalidEmail: '有効なメールアドレスを入力してください',
+      errorSubmissionFailed: '送信に失敗しました。後でもう一度お試しください',
+      errorNetwork: 'ネットワークエラー。後でもう一度お試しください',
+    },
     landing: {
       nav: {
         features: '機能',
@@ -333,6 +428,25 @@ export const translations: Record<SupportedLocale, Translations> = {
     },
   },
   'ko-KR': {
+    waitlist: {
+      title: '엔드투엔드 암호화 동기화 (개발중)',
+      description: '당신의 데이터는神圣합니다. 군사등급 (AES-256) 크로스 디바이스 동기화를 구축하고 있습니다. privlocal 개발자조차도 당신의 캘린더를 볼 수 없습니다.',
+      expectedDate: '출시 예정: 2026년 Q3',
+      benefitsTitle: '대기 목록에 참여하여 얻는 것:',
+      benefitEarlyAccess: '✓ 조기 액세스 (2주先行)',
+      benefitDiscount: '✓ 얼리버드 할인 (평생 50% 할인)',
+      benefitVoting: '✓ 기능 투표권',
+      emailPlaceholder: 'your@email.com',
+      submitButton: '대기 목록에 참여',
+      submitting: '제출 중...',
+      privacy: '🔒 약속: 이메일은 제품 업데이트 전용으로, 제3자와 공유하지 않습니다. 언제든지 구독 취소 가능.',
+      successTitle: '대기 목록에 추가되었습니다!',
+      successMessage: '기능이 출시되면 즉시 알려드립니다. 감사합니다!',
+      closeButton: '닫기',
+      errorInvalidEmail: '유효한 이메일 주소를 입력해 주세요',
+      errorSubmissionFailed: '제출에 실패했습니다. 나중에 다시 시도해 주세요',
+      errorNetwork: '네트워크 오류. 나중에 다시 시도해 주세요',
+    },
     landing: {
       nav: {
         features: '기능',
