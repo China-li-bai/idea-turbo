@@ -38,9 +38,6 @@ importers:
       '@idea-turbo/local-first-sdk':
         specifier: workspace:*
         version: link:../../packages/local-first-sdk
-      '@idea-turbo/sherpa-onnx':
-        specifier: workspace:*
-        version: link:../../packages/sherpa-onnx
       '@orama/orama':
         specifier: ^3.0.0
         version: 3.1.18

@@ -98,6 +98,47 @@ export const useUnifiedStore = create<UnifiedStore>()(
         try {
           await oramaSearchService.initialize();
 
+          const items = get().items;
+          const stats = oramaSearchService.getStats();
+          
+          if (items.length > 0 && stats.totalDocuments !== items.length) {
+            console.log(`[UnifiedStore] Data inconsistency detected: ${items.length} items in store, ${stats.totalDocuments} in Orama. Reindexing...`);
+            
+            const itemsWithoutEmbedding = items.filter(item => 
+              !item.embedding || 
+              item.embedding.length === 0 || 
+              item.embedding.length !== oramaSearchService.dimensions
+            );
+            
+            if (itemsWithoutEmbedding.length > 0) {
+              console.log(`[UnifiedStore] Reindexing ${itemsWithoutEmbedding.length} items without valid embedding...`);
+              
+              for (const item of itemsWithoutEmbedding) {
+                try {
+                  const { embedding, embeddingUpdatedAt } = await oramaSearchService.indexItem(item);
+                  
+                  set((state) => ({
+                    items: state.items.map((i) =>
+                      i.id === item.id
+                        ? { ...i, embedding, embeddingUpdatedAt }
+                        : i
+                    )
+                  }));
+                } catch (error) {
+                  console.error(`[UnifiedStore] Failed to reindex item ${item.id}:`, error);
+                }
+              }
+            } else {
+              for (const item of items) {
+                try {
+                  await oramaSearchService.indexItem(item);
+                } catch (error) {
+                  console.error(`[UnifiedStore] Failed to index item ${item.id}:`, error);
+                }
+              }
+            }
+          }
+
           set({
             _initialized: true,
             aiStatus: {

@@ -282,7 +282,6 @@ export default function AppLayout() {
       <SyncWaitlistModal
         isOpen={syncModalOpen}
         onClose={() => setSyncModalOpen(false)}
-        locale={locale}
       />
     </GlobalErrorBoundary>
   );

@@ -35,7 +35,12 @@ This skill embodies Steve Jobs' user-centric vision and Linus Torvalds' technica
 - **Requirement Identification**: Use reverse thinking to identify root requirements that users may not articulate
 
 ### 4. Research & Knowledge Acquisition Protocol
-- **Timestamp Check**: Always check current timestamp to ensure information freshness
+- **CRITICAL - Timestamp Check**: Before ANY code or documentation, ALWAYS check the current timestamp from the environment (`2026-04-02`). This is MANDATORY for:
+  - Writing release dates, timelines, roadmaps
+  - Setting deadlines, milestones, or target dates
+  - Creating marketing materials, landing pages
+  - Writing any time-related content visible to users
+  - Example: If the current year is 2026, writing "Q2 2024" is WRONG and embarrassing
 - **Search Priority**: Follow strict search order:
   1. Latest official documentation
   2. Official GitHub repositories (check recent commits and release notes)
@@ -75,6 +80,17 @@ This skill embodies Steve Jobs' user-centric vision and Linus Torvalds' technica
 - **Code Review**: Include security review as part of code review process
 
 ## Workflow
+
+### Phase 0: Timestamp Verification (MANDATORY) ⚠️
+- **CRITICAL**: Before ANY other work, ALWAYS check the current timestamp
+- The current timestamp is: **2026-04-02**
+- If you write any time-related content (dates, timelines, roadmaps), verify it against this timestamp
+- Example: Writing "Q2 2024" when it's 2026 is WRONG and embarrassing
+- This applies to ALL content visible to users, including:
+  - Landing pages, marketing materials
+  - Waitlist modals, announcement banners
+  - Documentation, roadmaps
+  - API responses, error messages
 
 ### Phase 1: Understand (理解用户意图)
 - Deconstruct user requirements using Steve Jobs' user-centric approach
@@ -168,7 +184,7 @@ Use this skill when:
 - Test all edge cases and error paths
 
 ### Research Protocol
-- Always check current timestamp first
+- ⚠️ **CRITICAL: Always check current timestamp FIRST (2026-04-02)** - Writing outdated dates is embarrassing
 - Search official documentation (latest versions)
 - Check GitHub repositories (recent commits and releases)
 - Review Stack Overflow high-vote answers
@@ -178,6 +194,8 @@ Use this skill when:
 ## Implementation Checklist
 
 Before writing any code:
+- [ ] **⚠️ MANDATORY: Check current timestamp (2026-04-02)** - This is the very first thing to do
+- [ ] Verify all time-related content against current timestamp
 - [ ] Deeply understand user intent (Steve Jobs perspective)
 - [ ] Research existing solutions exhaustively
 - [ ] Check current timestamp for information freshness
