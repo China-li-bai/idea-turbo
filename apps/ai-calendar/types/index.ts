@@ -8,18 +8,18 @@ export interface CalendarEvent {
   isAllDay: boolean;
   repeatRule?: RepeatRule;
   reminders: number[];
-  
+
   viewMode: 'boss' | 'assistant' | 'personal';
   linkedEventId?: string;
   linkedTaskIds?: string[];
-  
+
   vectorId?: string;
   embeddingUpdatedAt?: Date;
-  
+
   createdAt: Date;
   updatedAt: Date;
   color?: string;
-  
+
   eventType: 'regular' | 'shift' | 'meeting' | 'personal';
   shiftMetadata?: {
     scheduleId: string;
@@ -49,14 +49,14 @@ export interface Task {
   completed: boolean;
   completedAt?: Date;
   priority: 'high' | 'medium' | 'low';
-  
+
   resources?: Resource[];
-  
+
   dependsOnTaskIds?: string[];
-  
+
   vectorId?: string;
   embeddingUpdatedAt?: Date;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,21 +78,21 @@ export interface Inspiration {
   type: 'todo' | 'event' | 'note' | 'raw';
   processed: boolean;
   processedAt?: Date;
-  
+
   extractedDate?: Date;
   extractedTime?: string;
   extractedLocation?: string;
   extractedPeople?: string[];
-  
+
   convertedToEventId?: string;
   convertedToTaskId?: string;
   conversionNotes?: string;
-  
+
   vectorId?: string;
   embeddingUpdatedAt?: Date;
-  
+
   source?: 'keyboard' | 'voice' | 'clipboard' | 'other';
-  
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -103,12 +103,12 @@ export interface ShiftSchedule {
   description?: string;
   startDate: Date;
   endDate: Date;
-  
+
   employees: Employee[];
   shiftTypes: ShiftType[];
   shifts: Shift[];
   rules: ScheduleRule[];
-  
+
   createdAt: Date;
   updatedAt: Date;
   generatedBy?: 'manual' | 'ai' | 'hybrid';
@@ -131,20 +131,20 @@ export interface Employee {
   email?: string;
   phone?: string;
   skills?: string[];
-  
+
   preferences?: {
     preferredShifts?: string[];
     preferredDaysOff?: number[];
     maxShiftsPerWeek?: number;
     minRestDays?: number;
   };
-  
+
   constraints?: {
     unavailableDates?: Date[];
     forbiddenShifts?: string[];
     maxConsecutiveShifts?: number;
   };
-  
+
   stats?: {
     totalShifts?: number;
     shiftsThisWeek?: number;
@@ -164,7 +164,7 @@ export interface Shift {
 
 export interface ScheduleRule {
   id: string;
-  type: 
+  type:
     | 'maxShiftsPerWeek'
     | 'minRestDays'
     | 'requiredEmployee'
@@ -186,24 +186,24 @@ export interface UserSettings {
     start: string;
     end: string;
   };
-  
+
   theme: 'light' | 'dark' | 'system';
   accentColor: string;
-  
+
   language: string;
-  
+
   defaultReminders: number[];
   reminderSound: boolean;
   reminderNotification: boolean;
-  
+
   aiMode: 'local-only' | 'hybrid' | 'api-only';
   apiEndpoint?: string;
   apiKey?: string;
-  
+
   vectorSearchEnabled: boolean;
   autoSyncEmbeddings: boolean;
   embeddingModel: string;
-  
+
   autoBackup: boolean;
   backupFrequency: 'daily' | 'weekly' | 'monthly';
   lastBackupAt?: Date;
@@ -215,7 +215,7 @@ export interface SearchHistory {
   timestamp: Date;
   resultsCount: number;
   resultClickedIds?: string[];
-  
+
   type: 'vector' | 'keyword' | 'hybrid';
   filters?: {
     dateRange?: { start: Date; end: Date };
