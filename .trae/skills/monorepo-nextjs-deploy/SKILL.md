@@ -19,11 +19,12 @@ description: "Turborepo Monorepo Next.js 子项目部署到 VPS。Invoke when de
 module.exports = {
   apps: [{
     name: "your-app",
-    script: "pnpm",
-    args: "start -- -p 3002",
-    cwd: "/var/www/your-app/apps/your-app",
+    script: "node",
+    args: "server.js",
+    cwd: "/var/www/your-app",
     env: {
-      NODE_ENV: "production"
+      NODE_ENV: "production",
+      PORT: 3002
     },
     instances: 1,
     autorestart: true,
@@ -37,15 +38,16 @@ module.exports = {
 ```
 
 **关键经验**：
-- ✅ 使用 `pnpm start -- -p 3002` 而不是 `npx next start`，因为 monorepo 需要 pnpm 来解析 workspace 依赖
-- ✅ 端口必须通过命令行参数 `-p 3002` 传递，`PORT` 环境变量不会被 `pnpm start` 读取
-- ✅ `cwd` 必须指向包含 `package.json` 的应用目录
-- ✅ 配置日志文件路径，便于调试
+- ✅ 使用 `standalone` 模式时，用 `node server.js` 而非 `pnpm start`
+- ✅ `cwd` 指向 `standalone` 目录的父目录（解压后的根目录）
+- ✅ `PORT` 环境变量在 standalone 模式下**会生效**
+- ⚠️ `instances: 1` - Next.js 不是线程安全的，不能用 cluster 模式
 
 ### 2. Next.js 配置 (`apps/your-app/next.config.ts`)
 
 ```typescript
 const nextConfig: NextConfig = {
+  output: 'standalone',  // 官方推荐的部署模式
   transpilePackages: [
     '@your-org/workspace-package-1',
     '@your-org/workspace-package-2',
@@ -53,7 +55,9 @@ const nextConfig: NextConfig = {
 };
 ```
 
-**重要**: Workspace 包必须添加到 `transpilePackages`，否则构建失败。
+**重要**:
+- `output: 'standalone'` 是官方推荐的 VPS 部署模式
+- Workspace 包必须添加到 `transpilePackages`
 
 ### 3. GitHub Actions (`.github/workflows/deploy-your-app.yml`)
 
@@ -90,12 +94,14 @@ jobs:
       # 构建应用
       - run: pnpm --filter your-app build
 
-      # 打包（避免竞态条件）
+      # 复制静态文件到 standalone 目录
       - run: |
-          tar --warning=no-file-changed -czf /tmp/app.tar.gz \
-            --exclude='node_modules/.cache' \
-            --exclude='.git' \
-            .
+          cp -r apps/your-app/public apps/your-app/.next/standalone/
+          cp -r apps/your-app/.next/static apps/your-app/.next/standalone/.next/
+
+      # 打包 standalone 目录
+      - run: |
+          tar --warning=no-file-changed -czf /tmp/app.tar.gz -C apps/your-app/.next/standalone .
           mv /tmp/app.tar.gz .
 
       - uses: actions/upload-artifact@v4
@@ -134,20 +140,29 @@ jobs:
 
             sudo mkdir -p "$APP_DIR" /var/log/pm2
             sudo tar -xzf "$TAR" -C "$APP_DIR"
+
+            # Copy static files for standalone mode
+            if [ -d "$APP_DIR/apps/your-app/public" ]; then
+              cp -r "$APP_DIR/apps/your-app/public" "$APP_DIR/"
+            fi
+            if [ -d "$APP_DIR/apps/your-app/.next/static" ]; then
+              cp -r "$APP_DIR/apps/your-app/.next/static" "$APP_DIR/.next/"
+            fi
+
             sudo chown -R www-data:www-data "$APP_DIR"
 
-            cd "$APP_DIR/apps/your-app"
+            cd "$APP_DIR"
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
-            pm2 start ecosystem.config.cjs
+            pm2 start apps/your-app/ecosystem.config.cjs
             pm2 save
 
             rm -f "$TAR"
 
 **部署脚本最佳实践**：
+- ✅ 使用 `standalone` 模式，部署包更小，不需要 pnpm install
 - ✅ 不需要创建 `backup` 目录，备份会占用大量磁盘空间
 - ✅ 使用 Git 作为版本控制，必要时可以从 Git 恢复
-- ✅ 如果必须备份，在部署脚本中添加清理逻辑，只保留最近 1-2 个备份
 ```
 
 ### 4. Nginx 配置 (`apps/your-app/nginx/domain.conf`)
@@ -224,18 +239,15 @@ lsof -i :3002
 # 2. 查看 PM2 日志
 pm2 logs your-app --lines 50
 
-# 3. 手动测试启动（用 PORT 环境变量）
-cd /var/www/your-app/apps/your-app && PORT=3002 pnpm start
-
-# 4. 如果环境变量不生效，手动指定端口
-cd /var/www/your-app/apps/your-app && pnpm start -- -p 3002
+# 3. 手动测试启动（standalone 模式）
+cd /var/www/your-app && PORT=3002 node server.js
 ```
 
 **关键经验**：
-- ⚠️ `PORT` 环境变量**不会**被 `pnpm start` 或 `next start` 读取，必须用命令行参数 `-p`
-- ✅ 使用 `pnpm start -- -p 3002` 而非 `PORT=3002 pnpm start`
+- ✅ **standalone 模式下**，`PORT` 环境变量**会生效**
+- ✅ 使用 `node server.js` 而非 `pnpm start`
 - ✅ 检查 PM2 配置中的 `script` 和 `args` 是否正确
-- ✅ 确保端口未被占用
+- ⚠️ `instances: 1` - Next.js 不是线程安全的
 
 ### 6. TypeScript 类型错误：可选参数后不能有必需参数
 
@@ -350,19 +362,16 @@ export function hasPrivacyConsent(): boolean {
 
 ## 部署检查清单
 
+- [ ] `next.config.ts` 包含 `output: 'standalone'`
 - [ ] `next.config.ts` 包含所有 workspace 包的 `transpilePackages`
-- [ ] PM2 配置使用 `pnpm start -- -p 3002` 而不是 `npm start`
-- [ ] PM2 配置中的端口未被占用
+- [ ] PM2 配置使用 `node server.js` (standalone 模式)
+- [ ] PM2 配置 `instances: 1`（Next.js 不是线程安全的）
 - [ ] GitHub Secrets 已配置 (SSH_HOST, SSH_USER, SSH_PORT, VPS_SSH_KEY)
 - [ ] Nginx 配置已创建并启用
-- [ ] 构建前清理 `.next` 缓存
+- [ ] 构建后复制 `public/` 和 `.next/static/` 到 standalone 目录
 - [ ] tar 打包使用 `/tmp` 避免竞态
-- [ ] 部署脚本**不创建** backup 目录，或配置自动清理
-- [ ] 移除未使用的依赖和导入
+- [ ] 部署脚本**不创建** backup 目录
 - [ ] TypeScript 类型定义正确（可选参数、ArrayBuffer 类型）
-- [ ] 设备指纹不收集敏感信息
-- [ ] 提供用户隐私控制功能（重置、同意机制）
-- [ ] 配置 GitHub Actions 缓存（可选，加速构建）
 
 ---
 
@@ -376,9 +385,8 @@ pm2 logs your-app --lines 50
 # 检查端口占用
 lsof -i :3002
 
-# 手动启动测试
-cd /var/www/your-app/apps/your-app
-pnpm start -- -p 3002
+# 手动启动测试（standalone 模式）
+cd /var/www/your-app && PORT=3002 node server.js
 
 # 检查 Nginx 配置
 sudo nginx -t
