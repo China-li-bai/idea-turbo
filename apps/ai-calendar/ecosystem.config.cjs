@@ -3,11 +3,10 @@ module.exports = {
     {
       name: "ai-calendar",
       script: "pnpm",
-      args: "start",
+      args: "start -- -p 3002",
       cwd: "/var/www/ai-calendar/apps/ai-calendar",
       env: {
-        NODE_ENV: "production",
-        PORT: 3002
+        NODE_ENV: "production"
       },
       instances: 1,
       autorestart: true,
