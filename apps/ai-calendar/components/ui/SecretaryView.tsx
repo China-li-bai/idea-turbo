@@ -9,6 +9,7 @@ import { secretaryAIService, type ActionPlan, type ScheduledAction } from '@/lib
 import { taskDecomposerService, type DecompositionResult } from '@/lib/services/taskDecomposerService';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { aiConfigManager } from '@/lib/ai/config';
+import { parseTimeQuery } from '@/lib/utils/nlpParserLegacy';
 import AIConfigPanel from './AIConfigPanel';
 import styles from './SecretaryView.module.scss';
 
@@ -499,16 +500,75 @@ export default function SecretaryView() {
       currentDate: new Date()
     };
 
+    const timeQuery = parseTimeQuery(query, locale);
+    const scheduledEvents = allItems.filter(
+      item => item.type === 'event' && item.status === 'scheduled' && item.startTime !== null
+    );
+
+    let searchResults: Array<{
+      id: string;
+      title: string;
+      type: 'idea' | 'event';
+      score?: number;
+      metadata: Record<string, unknown>;
+    }> = [];
+    let timeFiltered = false;
+    let timeQueryDescription = '';
+
+    if (timeQuery) {
+      if (timeQuery.type === 'short_relative') {
+        timeQueryDescription = `${timeQuery.windowMinutes}${locale.startsWith('zh') ? '分钟内' : ' minutes'}`;
+        
+        searchResults = scheduledEvents.filter(item => {
+          if (!item.startTime) return false;
+          const eventTime = item.startTime;
+          return eventTime >= timeQuery.windowStart.getTime() && 
+                 eventTime <= timeQuery.windowEnd.getTime();
+        });
+        timeFiltered = true;
+      } else if (timeQuery.type === 'time_range') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        searchResults = scheduledEvents.filter(item => {
+          if (!item.startTime) return false;
+          const eventDate = new Date(item.startTime);
+          if (eventDate < today || eventDate >= tomorrow) return false;
+          
+          const eventHour = eventDate.getHours();
+          return eventHour >= timeQuery.hourStart && eventHour < timeQuery.hourEnd;
+        });
+        timeFiltered = true;
+        timeQueryDescription = locale.startsWith('zh') 
+          ? timeQuery.matchedKeyword 
+          : timeQuery.matchedKeyword;
+      }
+    }
+
+    if (timeFiltered && searchResults.length === 0) {
+      const timeDesc = timeQueryDescription || (timeQuery?.type === 'time_range' ? timeQuery.matchedKeyword : '');
+      const noEventMsg = locale.startsWith('zh')
+        ? `${timeDesc}没有已安排的日程`
+        : `No events scheduled for ${timeDesc}`;
+      return { content: noEventMsg };
+    }
+
     if (oramaSearchService.isInitialized) {
-      const searchResults = await oramaSearchService.hybridSearch(query, { k: 5, similarity: 0.6 });
+      const rawResults = timeFiltered 
+        ? searchResults.map(item => ({ id: item.id, title: item.title, type: item.type, score: 1, metadata: item.metadata }))
+        : await oramaSearchService.hybridSearch(query, { k: 5, similarity: 0.6 });
       
-      if (searchResults.length === 0) {
+      if (rawResults.length === 0) {
         return { content: t('secretary.noResults') };
       }
       
-      let content = t('secretary.foundItems').replace('{count}', String(searchResults.length)) + '\n\n';
+      let content = timeFiltered
+        ? `${timeQueryDescription}${locale.startsWith('zh') ? '的日程' : ' events'} (${rawResults.length})\n\n`
+        : t('secretary.foundItems').replace('{count}', String(rawResults.length)) + '\n\n';
       
-      searchResults.slice(0, 3).forEach((result, index) => {
+      rawResults.slice(0, 3).forEach((result, index) => {
         const title = result.title || t('secretary.unknownTitle');
         const type = result.type || 'idea';
         content += `${index + 1}. **${title}** (${type === 'idea' ? t('secretary.idea') : t('secretary.event')})\n`;
@@ -525,7 +585,7 @@ export default function SecretaryView() {
         }
       });
       
-      const firstResult = searchResults[0];
+      const firstResult = rawResults[0];
       if (firstResult.type === 'idea') {
         const item = allItems.find(i => i.id === firstResult.id);
         if (item) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseNaturalLanguage, formatTimeRange, formatRelativeDate, toTimestamp, fromTimestamp } from '../nlpParserLegacy';
+import { parseNaturalLanguage, formatTimeRange, formatRelativeDate, toTimestamp, fromTimestamp, parseTimeQuery } from '../nlpParserLegacy';
 
 describe('nlpParserLegacy - NLP 时间解析', () => {
   describe('parseNaturalLanguage - 中文时间解析', () => {
@@ -291,6 +291,157 @@ describe('nlpParserLegacy - NLP 时间解析', () => {
       const timestamp = toTimestamp(originalDate);
       const convertedDate = fromTimestamp(timestamp);
       expect(convertedDate.getTime()).toBe(originalDate.getTime());
+    });
+  });
+
+  describe('parseTimeQuery - 短时相对时间解析', () => {
+    it('应该解析"等下"', () => {
+      const result = parseTimeQuery('等下有什么事', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(15);
+        expect(result.matchedKeyword).toBe('等下');
+      }
+    });
+
+    it('应该解析"一会儿"', () => {
+      const result = parseTimeQuery('一会儿有什么安排', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(30);
+      }
+    });
+
+    it('应该解析"马上"', () => {
+      const result = parseTimeQuery('马上要做什么', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(5);
+      }
+    });
+
+    it('应该解析"等会儿"', () => {
+      const result = parseTimeQuery('等会儿干什么', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(20);
+      }
+    });
+
+    it('应该解析英文 "right now"', () => {
+      const result = parseTimeQuery('what is happening right now', 'en-US');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(5);
+      }
+    });
+
+    it('应该解析英文 "in a while"', () => {
+      const result = parseTimeQuery('what is happening in a while', 'en-US');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+      if (result?.type === 'short_relative') {
+        expect(result.windowMinutes).toBe(30);
+      }
+    });
+
+    it('短时相对时间查询应该返回未来时间窗口', () => {
+      const before = Date.now();
+      const result = parseTimeQuery('等下有什么事', 'zh-CN');
+      const after = Date.now();
+      
+      expect(result).not.toBeNull();
+      if (result?.type === 'short_relative') {
+        expect(result.windowStart.getTime()).toBeGreaterThanOrEqual(before);
+        expect(result.windowEnd.getTime()).toBeLessThanOrEqual(after + 16 * 60 * 1000);
+        expect(result.windowEnd.getTime()).toBeGreaterThan(result.windowStart.getTime());
+      }
+    });
+  });
+
+  describe('parseTimeQuery - 时段查询解析', () => {
+    it('应该解析"中午"', () => {
+      const result = parseTimeQuery('中午有什么事', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(12);
+        expect(result.hourEnd).toBe(14);
+        expect(result.matchedKeyword).toBe('中午');
+      }
+    });
+
+    it('应该解析"下午"', () => {
+      const result = parseTimeQuery('下午有什么安排', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(14);
+        expect(result.hourEnd).toBe(18);
+      }
+    });
+
+    it('应该解析"晚上"', () => {
+      const result = parseTimeQuery('晚上要不要开会', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(18);
+        expect(result.hourEnd).toBe(22);
+      }
+    });
+
+    it('应该解析英文 "afternoon"', () => {
+      const result = parseTimeQuery('what is happening in the afternoon', 'en-US');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(14);
+        expect(result.hourEnd).toBe(18);
+      }
+    });
+
+    it('应该解析日文 "午後"', () => {
+      const result = parseTimeQuery('午後の予定', 'ja-JP');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(14);
+        expect(result.hourEnd).toBe(18);
+      }
+    });
+
+    it('应该解析韩文 "오후"', () => {
+      const result = parseTimeQuery('오후 일정이 뭐야', 'ko-KR');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('time_range');
+      if (result?.type === 'time_range') {
+        expect(result.hourStart).toBe(14);
+        expect(result.hourEnd).toBe(18);
+      }
+    });
+  });
+
+  describe('parseTimeQuery - 优先级测试', () => {
+    it('短时相对时间应该优先于时段查询', () => {
+      const result = parseTimeQuery('马上等下有什么事', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('short_relative');
+    });
+
+    it('当没有时间关键词时应该返回 null', () => {
+      const result = parseTimeQuery('你好', 'zh-CN');
+      expect(result).toBeNull();
+    });
+
+    it('当没有时间关键词时应该返回 null (英文)', () => {
+      const result = parseTimeQuery('hello world', 'en-US');
+      expect(result).toBeNull();
     });
   });
 });

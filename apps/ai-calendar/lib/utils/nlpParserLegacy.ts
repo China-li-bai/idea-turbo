@@ -15,9 +15,26 @@ export interface ParsedResult {
   rawInput: string;
 }
 
+export interface ShortTimeQuery {
+  type: 'short_relative';
+  windowStart: Date;
+  windowEnd: Date;
+  windowMinutes: number;
+  matchedKeyword: string;
+  isUpcoming: boolean;
+}
+
+export interface TimeRangeQuery {
+  type: 'time_range';
+  hourStart: number;
+  hourEnd: number;
+  matchedKeyword: string;
+}
+
 interface TimeKeywords {
   relativeDays: Record<string, number>;
   timeOfDay: Record<string, { start: number; end: number }>;
+  shortRelativeTime: Record<string, number>;
   duration: Record<string, number>;
   todoKeywords: string[];
   noteKeywords: string[];
@@ -42,6 +59,18 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '凌晨': { start: 0, end: 6 },
       '早晨': { start: 6, end: 9 },
     },
+    shortRelativeTime: {
+      '等下': 15,
+      '等一会儿': 30,
+      '一会儿': 30,
+      '待会儿': 20,
+      '等会儿': 20,
+      '马上': 5,
+      '立刻': 5,
+      '稍后': 15,
+      '稍候': 15,
+      '等一下': 10,
+    },
     duration: { '小时': 60, '分钟': 1, '天': 480, '半天': 240, '半小时': 30 },
     todoKeywords: ['待办', 'todo', '任务', '要做', '需要做', '记得', '购买', '联系', '处理'],
     noteKeywords: ['笔记', 'note', '记录', '想法', '感悟', '总结'],
@@ -63,6 +92,16 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '中午': { start: 12, end: 14 },
       '凌晨': { start: 0, end: 6 },
       '早晨': { start: 6, end: 9 },
+    },
+    shortRelativeTime: {
+      '等一下': 10,
+      '等一會': 15,
+      '一會': 30,
+      '等會': 20,
+      '馬上': 5,
+      '立刻': 5,
+      '稍後': 15,
+      '稍候': 15,
     },
     duration: { '小時': 60, '分鐘': 1, '天': 480, '半天': 240, '半小時': 30 },
     todoKeywords: ['待辦', 'todo', '任務', '要做', '需要做', '記得', '購買', '聯繫', '處理'],
@@ -86,6 +125,17 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       'midnight': { start: 0, end: 2 },
       'dawn': { start: 5, end: 7 },
     },
+    shortRelativeTime: {
+      'right now': 5,
+      'right away': 5,
+      'in a bit': 15,
+      'in a moment': 10,
+      'in a minute': 5,
+      'in a while': 30,
+      'later': 30,
+      'soon': 10,
+      'shortly': 10,
+    },
     duration: { 'hour': 60, 'hours': 60, 'minute': 1, 'minutes': 1, 'day': 480, 'days': 480, 'half hour': 30, 'half day': 240 },
     todoKeywords: ['todo', 'task', 'need to', 'have to', 'remember to', 'buy', 'call', 'contact'],
     noteKeywords: ['note', 'notes', 'record', 'idea', 'thought', 'summary'],
@@ -107,6 +157,15 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '朝': { start: 6, end: 9 },
       '深夜': { start: 0, end: 6 },
     },
+    shortRelativeTime: {
+      '少し後で': 15,
+      '後で': 30,
+      '今': 5,
+      'すぐに': 5,
+      '直ち': 5,
+      'まもなく': 10,
+      '暫く': 20,
+    },
     duration: { '時間': 60, '分': 1, '日': 480, '半日': 240, '半時間': 30 },
     todoKeywords: ['やること', 'todo', 'タスク', 'やる', '覚える', '買う', '連絡'],
     noteKeywords: ['メモ', 'note', '記録', 'アイデア', '感想', 'まとめ'],
@@ -127,6 +186,15 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '정오': { start: 12, end: 14 },
       '새벽': { start: 0, end: 6 },
       '아침': { start: 6, end: 9 },
+    },
+    shortRelativeTime: {
+      '조금 뒤': 15,
+      '나중에': 30,
+      '지금': 5,
+      '당장': 5,
+      '곧': 10,
+      '머지않아': 10,
+      '잠시': 20,
     },
     duration: { '시간': 60, '분': 1, '일': 480, '반나절': 240, '30분': 30 },
     todoKeywords: ['할일', 'todo', '태스크', '해야', '기억', '사기', '연락'],
@@ -169,6 +237,46 @@ function parseRelativeDay(input: string, keywords: TimeKeywords): number | null 
       return days;
     }
   }
+  return null;
+}
+
+function parseShortRelativeTime(input: string, keywords: TimeKeywords): ShortTimeQuery | null {
+  const lowerInput = input.toLowerCase();
+  
+  for (const [keyword, minutes] of Object.entries(keywords.shortRelativeTime)) {
+    if (lowerInput.includes(keyword.toLowerCase())) {
+      const now = new Date();
+      const windowStart = new Date(now);
+      const windowEnd = new Date(now.getTime() + minutes * 60 * 1000);
+      
+      return {
+        type: 'short_relative',
+        windowStart,
+        windowEnd,
+        windowMinutes: minutes,
+        matchedKeyword: keyword,
+        isUpcoming: true
+      };
+    }
+  }
+  
+  return null;
+}
+
+function parseTimeRangeQuery(input: string, keywords: TimeKeywords): TimeRangeQuery | null {
+  const lowerInput = input.toLowerCase();
+  
+  for (const [keyword, range] of Object.entries(keywords.timeOfDay)) {
+    if (lowerInput.includes(keyword.toLowerCase())) {
+      return {
+        type: 'time_range',
+        hourStart: range.start,
+        hourEnd: range.end,
+        matchedKeyword: keyword
+      };
+    }
+  }
+  
   return null;
 }
 
@@ -603,4 +711,20 @@ export function toTimestamp(date: Date): number {
 
 export function fromTimestamp(timestamp: number): Date {
   return new Date(timestamp);
+}
+
+export function parseTimeQuery(input: string, locale: SupportedLocale = 'zh-CN'): ShortTimeQuery | TimeRangeQuery | null {
+  const keywords = getKeywords(locale);
+  
+  const shortTimeResult = parseShortRelativeTime(input, keywords);
+  if (shortTimeResult) {
+    return shortTimeResult;
+  }
+  
+  const timeRangeResult = parseTimeRangeQuery(input, keywords);
+  if (timeRangeResult) {
+    return timeRangeResult;
+  }
+  
+  return null;
 }
