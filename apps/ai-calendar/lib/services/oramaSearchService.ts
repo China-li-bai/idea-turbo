@@ -361,9 +361,9 @@ export class OramaSearchService {
   }
 
   private async _loadFromIndexedDB(): Promise<boolean> {
-    const dataKey = `OramaSearchDB_${this.currentModelType}_data`;
-    const versionKey = `OramaSearchDB_${this.currentModelType}_version`;
-    const backupKey = `OramaSearchDB_${this.currentModelType}_data_backup`;
+    const dataKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors`;
+    const versionKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors_version`;
+    const backupKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors_backup`;
 
     try {
       const [data, version] = await Promise.all([
@@ -765,12 +765,31 @@ export class OramaSearchService {
 
   async load(name: string = "ai-calendar-vectors"): Promise<boolean> {
     const dataKey = `OramaSearchDB_${this.currentModelType}_${name}`;
-    const data = await localforage.getItem<string>(dataKey);
+    const versionKey = `OramaSearchDB_${this.currentModelType}_${name}_version`;
+
+    const [data, version] = await Promise.all([
+      localforage.getItem<string>(dataKey),
+      localforage.getItem<number>(versionKey)
+    ]);
+
+    if (version !== EMBEDDING_SCHEMA_VERSION) {
+      console.log(`[OramaSearchService] Schema version mismatch (stored: ${version}, current: ${EMBEDDING_SCHEMA_VERSION}), clearing old data...`);
+      await Promise.all([
+        localforage.removeItem(dataKey),
+        localforage.removeItem(versionKey)
+      ]);
+      return false;
+    }
 
     if (data) {
-      this.db = await restore("json", data);
-      this.isReady = true;
-      return true;
+      try {
+        this.db = await restore("json", data);
+        this.isReady = true;
+        return true;
+      } catch (error) {
+        console.error('[OramaSearchService] Failed to restore database:', error);
+        return false;
+      }
     }
 
     return false;
