@@ -96,15 +96,7 @@ jobs:
             
             # Create directories
             sudo mkdir -p "$APP_DIR"
-            sudo mkdir -p "$APP_DIR/backup"
             sudo mkdir -p /var/log/pm2
-            
-            # Backup current version
-            if [ -f "$APP_DIR/apps/ai-calendar/.next/BUILD_ID" ]; then
-              TS=$(date +%Y%m%d-%H%M%S)
-              sudo tar -czf "$APP_DIR/backup/${APP_NAME}-${TS}.tar.gz" -C "$APP_DIR" . || true
-              echo "[INFO] Backed up to ${APP_NAME}-${TS}.tar.gz"
-            fi
             
             # Extract new version
             sudo tar -xzf "$TAR" -C "$APP_DIR"
