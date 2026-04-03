@@ -1,5 +1,6 @@
 import { oramaSearchService } from './oramaSearchService';
 import { memoryService } from './memoryService';
+import { timeIndexService } from './timeIndexService';
 import type { UnifiedCalendarItem } from '@/types/unified';
 import type { MemoryItem, MemorySearchOptions } from '@/types/memory';
 import { parseTimeQuery } from '@/lib/utils/nlpParserLegacy';
@@ -10,6 +11,7 @@ export interface HybridSearchResult {
     item: UnifiedCalendarItem;
     score: number;
     source: 'calendar';
+    skipRatio?: number;
   }>;
 
   memories: Array<{
@@ -31,6 +33,7 @@ export interface HybridSearchResult {
     memoryCount: number;
     totalCount: number;
     timeQuery?: string;
+    skipRatio?: number;
   };
 }
 
@@ -49,6 +52,11 @@ export interface HybridSearchOptions {
 
   mergeStrategy?: 'score' | 'time' | 'type' | 'time-aware';
   maxResults?: number;
+
+  skipIndexing?: {
+    enabled: boolean;
+    preFilter?: boolean;
+  };
 }
 
 function calculateDynamicSimilarity(query: string): number {
@@ -182,6 +190,10 @@ class HybridSearchServiceImpl {
     const maxResults = options.maxResults || 20;
     const limitedCombined = combined.slice(0, maxResults);
 
+    const avgSkipRatio = calendarResults.length > 0
+      ? calendarResults.reduce((sum, r) => sum + (r.skipRatio || 0), 0) / calendarResults.length
+      : 0;
+
     return {
       calendarItems: calendarResults,
       memories: memoryResults,
@@ -192,6 +204,7 @@ class HybridSearchServiceImpl {
         memoryCount: memoryResults.length,
         totalCount: limitedCombined.length,
         timeQuery: timeQueryDescription,
+        skipRatio: avgSkipRatio > 0 ? avgSkipRatio : undefined,
       },
     };
   }
@@ -201,6 +214,18 @@ class HybridSearchServiceImpl {
     similarity: number
   ) {
     try {
+      let candidateIds: Set<string> | undefined;
+      let skipRatio = 0;
+
+      if (options.skipIndexing?.enabled && options.skipIndexing.preFilter) {
+        const ids = timeIndexService.getCandidateItemIds(options.query, options.locale);
+        if (ids.length > 0) {
+          candidateIds = new Set(ids);
+          const totalEstimate = await this.estimateTotalItems();
+          skipRatio = totalEstimate > 0 ? 1 - (ids.length / totalEstimate) : 0;
+        }
+      }
+
       const results = await oramaSearchService.search(options.query, {
         k: options.calendarOptions?.limit || 10,
         similarity: similarity,
@@ -211,7 +236,11 @@ class HybridSearchServiceImpl {
           : undefined,
       });
 
-      return results.map((result) => ({
+      const filteredResults = candidateIds
+        ? results.filter(r => candidateIds!.has(r.id))
+        : results;
+
+      return filteredResults.map((result) => ({
         item: {
           ...result,
           embedding: [],
@@ -219,11 +248,17 @@ class HybridSearchServiceImpl {
         } as UnifiedCalendarItem,
         score: result.score,
         source: 'calendar' as const,
+        skipRatio,
       }));
     } catch (error) {
       console.error('[HybridSearch] Calendar search failed:', error);
       return [];
     }
+  }
+
+  private async estimateTotalItems(): Promise<number> {
+    const stats = timeIndexService.getBlockStatistics();
+    return stats.totalItems || 100;
   }
   
   private async searchMemory(options: HybridSearchOptions) {
