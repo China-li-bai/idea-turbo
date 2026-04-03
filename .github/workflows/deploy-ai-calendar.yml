@@ -119,11 +119,15 @@ jobs:
             
             # PM2 deployment
             cd "$APP_DIR/apps/ai-calendar"
-            
+
+            # Install dependencies with pnpm (needed for workspace:* resolution)
+            sudo -u www-data pnpm install --frozen-lockfile --prod || sudo -u www-data pnpm install --prod || true
+            echo "[INFO] Dependencies installed"
+
             # Stop existing process
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
-            
+
             # Start with PM2
             pm2 start ecosystem.config.cjs
             pm2 save

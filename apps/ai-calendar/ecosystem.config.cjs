@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "ai-calendar",
-      script: "npm",
+      script: "pnpm",
       args: "start",
       cwd: "/var/www/ai-calendar/apps/ai-calendar",
       env: {
