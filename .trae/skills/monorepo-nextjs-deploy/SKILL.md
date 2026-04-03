@@ -19,13 +19,11 @@ description: "Turborepo Monorepo Next.js 子项目部署到 VPS。Invoke when de
 module.exports = {
   apps: [{
     name: "your-app",
-    // ⚠️ 重要：在 monorepo 环境下，使用 npx next start 比 npm start 更可靠
-    script: "npx",
-    args: "next start --port 3002",
+    script: "pnpm",
+    args: "start -- -p 3002",
     cwd: "/var/www/your-app/apps/your-app",
     env: {
-      NODE_ENV: "production",
-      PORT: 3002  // 确保端口未被占用
+      NODE_ENV: "production"
     },
     instances: 1,
     autorestart: true,
@@ -39,8 +37,9 @@ module.exports = {
 ```
 
 **关键经验**：
-- ✅ 使用 `npx next start` 而不是 `npm start`，避免 monorepo 工作目录问题
-- ✅ 明确指定 `--port` 参数，避免端口冲突
+- ✅ 使用 `pnpm start -- -p 3002` 而不是 `npx next start`，因为 monorepo 需要 pnpm 来解析 workspace 依赖
+- ✅ 端口必须通过命令行参数 `-p 3002` 传递，`PORT` 环境变量不会被 `pnpm start` 读取
+- ✅ `cwd` 必须指向包含 `package.json` 的应用目录
 - ✅ 配置日志文件路径，便于调试
 
 ### 2. Next.js 配置 (`apps/your-app/next.config.ts`)
@@ -132,18 +131,23 @@ jobs:
             APP_PORT=3002
             TAR="/tmp/app.tar.gz"
             APP_DIR="/var/www/${APP_NAME}"
-            
+
             sudo mkdir -p "$APP_DIR" /var/log/pm2
             sudo tar -xzf "$TAR" -C "$APP_DIR"
             sudo chown -R www-data:www-data "$APP_DIR"
-            
+
             cd "$APP_DIR/apps/your-app"
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
             pm2 start ecosystem.config.cjs
             pm2 save
-            
+
             rm -f "$TAR"
+
+**部署脚本最佳实践**：
+- ✅ 不需要创建 `backup` 目录，备份会占用大量磁盘空间
+- ✅ 使用 Git 作为版本控制，必要时可以从 Git 恢复
+- ✅ 如果必须备份，在部署脚本中添加清理逻辑，只保留最近 1-2 个备份
 ```
 
 ### 4. Nginx 配置 (`apps/your-app/nginx/domain.conf`)
@@ -208,20 +212,30 @@ sudo ln -sf /etc/nginx/sites-available/your-domain /etc/nginx/sites-enabled/
 sudo systemctl reload nginx
 ```
 
-### 5. PM2 进程不断重启
+### 5. PM2 进程不断重启 (EADDRINUSE / EACCES)
 
-**原因**: 应用启动失败
+**原因**: 端口被占用或权限问题
 
-**解决**:
+**排查步骤**:
 ```bash
+# 1. 检查端口占用
+lsof -i :3002
+
+# 2. 查看 PM2 日志
 pm2 logs your-app --lines 50
-cd /var/www/your-app/apps/your-app && npx next start --port 3002  # 手动测试
+
+# 3. 手动测试启动（用 PORT 环境变量）
+cd /var/www/your-app/apps/your-app && PORT=3002 pnpm start
+
+# 4. 如果环境变量不生效，手动指定端口
+cd /var/www/your-app/apps/your-app && pnpm start -- -p 3002
 ```
 
 **关键经验**：
-- ✅ 如果 `npm start` 失败，尝试 `npx next start --port 3002`
+- ⚠️ `PORT` 环境变量**不会**被 `pnpm start` 或 `next start` 读取，必须用命令行参数 `-p`
+- ✅ 使用 `pnpm start -- -p 3002` 而非 `PORT=3002 pnpm start`
 - ✅ 检查 PM2 配置中的 `script` 和 `args` 是否正确
-- ✅ 确保端口未被占用：`lsof -i :3002`
+- ✅ 确保端口未被占用
 
 ### 6. TypeScript 类型错误：可选参数后不能有必需参数
 
@@ -337,12 +351,13 @@ export function hasPrivacyConsent(): boolean {
 ## 部署检查清单
 
 - [ ] `next.config.ts` 包含所有 workspace 包的 `transpilePackages`
-- [ ] PM2 配置使用 `npx next start` 而不是 `npm start`
+- [ ] PM2 配置使用 `pnpm start -- -p 3002` 而不是 `npm start`
 - [ ] PM2 配置中的端口未被占用
 - [ ] GitHub Secrets 已配置 (SSH_HOST, SSH_USER, SSH_PORT, VPS_SSH_KEY)
 - [ ] Nginx 配置已创建并启用
 - [ ] 构建前清理 `.next` 缓存
 - [ ] tar 打包使用 `/tmp` 避免竞态
+- [ ] 部署脚本**不创建** backup 目录，或配置自动清理
 - [ ] 移除未使用的依赖和导入
 - [ ] TypeScript 类型定义正确（可选参数、ArrayBuffer 类型）
 - [ ] 设备指纹不收集敏感信息
@@ -363,7 +378,7 @@ lsof -i :3002
 
 # 手动启动测试
 cd /var/www/your-app/apps/your-app
-npx next start --port 3002
+pnpm start -- -p 3002
 
 # 检查 Nginx 配置
 sudo nginx -t
