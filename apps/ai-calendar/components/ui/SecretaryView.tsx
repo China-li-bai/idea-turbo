@@ -9,7 +9,7 @@ import { secretaryAIService, type ActionPlan, type ScheduledAction } from '@/lib
 import { taskDecomposerService, type DecompositionResult } from '@/lib/services/taskDecomposerService';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { aiConfigManager } from '@/lib/ai/config';
-import { parseTimeQuery } from '@/lib/utils/nlpParserLegacy';
+import { parseTimeQuery, formatRelativeDate } from '@/lib/utils/nlpParserLegacy';
 import AIConfigPanel from './AIConfigPanel';
 import styles from './SecretaryView.module.scss';
 
@@ -516,7 +516,111 @@ export default function SecretaryView() {
     let timeQueryDescription = '';
 
     if (timeQuery) {
-      if (timeQuery.type === 'short_relative') {
+      if (timeQuery.type === 'availability') {
+        const targetDate = timeQuery.targetDate;
+        const dayStart = new Date(targetDate);
+        const dayEnd = new Date(targetDate);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        
+        const dayEvents = scheduledEvents.filter(item => {
+          if (!item.startTime || !item.endTime) return false;
+          const eventStart = item.startTime;
+          const eventEnd = item.endTime;
+          return eventStart >= dayStart.getTime() && eventEnd <= dayEnd.getTime();
+        });
+        
+        const freeSlots = [];
+        const workingHoursStart = 9;
+        const workingHoursEnd = 18;
+        
+        let currentTime = new Date(dayStart);
+        currentTime.setHours(workingHoursStart, 0, 0, 0);
+        
+        const endTime = new Date(dayStart);
+        endTime.setHours(workingHoursEnd, 0, 0, 0);
+        
+        const sortedEvents = [...dayEvents].sort((a, b) => 
+          (a.startTime || 0) - (b.startTime || 0)
+        );
+        
+        for (const event of sortedEvents) {
+          if (!event.startTime || !event.endTime) continue;
+          
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+          
+          if (currentTime < eventStart) {
+            const slotDuration = Math.floor((eventStart.getTime() - currentTime.getTime()) / (1000 * 60));
+            if (slotDuration >= 30) {
+              freeSlots.push({
+                start: new Date(currentTime),
+                end: new Date(eventStart),
+                duration: slotDuration
+              });
+            }
+          }
+          
+          if (eventEnd > currentTime) {
+            currentTime = new Date(eventEnd);
+          }
+        }
+        
+        if (currentTime < endTime) {
+          const slotDuration = Math.floor((endTime.getTime() - currentTime.getTime()) / (1000 * 60));
+          if (slotDuration >= 30) {
+            freeSlots.push({
+              start: new Date(currentTime),
+              end: new Date(endTime),
+              duration: slotDuration
+            });
+          }
+        }
+        
+        const relativeDate = formatRelativeDate(targetDate, locale);
+        let availabilityContent = '';
+        
+        if (locale.startsWith('zh')) {
+          if (dayEvents.length === 0) {
+            availabilityContent = `${relativeDate}全天有空！推荐时间：上午9-12点、下午14-18点是最佳时间段。`;
+          } else if (freeSlots.length === 0) {
+            availabilityContent = `${relativeDate}日程已满，没有空闲时间。`;
+          } else {
+            availabilityContent = `${relativeDate}的空闲时间：\n\n`;
+            freeSlots.slice(0, 3).forEach((slot, index) => {
+              const startStr = slot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              const endStr = slot.end.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              availabilityContent += `${index + 1}. ${startStr} - ${endStr} (${slot.duration}分钟)\n`;
+            });
+            
+            if (freeSlots.length > 0) {
+              const bestSlot = freeSlots[0];
+              const bestStart = bestSlot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              availabilityContent += `\n💡 推荐：${bestStart} 开始是最佳时间段。`;
+            }
+          }
+        } else {
+          if (dayEvents.length === 0) {
+            availabilityContent = `${relativeDate} is completely free! Recommended times: 9 AM - 12 PM, 2 PM - 6 PM.`;
+          } else if (freeSlots.length === 0) {
+            availabilityContent = `${relativeDate} is fully booked, no free time available.`;
+          } else {
+            availabilityContent = `Free time on ${relativeDate}:\n\n`;
+            freeSlots.slice(0, 3).forEach((slot, index) => {
+              const startStr = slot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              const endStr = slot.end.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              availabilityContent += `${index + 1}. ${startStr} - ${endStr} (${slot.duration} min)\n`;
+            });
+            
+            if (freeSlots.length > 0) {
+              const bestSlot = freeSlots[0];
+              const bestStart = bestSlot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              availabilityContent += `\n💡 Recommendation: ${bestStart} is the best time slot.`;
+            }
+          }
+        }
+        
+        return { content: availabilityContent };
+      } else if (timeQuery.type === 'short_relative') {
         timeQueryDescription = `${timeQuery.windowMinutes}${locale.startsWith('zh') ? '分钟内' : ' minutes'}`;
         
         searchResults = scheduledEvents.filter(item => {

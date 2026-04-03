@@ -444,4 +444,65 @@ describe('nlpParserLegacy - NLP 时间解析', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('parseTimeQuery - 可用性查询解析', () => {
+    it('应该解析"明天有空吗"', () => {
+      const result = parseTimeQuery('明天有空吗', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+      if (result?.type === 'availability') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        expect(result.targetDate.getTime()).toBe(tomorrow.getTime());
+      }
+    });
+
+    it('应该解析"后天有时间吗"', () => {
+      const result = parseTimeQuery('后天有时间吗', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+
+    it('应该解析"今天方便吗"', () => {
+      const result = parseTimeQuery('今天方便吗', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+      if (result?.type === 'availability') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expect(result.targetDate.getTime()).toBe(today.getTime());
+      }
+    });
+
+    it('应该解析英文 "is tomorrow free"', () => {
+      const result = parseTimeQuery('is tomorrow free', 'en-US');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+
+    it('应该解析英文 "when are you available"', () => {
+      const result = parseTimeQuery('when are you available', 'en-US');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+
+    it('应该解析日文 "明日空いてる"', () => {
+      const result = parseTimeQuery('明日空いてる', 'ja-JP');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+
+    it('应该解析韩文 "내일 시간 있나요"', () => {
+      const result = parseTimeQuery('내일 시간 있나요', 'ko-KR');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+
+    it('可用性查询应该优先于其他查询', () => {
+      const result = parseTimeQuery('明天有空吗？等下有什么事', 'zh-CN');
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('availability');
+    });
+  });
 });

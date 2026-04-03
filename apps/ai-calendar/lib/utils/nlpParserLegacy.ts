@@ -31,10 +31,17 @@ export interface TimeRangeQuery {
   matchedKeyword: string;
 }
 
+export interface AvailabilityQuery {
+  type: 'availability';
+  targetDate: Date;
+  matchedKeyword: string;
+}
+
 interface TimeKeywords {
   relativeDays: Record<string, number>;
   timeOfDay: Record<string, { start: number; end: number }>;
   shortRelativeTime: Record<string, number>;
+  availabilityKeywords: string[];
   duration: Record<string, number>;
   todoKeywords: string[];
   noteKeywords: string[];
@@ -71,6 +78,7 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '稍候': 15,
       '等一下': 10,
     },
+    availabilityKeywords: ['有空吗', '有空', '什么时候有空', '有时间吗', '有时间', '方便吗', '方便', '空闲吗', '空闲', '没事吗', '没事', '有没有空', '有没有时间'],
     duration: { '小时': 60, '分钟': 1, '天': 480, '半天': 240, '半小时': 30 },
     todoKeywords: ['待办', 'todo', '任务', '要做', '需要做', '记得', '购买', '联系', '处理'],
     noteKeywords: ['笔记', 'note', '记录', '想法', '感悟', '总结'],
@@ -103,6 +111,7 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '稍後': 15,
       '稍候': 15,
     },
+    availabilityKeywords: ['有空嗎', '有空', '什麼時候有空', '有時間嗎', '有時間', '方便嗎', '方便', '空閒嗎', '空閒', '沒事嗎', '沒事', '有沒有空', '有沒有時間'],
     duration: { '小時': 60, '分鐘': 1, '天': 480, '半天': 240, '半小時': 30 },
     todoKeywords: ['待辦', 'todo', '任務', '要做', '需要做', '記得', '購買', '聯繫', '處理'],
     noteKeywords: ['筆記', 'note', '記錄', '想法', '感悟', '總結'],
@@ -136,6 +145,7 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       'soon': 10,
       'shortly': 10,
     },
+    availabilityKeywords: ['free', 'available', 'when free', 'when available', 'got time', 'have time', 'any time', 'convenient'],
     duration: { 'hour': 60, 'hours': 60, 'minute': 1, 'minutes': 1, 'day': 480, 'days': 480, 'half hour': 30, 'half day': 240 },
     todoKeywords: ['todo', 'task', 'need to', 'have to', 'remember to', 'buy', 'call', 'contact'],
     noteKeywords: ['note', 'notes', 'record', 'idea', 'thought', 'summary'],
@@ -166,6 +176,7 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       'まもなく': 10,
       '暫く': 20,
     },
+    availabilityKeywords: ['空いてる', '空いている', '暇', '暇です', '時間ある', '時間あります', '都合がつく', '都合がよい'],
     duration: { '時間': 60, '分': 1, '日': 480, '半日': 240, '半時間': 30 },
     todoKeywords: ['やること', 'todo', 'タスク', 'やる', '覚える', '買う', '連絡'],
     noteKeywords: ['メモ', 'note', '記録', 'アイデア', '感想', 'まとめ'],
@@ -196,6 +207,7 @@ const TIME_KEYWORDS: Record<SupportedLocale, TimeKeywords> = {
       '머지않아': 10,
       '잠시': 20,
     },
+    availabilityKeywords: ['시간 있나요', '시간 있어요', '비어있나요', '비어있어요', '편하신가요', '편해요', '가능한가요', '가능해요'],
     duration: { '시간': 60, '분': 1, '일': 480, '반나절': 240, '30분': 30 },
     todoKeywords: ['할일', 'todo', '태스크', '해야', '기억', '사기', '연락'],
     noteKeywords: ['메모', 'note', '기록', '아이디어', '생각', '정리'],
@@ -272,6 +284,40 @@ function parseTimeRangeQuery(input: string, keywords: TimeKeywords): TimeRangeQu
         type: 'time_range',
         hourStart: range.start,
         hourEnd: range.end,
+        matchedKeyword: keyword
+      };
+    }
+  }
+  
+  return null;
+}
+
+function parseAvailabilityQuery(input: string, keywords: TimeKeywords, locale: SupportedLocale): AvailabilityQuery | null {
+  const lowerInput = input.toLowerCase();
+  
+  for (const keyword of keywords.availabilityKeywords) {
+    if (lowerInput.includes(keyword.toLowerCase())) {
+      let targetDate = new Date();
+      
+      const relativeDays = parseRelativeDay(input, keywords);
+      if (relativeDays !== null) {
+        targetDate.setDate(targetDate.getDate() + relativeDays);
+      } else {
+        const absoluteDate = parseAbsoluteDate(input);
+        if (absoluteDate) {
+          targetDate.setMonth(absoluteDate.month);
+          targetDate.setDate(absoluteDate.day);
+          if (absoluteDate.year) {
+            targetDate.setFullYear(absoluteDate.year);
+          }
+        }
+      }
+      
+      targetDate.setHours(0, 0, 0, 0);
+      
+      return {
+        type: 'availability',
+        targetDate,
         matchedKeyword: keyword
       };
     }
@@ -713,8 +759,13 @@ export function fromTimestamp(timestamp: number): Date {
   return new Date(timestamp);
 }
 
-export function parseTimeQuery(input: string, locale: SupportedLocale = 'zh-CN'): ShortTimeQuery | TimeRangeQuery | null {
+export function parseTimeQuery(input: string, locale: SupportedLocale = 'zh-CN'): ShortTimeQuery | TimeRangeQuery | AvailabilityQuery | null {
   const keywords = getKeywords(locale);
+  
+  const availabilityResult = parseAvailabilityQuery(input, keywords, locale);
+  if (availabilityResult) {
+    return availabilityResult;
+  }
   
   const shortTimeResult = parseShortRelativeTime(input, keywords);
   if (shortTimeResult) {
