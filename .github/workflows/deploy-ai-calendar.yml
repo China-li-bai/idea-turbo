@@ -49,8 +49,14 @@ jobs:
 
       - name: Archive standalone app
         run: |
-          tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
-          mv /tmp/ai-calendar.tar.gz .
+          STANDALONE_DIR="apps/ai-calendar/.next/standalone"
+          tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz \
+            --exclude='.next/cache' \
+            --exclude='.next/serverless' \
+            --exclude='.next/functions' \
+            --exclude='.git' \
+            -C "$STANDALONE_DIR" .
+          mv /tmp/ai-calendar.tar.gz ./
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
