@@ -370,42 +370,41 @@ export default function SecretaryView() {
         };
         
         const result = await taskDecomposerService.decompose(tempIdea, decompositionContext);
-        const scheduledTasks = await taskDecomposerService.suggestSchedule(result.tasks, decompositionContext);
-        
+
         const hours = Math.floor(result.totalEstimatedMinutes / 60);
         const minutes = result.totalEstimatedMinutes % 60;
-        
+
         let content = `📋 ${result.explanation}\n\n`;
         content += locale.startsWith('zh')
-          ? `**任务列表** (${result.tasks.length} 项，预计 ${hours}小时${minutes > 0 ? minutes + '分钟' : ''})：\n`
-          : `**Tasks** (${result.tasks.length} items, ~${hours}h${minutes > 0 ? minutes + 'm' : ''}):\n`;
-        
+          ? `**任务列表** (${result.items.length} 项，预计 ${hours}小时${minutes > 0 ? minutes + '分钟' : ''})：\n`
+          : `**Tasks** (${result.items.length} items, ~${hours}h${minutes > 0 ? minutes + 'm' : ''}):\n`;
+
         const actions: ProposalAction[] = [];
-        
-        scheduledTasks.slice(0, 8).forEach((task, index) => {
-          const priorityIcon = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
-          const timeStr = task.suggestedStartTime 
-            ? new Date(task.suggestedStartTime).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+
+        result.items.slice(0, 8).forEach((item, index) => {
+          const priorityIcon = item.metadata.priority === 'high' ? '🔴' : item.metadata.priority === 'medium' ? '🟡' : '🟢';
+          const timeStr = item.startTime
+            ? new Date(item.startTime).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
             : '';
-          content += `${index + 1}. ${priorityIcon} ${task.title} (${task.estimatedMinutes}分钟)${timeStr ? ' - ' + timeStr : ''}\n`;
-          
+          content += `${index + 1}. ${priorityIcon} ${item.title} (${item.metadata.estimatedMinutes}分钟)${timeStr ? ' - ' + timeStr : ''}\n`;
+
           actions.push({
             type: 'create',
-            targetId: task.id,
-            targetTitle: task.title,
+            targetId: item.id,
+            targetTitle: item.title,
             params: {
-              startTime: task.suggestedStartTime,
-              endTime: task.suggestedEndTime,
-              priority: task.priority,
-              description: task.description
+              startTime: item.startTime,
+              endTime: item.endTime,
+              priority: item.metadata.priority,
+              description: item.content
             }
           });
         });
-        
-        if (scheduledTasks.length > 8) {
+
+        if (result.items.length > 8) {
           content += locale.startsWith('zh')
-            ? `\n... 还有 ${scheduledTasks.length - 8} 项任务`
-            : `\n... and ${scheduledTasks.length - 8} more tasks`;
+            ? `\n... 还有 ${result.items.length - 8} 项任务`
+            : `\n... and ${result.items.length - 8} more tasks`;
         }
         
         if (result.milestones.length > 0) {

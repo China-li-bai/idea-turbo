@@ -434,39 +434,14 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}`;
     };
 
     const result = await taskDecomposerService.decompose(idea, decompositionContext);
-    
-    const scheduledTasks = await taskDecomposerService.suggestSchedule(
-      result.tasks,
-      decompositionContext
-    );
 
-    return {
-      ...result,
-      tasks: scheduledTasks
-    };
+    return result;
   }
 
   createItemsFromDecomposition(
     result: DecompositionResult
   ): UnifiedCalendarItem[] {
-    return result.tasks.map(task => ({
-      id: task.id,
-      type: 'event' as const,
-      title: task.title,
-      content: task.description || task.title,
-      startTime: task.suggestedStartTime || null,
-      endTime: task.suggestedEndTime || null,
-      isAllDay: false,
-      embedding: [],
-      embeddingUpdatedAt: 0,
-      status: task.status,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      metadata: {
-        priority: task.priority,
-        description: task.description
-      }
-    }));
+    return result.items;
   }
 
   generateResponse(
@@ -527,32 +502,32 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}`;
     if (plan.type === 'decompose_goal') {
       const decomposeResult = results.find(r => r.action.type === 'decompose_goal');
       if (decomposeResult?.result) {
-        const { tasks, milestones, totalEstimatedMinutes, explanation } = 
+        const { items, milestones, totalEstimatedMinutes, explanation } =
           decomposeResult.result as DecompositionResult;
-        
+
         const hours = Math.floor(totalEstimatedMinutes / 60);
         const minutes = totalEstimatedMinutes % 60;
-        
+
         let response = isZh
           ? `📋 ${explanation}\n\n`
           : `📋 ${explanation}\n\n`;
-        
+
         response += isZh
-          ? `**任务列表** (${tasks.length} 项，预计 ${hours}小时${minutes > 0 ? minutes + '分钟' : ''})：\n`
-          : `**Tasks** (${tasks.length} items, ~${hours}h${minutes > 0 ? minutes + 'm' : ''}):\n`;
-        
-        response += tasks.slice(0, 8).map((task, index) => {
-          const priorityIcon = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
-          const timeStr = task.suggestedStartTime 
-            ? new Date(task.suggestedStartTime).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+          ? `**任务列表** (${items.length} 项，预计 ${hours}小时${minutes > 0 ? minutes + '分钟' : ''})：\n`
+          : `**Tasks** (${items.length} items, ~${hours}h${minutes > 0 ? minutes + 'm' : ''}):\n`;
+
+        response += items.slice(0, 8).map((item, index) => {
+          const priorityIcon = item.metadata.priority === 'high' ? '🔴' : item.metadata.priority === 'medium' ? '🟡' : '🟢';
+          const timeStr = item.startTime
+            ? new Date(item.startTime).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
             : '';
-          return `${index + 1}. ${priorityIcon} ${task.title} (${task.estimatedMinutes}分钟)${timeStr ? ' - ' + timeStr : ''}`;
+          return `${index + 1}. ${priorityIcon} ${item.title} (${item.metadata.estimatedMinutes}分钟)${timeStr ? ' - ' + timeStr : ''}`;
         }).join('\n');
-        
-        if (tasks.length > 8) {
+
+        if (items.length > 8) {
           response += isZh
-            ? `\n... 还有 ${tasks.length - 8} 项任务`
-            : `\n... and ${tasks.length - 8} more tasks`;
+            ? `\n... 还有 ${items.length - 8} 项任务`
+            : `\n... and ${items.length - 8} more tasks`;
         }
         
         if (milestones.length > 0) {

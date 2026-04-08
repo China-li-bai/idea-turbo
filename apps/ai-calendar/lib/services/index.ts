@@ -3,7 +3,7 @@ export { oramaSearchService } from './oramaSearchService';
 export { parseNaturalLanguage, formatTimeRange, formatRelativeDate } from './aiParserService';
 export type { ParsedResult } from './aiParserService';
 export { taskDecomposerService } from './taskDecomposerService';
-export type { DecomposedTask, Milestone, DecompositionResult, DecompositionContext } from './taskDecomposerService';
+export type { Milestone, DecompositionResult, DecompositionContext } from './taskDecomposerService';
 export { secretaryAIService } from './secretaryAIService';
 export type { IntentType, ActionPlan, ScheduledAction, ActionResult, SecretaryContext } from './secretaryAIService';
 export { progressTrackerService } from './progressTrackerService';

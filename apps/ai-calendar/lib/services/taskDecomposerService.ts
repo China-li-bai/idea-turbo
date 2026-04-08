@@ -1,33 +1,13 @@
 import { aiService } from '@/lib/ai';
-import { smartScheduler } from '@/lib/services/smartScheduler';
 import type { UnifiedCalendarItem, ItemStatus } from '@/types/unified';
 import type { Message } from '@/lib/ai/types';
-
-export interface DecomposedTask {
-  id: string;
-  title: string;
-  description?: string;
-  estimatedMinutes: number;
-  priority: 'high' | 'medium' | 'low';
-  dependencies: string[];
-  suggestedStartTime?: number;
-  suggestedEndTime?: number;
-  status: ItemStatus;
-}
+import type { LiquidScheduleMetadata } from '@/types/unified';
 
 export interface Milestone {
   id: string;
   title: string;
   targetDate: number;
   description?: string;
-}
-
-export interface DecompositionResult {
-  tasks: DecomposedTask[];
-  milestones: Milestone[];
-  totalEstimatedMinutes: number;
-  confidence: number;
-  explanation: string;
 }
 
 export interface DecompositionContext {
@@ -38,6 +18,15 @@ export interface DecompositionContext {
     defaultDuration: number;
   };
   currentDate: Date;
+}
+
+export interface DecompositionResult {
+  items: UnifiedCalendarItem[];
+  milestones: Milestone[];
+  totalEstimatedMinutes: number;
+  confidence: number;
+  explanation: string;
+  liquidGroupId: string;
 }
 
 const DECOMPOSITION_PROMPT = `你是一个任务分解专家，帮助用户将复杂目标分解为可执行的任务。
@@ -53,7 +42,7 @@ const DECOMPOSITION_PROMPT = `你是一个任务分解专家，帮助用户将�
       "description": "<任务描述>",
       "estimatedMinutes": <预估分钟数>,
       "priority": "<high|medium|low>",
-      "dependencies": ["<依赖的任务ID>"]
+      "dependencies": [<依赖的任务索引>]
     }
   ],
   "milestones": [
@@ -154,11 +143,11 @@ const DECOMPOSITION_PROMPT = `你是一个任务分解专家，帮助用户将�
 3. 时间估算要保守一些，预留缓冲
 4. 考虑用户的时间约束（如果有提供）`;
 
-function generateTaskId(): string {
+function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return 'task-' + Math.random().toString(36).substring(2, 11);
+  return 'item-' + Math.random().toString(36).substring(2, 11);
 }
 
 function parseDateString(dateStr: string, baseDate: Date): number {
@@ -166,23 +155,74 @@ function parseDateString(dateStr: string, baseDate: Date): number {
   if (!isNaN(parsed.getTime())) {
     return parsed.getTime();
   }
-  
+
   const lowerStr = dateStr.toLowerCase();
   const result = new Date(baseDate);
-  
+
   if (lowerStr.includes('week')) {
     const weeks = parseInt(lowerStr) || 1;
     result.setDate(result.getDate() + weeks * 7);
     return result.getTime();
   }
-  
+
   if (lowerStr.includes('month')) {
     const months = parseInt(lowerStr) || 1;
     result.setMonth(result.getMonth() + months);
     return result.getTime();
   }
-  
+
   return result.getTime();
+}
+
+function createUnifiedItem(
+  title: string,
+  parentGoalId: string,
+  liquidGroupId: string,
+  index: number,
+  total: number,
+  options: {
+    description?: string;
+    estimatedMinutes?: number;
+    priority?: 'high' | 'medium' | 'low';
+    status?: ItemStatus;
+  } = {}
+): UnifiedCalendarItem {
+  const now = Date.now();
+
+  const liquidMetadata: LiquidScheduleMetadata = {
+    liquidGroupId,
+    liquidPriority: total - index,
+    liquidOriginalSlot: index,
+    flexibleDuration: options.estimatedMinutes ? {
+      preferredMinutes: options.estimatedMinutes,
+      minMinutes: Math.floor(options.estimatedMinutes * 0.5),
+      maxMinutes: options.estimatedMinutes * 2,
+    } : undefined,
+  };
+
+  return {
+    id: generateId(),
+    type: 'event',
+    title,
+    content: options.description || '',
+    startTime: null,
+    endTime: null,
+    isAllDay: false,
+    embedding: [],
+    embeddingUpdatedAt: 0,
+    status: options.status || 'pending',
+    createdAt: now,
+    updatedAt: now,
+    metadata: {
+      parentGoalId,
+      milestoneIndex: index + 1,
+      totalMilestones: total,
+      estimatedMinutes: options.estimatedMinutes,
+      priority: options.priority || 'medium',
+      liquidSchedule: liquidMetadata,
+      rescheduleCount: 0,
+    },
+  };
 }
 
 export class TaskDecomposerService {
@@ -199,8 +239,9 @@ export class TaskDecomposerService {
     idea: UnifiedCalendarItem,
     context: DecompositionContext
   ): Promise<DecompositionResult> {
+    const liquidGroupId = generateId();
     const contextInfo = this.buildContextInfo(idea, context);
-    
+
     const messages: Message[] = [
       { role: 'system', content: DECOMPOSITION_PROMPT },
       { role: 'user', content: contextInfo }
@@ -215,24 +256,24 @@ export class TaskDecomposerService {
 
       const content = response.choices[0]?.message?.content || '';
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      
+
       if (!jsonMatch) {
-        return this.createFallbackResult(idea);
+        return this.createFallbackResult(idea, liquidGroupId);
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
-      const result = this.transformParsedResult(parsed, context);
-      
+      const result = this.transformParsedResult(parsed, idea.id, liquidGroupId, context);
+
       return result;
     } catch (error) {
       console.error('Failed to decompose task:', error);
-      return this.createFallbackResult(idea);
+      return this.createFallbackResult(idea, liquidGroupId);
     }
   }
 
   private buildContextInfo(idea: UnifiedCalendarItem, context: DecompositionContext): string {
     const { existingEvents, userPreferences, currentDate } = context;
-    
+
     const upcomingEvents = existingEvents
       .filter(item => item.type === 'event' && item.startTime && item.startTime > Date.now())
       .slice(0, 5)
@@ -272,182 +313,219 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}
       }>;
       explanation: string;
     },
+    parentGoalId: string,
+    liquidGroupId: string,
     context: DecompositionContext
   ): DecompositionResult {
-    const taskIds: string[] = [];
-    
-    const tasks: DecomposedTask[] = parsed.tasks.map((task, index) => {
-      const id = generateTaskId();
-      taskIds.push(id);
-      
-      return {
-        id,
-        title: task.title,
-        description: task.description,
-        estimatedMinutes: task.estimatedMinutes,
-        priority: task.priority as 'high' | 'medium' | 'low',
-        dependencies: task.dependencies
-          .filter(depIndex => depIndex >= 0 && depIndex < taskIds.length - 1)
-          .map(depIndex => taskIds[depIndex]),
-        status: 'pending' as ItemStatus
-      };
-    });
+    const total = parsed.tasks.length;
+
+    const items: UnifiedCalendarItem[] = parsed.tasks.map((task, index) =>
+      createUnifiedItem(
+        task.title,
+        parentGoalId,
+        liquidGroupId,
+        index,
+        total,
+        {
+          description: task.description,
+          estimatedMinutes: task.estimatedMinutes,
+          priority: task.priority as 'high' | 'medium' | 'low',
+        }
+      )
+    );
 
     const milestones: Milestone[] = parsed.milestones.map(milestone => ({
-      id: generateTaskId(),
+      id: generateId(),
       title: milestone.title,
       targetDate: parseDateString(milestone.targetDate, context.currentDate),
       description: milestone.description
     }));
 
-    const totalEstimatedMinutes = tasks.reduce((sum, task) => sum + task.estimatedMinutes, 0);
+    const totalEstimatedMinutes = parsed.tasks.reduce((sum, task) => sum + task.estimatedMinutes, 0);
 
     return {
-      tasks,
+      items,
       milestones,
       totalEstimatedMinutes,
       confidence: 0.85,
-      explanation: parsed.explanation || '任务分解完成'
+      explanation: parsed.explanation || '任务分解完成',
+      liquidGroupId,
     };
   }
 
-  private createFallbackResult(idea: UnifiedCalendarItem): DecompositionResult {
+  private createFallbackResult(idea: UnifiedCalendarItem, liquidGroupId: string): DecompositionResult {
+    const item = createUnifiedItem(
+      idea.title,
+      idea.id,
+      liquidGroupId,
+      0,
+      1,
+      {
+        description: idea.content,
+        estimatedMinutes: 60,
+        priority: 'medium',
+      }
+    );
+
     return {
-      tasks: [
-        {
-          id: generateTaskId(),
-          title: idea.title,
-          description: idea.content,
-          estimatedMinutes: 60,
-          priority: 'medium',
-          dependencies: [],
-          status: 'pending'
-        }
-      ],
+      items: [item],
       milestones: [],
       totalEstimatedMinutes: 60,
       confidence: 0.5,
-      explanation: '无法分解，已创建单个任务'
+      explanation: '无法分解，已创建单个任务',
+      liquidGroupId,
     };
   }
 
-  async suggestSchedule(
-    tasks: DecomposedTask[],
-    context: DecompositionContext
-  ): Promise<DecomposedTask[]> {
-    const scheduledTasks: DecomposedTask[] = [];
-    const scheduledDates = new Map<string, { start: number; end: number }>();
-    
-    const sortedTasks = this.topologicalSort(tasks);
-    
-    for (const task of sortedTasks) {
-      let earliestStart = Date.now();
-      
-      for (const depId of task.dependencies) {
-        const depScheduled = scheduledDates.get(depId);
-        if (depScheduled) {
-          earliestStart = Math.max(earliestStart, depScheduled.end);
-        }
-      }
-      
-      const suggestion = this.findNextAvailableSlot(
-        earliestStart,
-        task.estimatedMinutes,
-        context
-      );
-      
-      if (suggestion) {
-        scheduledTasks.push({
-          ...task,
-          suggestedStartTime: suggestion.start,
-          suggestedEndTime: suggestion.end
-        });
-        scheduledDates.set(task.id, suggestion);
-      } else {
-        scheduledTasks.push(task);
-      }
-    }
-    
-    return scheduledTasks;
-  }
+  createLiquidScheduleItem(
+    title: string,
+    parentGoalId: string,
+    options: {
+      description?: string;
+      estimatedMinutes?: number;
+      priority?: 'high' | 'medium' | 'low';
+      liquidPriority?: number;
+      preferredTimeSlots?: LiquidScheduleMetadata['preferredTimeSlots'];
+      hardConstraints?: LiquidScheduleMetadata['hardConstraints'];
+    } = {}
+  ): UnifiedCalendarItem {
+    const now = Date.now();
+    const liquidGroupId = generateId();
 
-  private topologicalSort(tasks: DecomposedTask[]): DecomposedTask[] {
-    const sorted: DecomposedTask[] = [];
-    const visited = new Set<string>();
-    const visiting = new Set<string>();
-    const taskMap = new Map(tasks.map(t => [t.id, t]));
-    
-    const visit = (taskId: string) => {
-      if (visited.has(taskId)) return;
-      if (visiting.has(taskId)) return;
-      
-      visiting.add(taskId);
-      const task = taskMap.get(taskId);
-      if (task) {
-        for (const depId of task.dependencies) {
-          visit(depId);
-        }
-        sorted.push(task);
-      }
-      visiting.delete(taskId);
-      visited.add(taskId);
+    const liquidMetadata: LiquidScheduleMetadata = {
+      liquidGroupId,
+      liquidPriority: options.liquidPriority || 5,
+      flexibleDuration: options.estimatedMinutes ? {
+        preferredMinutes: options.estimatedMinutes,
+        minMinutes: Math.floor(options.estimatedMinutes * 0.5),
+        maxMinutes: options.estimatedMinutes * 2,
+      } : undefined,
+      preferredTimeSlots: options.preferredTimeSlots,
+      hardConstraints: options.hardConstraints,
     };
-    
-    for (const task of tasks) {
-      visit(task.id);
-    }
-    
-    return sorted;
+
+    return {
+      id: generateId(),
+      type: 'event',
+      title,
+      content: options.description || '',
+      startTime: null,
+      endTime: null,
+      isAllDay: false,
+      embedding: [],
+      embeddingUpdatedAt: 0,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+      metadata: {
+        parentGoalId,
+        estimatedMinutes: options.estimatedMinutes,
+        priority: options.priority || 'medium',
+        liquidSchedule: liquidMetadata,
+        rescheduleCount: 0,
+      },
+    };
   }
 
-  private findNextAvailableSlot(
-    earliestStart: number,
-    durationMinutes: number,
-    context: DecompositionContext
-  ): { start: number; end: number } | null {
-    const { existingEvents, userPreferences, currentDate } = context;
-    const { workHours, workDays } = userPreferences;
-    
-    let searchDate = new Date(Math.max(earliestStart, currentDate.getTime()));
-    let attempts = 0;
-    const maxAttempts = 14;
-    
-    while (attempts < maxAttempts) {
-      const dayOfWeek = searchDate.getDay();
-      
-      if (workDays.includes(dayOfWeek)) {
-        const dayStart = new Date(searchDate);
-        dayStart.setHours(workHours.start, 0, 0, 0);
-        const dayEnd = new Date(searchDate);
-        dayEnd.setHours(workHours.end, 0, 0, 0);
-        
-        const slots = smartScheduler.findFreeSlots(
-          searchDate,
-          durationMinutes,
-          existingEvents,
-          30
-        );
-        
-        const validSlot = slots.find(slot => {
-          const slotStart = slot.start.getTime();
-          return slotStart >= Math.max(earliestStart, dayStart.getTime()) &&
-                 slot.available &&
-                 slot.end.getTime() <= dayEnd.getTime();
-        });
-        
-        if (validSlot) {
-          return {
-            start: validSlot.start.getTime(),
-            end: validSlot.end.getTime()
-          };
-        }
-      }
-      
-      searchDate.setDate(searchDate.getDate() + 1);
-      attempts++;
-    }
-    
-    return null;
+  createMilestoneFromGoal(
+    goal: UnifiedCalendarItem,
+    milestoneTitle: string,
+    targetDate: number,
+    options: {
+      description?: string;
+      milestoneIndex?: number;
+    } = {}
+  ): UnifiedCalendarItem {
+    const now = Date.now();
+    const milestoneId = generateId();
+
+    return {
+      id: milestoneId,
+      type: 'event',
+      title: milestoneTitle,
+      content: options.description || '',
+      startTime: targetDate,
+      endTime: targetDate + (goal.metadata.estimatedMinutes || 60) * 60 * 1000,
+      isAllDay: false,
+      embedding: [],
+      embeddingUpdatedAt: 0,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+      metadata: {
+        parentGoalId: goal.id,
+        milestoneIndex: options.milestoneIndex,
+        totalMilestones: goal.metadata.totalMilestones,
+        estimatedMinutes: goal.metadata.estimatedMinutes,
+        liquidSchedule: {
+          liquidGroupId: goal.metadata.liquidSchedule?.liquidGroupId || generateId(),
+          liquidPriority: 10,
+        },
+        milestones: [
+          {
+            id: milestoneId,
+            title: milestoneTitle,
+            targetDate,
+            completed: false,
+          },
+        ],
+      },
+    };
+  }
+
+  updateItemReschedule(
+    item: UnifiedCalendarItem,
+    newStartTime: number,
+    newEndTime: number,
+    reason: string
+  ): UnifiedCalendarItem {
+    return {
+      ...item,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      status: 'scheduled',
+      updatedAt: Date.now(),
+      metadata: {
+        ...item.metadata,
+        rescheduleCount: (item.metadata.rescheduleCount || 0) + 1,
+        lastRescheduledAt: Date.now(),
+        rescheduleReason: reason,
+        originalSlotStart: item.metadata.originalSlotStart ?? item.startTime ?? undefined,
+        originalSlotEnd: item.metadata.originalSlotEnd ?? item.endTime ?? undefined,
+      },
+    };
+  }
+
+  getLiquidGroupItems(
+    items: UnifiedCalendarItem[],
+    liquidGroupId: string
+  ): UnifiedCalendarItem[] {
+    return items
+      .filter(item =>
+        item.metadata?.liquidSchedule?.liquidGroupId === liquidGroupId
+      )
+      .sort((a, b) => {
+        const aSlot = a.metadata?.liquidSchedule?.liquidOriginalSlot ?? 0;
+        const bSlot = b.metadata?.liquidSchedule?.liquidOriginalSlot ?? 0;
+        return aSlot - bSlot;
+      });
+  }
+
+  getPendingLiquidItems(
+    items: UnifiedCalendarItem[]
+  ): UnifiedCalendarItem[] {
+    return items
+      .filter(item =>
+        item.type === 'event' &&
+        item.status === 'pending' &&
+        !item.startTime &&
+        item.metadata?.liquidSchedule?.liquidGroupId
+      )
+      .sort((a, b) => {
+        const aPriority = a.metadata?.liquidSchedule?.liquidPriority ?? 0;
+        const bPriority = b.metadata?.liquidSchedule?.liquidPriority ?? 0;
+        return bPriority - aPriority;
+      });
   }
 }
 
