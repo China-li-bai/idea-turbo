@@ -6,6 +6,7 @@ import SecretaryView from './SecretaryView';
 import ProgressTrackerView from './ProgressTrackerView';
 import { GlobalErrorBoundary } from './GlobalErrorBoundary';
 import { ErrorToast } from './ErrorToast';
+import { SelfHealingToast } from './SelfHealingToast';
 import { ModelLoadingProgress } from './ModelLoadingProgress';
 import SyncWaitlistModal from './SyncWaitlistModal';
 import { useUnifiedStore } from '@/lib/stores/unifiedStore';
@@ -127,6 +128,7 @@ export default function AppLayout() {
     <GlobalErrorBoundary>
       <div className={`${styles.container} ${viewMode === 'secretary' ? styles.darkContainer : ''}`}>
         <ErrorToast />
+        <SelfHealingToast />
         <ModelLoadingProgress />
         
         <header className={styles.header}>

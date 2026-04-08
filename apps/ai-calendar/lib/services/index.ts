@@ -4,6 +4,8 @@ export { parseNaturalLanguage, formatTimeRange, formatRelativeDate } from './aiP
 export type { ParsedResult } from './aiParserService';
 export { taskDecomposerService } from './taskDecomposerService';
 export type { Milestone, DecompositionResult, DecompositionContext } from './taskDecomposerService';
+export { selfHealingScheduler } from './selfHealingScheduler';
+export type { SelfHealingResult, ConflictInfo, RescheduleResult } from './selfHealingScheduler';
 export { secretaryAIService } from './secretaryAIService';
 export type { IntentType, ActionPlan, ScheduledAction, ActionResult, SecretaryContext } from './secretaryAIService';
 export { progressTrackerService } from './progressTrackerService';

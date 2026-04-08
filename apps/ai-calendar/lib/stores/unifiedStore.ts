@@ -5,6 +5,8 @@ import type { MemoryItem, MemorySearchOptions, MemorySearchResult, MemoryStats }
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
 import { memoryService } from '@/lib/services/memoryService';
+import { selfHealingScheduler } from '@/lib/services/selfHealingScheduler';
+import { notifyRescheduled, notifyScheduleFailed } from '@/lib/stores/notificationStore';
 import { localforage } from '@/lib/storage';
 
 const STATE_KEY = 'unified-calendar-state';
@@ -307,6 +309,43 @@ export const useUnifiedStore = create<UnifiedStore>()(
           endTime,
           metadata
         );
+
+        const allItems = get().items;
+        const healingResult = selfHealingScheduler.processNewEvent(updatedItem, allItems);
+
+        if (healingResult.rescheduledItems.length > 0) {
+          const rescheduledUpdates = healingResult.rescheduledItems.map(r => ({
+            id: r.rescheduledItem.id,
+            updates: r.rescheduledItem
+          }));
+
+          set((state) => ({
+            items: state.items.map((i) => {
+              const reschedule = rescheduledUpdates.find(u => u.id === i.id);
+              return reschedule ? reschedule.updates : i;
+            })
+          }));
+
+          for (const reschedule of rescheduledUpdates) {
+            try {
+              await oramaSearchService.updateDocument(reschedule.id, reschedule.updates);
+              notifyRescheduled(
+                reschedule.updates.title,
+                reschedule.id,
+                reschedule.updates.metadata.originalSlotStart
+                  ? { start: reschedule.updates.metadata.originalSlotStart, end: reschedule.updates.metadata.originalSlotEnd || 0 }
+                  : null,
+                { start: reschedule.updates.startTime || 0, end: reschedule.updates.endTime || 0 }
+              );
+            } catch (error) {
+              console.error(`Failed to update rescheduled item ${reschedule.id}:`, error);
+            }
+          }
+
+          for (const failed of healingResult.failedReschedules) {
+            notifyScheduleFailed(failed.item.title, failed.item.id, failed.reason);
+          }
+        }
 
         set((state) => ({
           items: state.items.map((i) => i.id === id ? updatedItem : i)
