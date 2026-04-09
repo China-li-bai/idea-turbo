@@ -49,7 +49,7 @@ jobs:
 
       - name: Archive standalone app
         run: |
-          tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
+          tar --warning=no-file-changed -czf ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
 
       - name: Copy tarball to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -58,7 +58,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "/tmp/ai-calendar.tar.gz"
+          source: "ai-calendar.tar.gz"
           target: "/tmp/"
 
       - name: Deploy on VPS
