@@ -1,8 +1,8 @@
-name: Deploy to VPS (ai-calendar)
+name: CI/CD Deploy to VPS (ai-calendar)
 
 on:
   push:
-    branches: [home]
+    branches: ["home"]
     paths:
       - "apps/ai-calendar/**"
       - "packages/local-first-sdk/**"
@@ -17,47 +17,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout monorepo
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
+      - name: Setup PNPM
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
-      - name: Setup Node.js
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install dependencies in monorepo
         run: pnpm install --no-frozen-lockfile
 
       - name: Clean build cache
         run: rm -rf apps/ai-calendar/.next apps/ai-calendar/tsconfig.tsbuildinfo
 
-      - name: Build local-first-sdk
-        run: pnpm build --filter @idea-turbo/local-first-sdk
+      - name: Build local-first-sdk package
+        run: pnpm --filter @idea-turbo/local-first-sdk build
 
-      - name: Build ai-calendar
-        run: pnpm build --filter ai-calendar
+      - name: Build ai-calendar app
+        run: pnpm --filter ai-calendar build
+        env:
+          NODE_ENV: production
 
-      - name: Prepare standalone
+      - name: Prepare standalone directory
         run: |
           cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/
           cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/.next/
 
-      - name: Package application
+      - name: Archive standalone app
         run: |
-          tar --warning=no-file-changed -czf /tmp/app.tar.gz -C apps/ai-calendar/.next/standalone .
-          mv /tmp/app.tar.gz .
+          tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
+          mv /tmp/ai-calendar.tar.gz .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-tarball
-          path: app.tar.gz
+          name: ai-calendar-tarball
+          path: ai-calendar.tar.gz
+          retention-days: 1
+          overwrite: true
 
   deploy:
     needs: build
@@ -66,20 +67,21 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: app-tarball
+          name: ai-calendar-tarball
+          path: .
 
-      - name: Copy to server
+      - name: Copy tarball to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "app.tar.gz"
+          source: "ai-calendar.tar.gz"
           target: "/tmp/"
 
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -89,30 +91,48 @@ jobs:
             set -e
             APP_NAME="ai-calendar"
             APP_PORT=3002
-            TAR="/tmp/app.tar.gz"
+            TAR="/tmp/ai-calendar.tar.gz"
             APP_DIR="/var/www/${APP_NAME}"
 
             echo "[INFO] Deploying ${APP_NAME}..."
 
-            # Create app directory and extract
+            # Create directories
             sudo mkdir -p "$APP_DIR"
+            sudo mkdir -p /var/log/pm2
+
+            # Extract new version
             sudo tar -xzf "$TAR" -C "$APP_DIR"
+            echo "[INFO] Files extracted successfully"
+
+            # Copy static files for standalone mode
+            if [ -d "$APP_DIR/apps/ai-calendar/public" ]; then
+              cp -r "$APP_DIR/apps/ai-calendar/public" "$APP_DIR/"
+              echo "[INFO] Copied public directory"
+            fi
+            if [ -d "$APP_DIR/apps/ai-calendar/.next/static" ]; then
+              cp -r "$APP_DIR/apps/ai-calendar/.next/static" "$APP_DIR/.next/"
+              echo "[INFO] Copied static directory"
+            fi
 
             # Set permissions
             sudo chown -R www-data:www-data "$APP_DIR"
             sudo chmod -R 755 "$APP_DIR"
 
-            # PM2 restart
+            # Clean up tarball
+            rm -f "$TAR"
+
+            # PM2 deployment (standalone mode - no pnpm install needed)
+            cd "$APP_DIR"
+
+            # Stop existing process
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
-            cd "$APP_DIR"
-            pm2 start server.js --name $APP_NAME --env PORT=$APP_PORT
+
+            # Start with PM2
+            pm2 start apps/ai-calendar/ecosystem.config.cjs
             pm2 save
 
             echo "[INFO] PM2 started $APP_NAME on port $APP_PORT"
-
-            # Cleanup
-            rm -f "$TAR"
 
             # Verify
             sleep 3
