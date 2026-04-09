@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout monorepo
@@ -50,25 +50,6 @@ jobs:
       - name: Archive standalone app
         run: |
           tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
-          mv /tmp/ai-calendar.tar.gz .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-calendar-tarball
-          path: ai-calendar.tar.gz
-          retention-days: 1
-          overwrite: true
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ai-calendar-tarball
-          path: .
 
       - name: Copy tarball to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -77,7 +58,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "ai-calendar.tar.gz"
+          source: "/tmp/ai-calendar.tar.gz"
           target: "/tmp/"
 
       - name: Deploy on VPS
@@ -104,16 +85,6 @@ jobs:
             sudo tar -xzf "$TAR" -C "$APP_DIR"
             echo "[INFO] Files extracted successfully"
 
-            # Copy static files for standalone mode
-            if [ -d "$APP_DIR/apps/ai-calendar/public" ]; then
-              cp -r "$APP_DIR/apps/ai-calendar/public" "$APP_DIR/"
-              echo "[INFO] Copied public directory"
-            fi
-            if [ -d "$APP_DIR/apps/ai-calendar/.next/static" ]; then
-              cp -r "$APP_DIR/apps/ai-calendar/.next/static" "$APP_DIR/.next/"
-              echo "[INFO] Copied static directory"
-            fi
-
             # Set permissions
             sudo chown -R www-data:www-data "$APP_DIR"
             sudo chmod -R 755 "$APP_DIR"
@@ -128,8 +99,8 @@ jobs:
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
 
-            # Start with PM2
-            pm2 start apps/ai-calendar/ecosystem.config.cjs
+            # Start with PM2 - standalone mode uses server.js directly
+            pm2 start server.js --name $APP_NAME --env.PORT=$APP_PORT
             pm2 save
 
             echo "[INFO] PM2 started $APP_NAME on port $APP_PORT"
