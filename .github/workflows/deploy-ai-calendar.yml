@@ -78,6 +78,12 @@ jobs:
 
             echo "[INFO] Deploying ${APP_NAME}..."
 
+            # Clean up existing deployment directory
+            if [ -d "$APP_DIR" ]; then
+              echo "[INFO] Cleaning up existing deployment..."
+              sudo rm -rf "$APP_DIR"
+            fi
+
             # Create directories
             sudo mkdir -p "$APP_DIR"
             sudo mkdir -p /var/log/pm2
@@ -89,7 +95,7 @@ jobs:
             # Handle monorepo structure - move nested files to root if needed
             if [ -d "$APP_DIR/apps/ai-calendar" ]; then
               echo "[INFO] Moving files from nested monorepo structure..."
-              sudo mv "$APP_DIR/apps/ai-calendar/"* "$APP_DIR/"
+              sudo cp -r "$APP_DIR/apps/ai-calendar/"* "$APP_DIR/"
               sudo rm -rf "$APP_DIR/apps"
             fi
 
