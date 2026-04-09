@@ -16,10 +16,21 @@ export interface ShiftMetadata {
   shiftTypeName: string;
 }
 
+export type LiquidState = 'pending' | 'tentative' | 'confirmed' | 'locked';
+export type PriorityLevel = 1 | 2 | 3 | 4;
+
 export interface LiquidScheduleMetadata {
   liquidGroupId?: string;
   liquidPriority?: number;
   liquidOriginalSlot?: number;
+  liquidState?: LiquidState;
+  priorityLevel?: PriorityLevel;
+  deadline?: number;
+  stabilityScore?: number;
+  scheduledBy?: 'auto' | 'manual' | 'ai';
+  lastScheduledAt?: number;
+  constraintCheckPassed?: boolean;
+  constraintViolations?: string[];
   flexibleDuration?: {
     minMinutes?: number;
     maxMinutes?: number;

@@ -2,12 +2,13 @@ import { create } from 'zustand';
 
 export interface SelfHealingNotification {
   id: string;
-  type: 'rescheduled' | 'conflict_detected' | 'schedule_failed';
+  type: 'rescheduled' | 'conflict_detected' | 'schedule_failed' | 'undo_available';
   title: string;
   message: string;
   itemId?: string;
   oldSlot?: { start: number; end: number };
   newSlot?: { start: number; end: number };
+  undoItemId?: string;
   timestamp: number;
 }
 
@@ -16,6 +17,7 @@ interface NotificationState {
   addNotification: (notification: Omit<SelfHealingNotification, 'id' | 'timestamp'>) => void;
   removeNotification: (id: string) => void;
   clearAll: () => void;
+  undoReschedule: (itemId: string) => boolean;
 }
 
 function generateId(): string {
@@ -54,6 +56,14 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 
   clearAll: () => {
     set({ notifications: [] });
+  },
+
+  undoReschedule: (itemId: string): boolean => {
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n.undoItemId !== itemId)
+    }));
+
+    return true;
   }
 }));
 
@@ -80,7 +90,8 @@ export function notifyRescheduled(
     message,
     itemId,
     oldSlot: oldSlot || undefined,
-    newSlot
+    newSlot,
+    undoItemId: itemId
   });
 }
 

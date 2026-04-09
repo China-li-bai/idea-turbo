@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useNotificationStore } from '@/lib/stores/notificationStore';
+import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import styles from './ErrorToast.module.scss';
 
 export function SelfHealingToast() {
   const { notifications, removeNotification } = useNotificationStore();
+  const undoReschedule = useUnifiedStore((state) => state.undoReschedule);
 
   if (notifications.length === 0) return null;
 
@@ -15,7 +16,6 @@ export function SelfHealingToast() {
         <div
           key={notification.id}
           className={`${styles.toast} ${styles[getSeverity(notification.type)]}`}
-          onClick={() => removeNotification(notification.id)}
         >
           <div className={styles.toastIcon}>
             {getIcon(notification.type)}
@@ -24,12 +24,22 @@ export function SelfHealingToast() {
             <div className={styles.toastMessage}>{notification.title}</div>
             <div className={styles.toastContext}>{notification.message}</div>
           </div>
+          {notification.type === 'rescheduled' && notification.undoItemId && (
+            <button
+              className={styles.undoButton}
+              onClick={() => {
+                const success = undoReschedule(notification.undoItemId!);
+                if (success) {
+                  removeNotification(notification.id);
+                }
+              }}
+            >
+              ↩ 撤销
+            </button>
+          )}
           <button
             className={styles.toastClose}
-            onClick={(e) => {
-              e.stopPropagation();
-              removeNotification(notification.id);
-            }}
+            onClick={() => removeNotification(notification.id)}
           >
             ✕
           </button>
@@ -47,6 +57,8 @@ function getIcon(type: string): string {
       return '⚠️';
     case 'schedule_failed':
       return '❌';
+    case 'undo_available':
+      return '↩️';
     default:
       return 'ℹ️';
   }
@@ -60,6 +72,8 @@ function getSeverity(type: string): string {
       return 'high';
     case 'schedule_failed':
       return 'critical';
+    case 'undo_available':
+      return 'low';
     default:
       return 'low';
   }

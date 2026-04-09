@@ -6,7 +6,8 @@ import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { unifiedItemService, type EmbeddingUpdate } from '@/lib/services/unifiedItemService';
 import { memoryService } from '@/lib/services/memoryService';
 import { selfHealingScheduler } from '@/lib/services/selfHealingScheduler';
-import { notifyRescheduled, notifyScheduleFailed } from '@/lib/stores/notificationStore';
+import { liquidScheduler } from '@/lib/services/liquidSchedulerService';
+import { notifyRescheduled, notifyScheduleFailed, notifyConflictDetected } from '@/lib/stores/notificationStore';
 import { localforage } from '@/lib/storage';
 
 const STATE_KEY = 'unified-calendar-state';
@@ -29,6 +30,7 @@ interface UnifiedStore {
   };
   aiStatus: AIStatus;
   _initialized: boolean;
+  _isHealing: boolean;
 
   initialize: () => Promise<void>;
 
@@ -47,6 +49,8 @@ interface UnifiedStore {
   getItems: (type?: ItemType, status?: ItemStatus) => UnifiedCalendarItem[];
   getItemById: (id: string) => UnifiedCalendarItem | undefined;
 
+  undoReschedule: (itemId: string) => boolean;
+
   updateSettings: (settings: Partial<UnifiedStore['settings']>) => void;
 
   addMemory: (memory: Omit<MemoryItem, 'id' | 'metadata'> & { metadata?: Partial<MemoryItem['metadata']> }) => Promise<MemoryItem>;
@@ -56,10 +60,92 @@ interface UnifiedStore {
   refreshMemoryStats: () => Promise<void>;
 }
 
+type StoreSet = (fn: (state: UnifiedStore) => Partial<UnifiedStore>) => void;
+type StoreGet = () => UnifiedStore;
+
+function applyHealingResult(
+  healingResult: import('@/lib/services/selfHealingScheduler').SelfHealingResult,
+  get: StoreGet,
+  set: StoreSet
+): void {
+  if (healingResult.rescheduledItems.length === 0) return;
+
+  const rescheduledUpdates = healingResult.rescheduledItems.map(r => ({
+    id: r.rescheduledItem.id,
+    updates: r.rescheduledItem
+  }));
+
+  set((state) => ({
+    items: state.items.map((i) => {
+      const reschedule = rescheduledUpdates.find(u => u.id === i.id);
+      return reschedule ? reschedule.updates : i;
+    })
+  }));
+
+  for (const reschedule of rescheduledUpdates) {
+    oramaSearchService.updateDocument(reschedule.id, reschedule.updates).catch(error => {
+      console.error(`Failed to update rescheduled item ${reschedule.id}:`, error);
+    });
+
+    notifyRescheduled(
+      reschedule.updates.title,
+      reschedule.id,
+      reschedule.updates.metadata.originalSlotStart
+        ? { start: reschedule.updates.metadata.originalSlotStart, end: reschedule.updates.metadata.originalSlotEnd || 0 }
+        : null,
+      { start: reschedule.updates.startTime || 0, end: reschedule.updates.endTime || 0 }
+    );
+  }
+
+  for (const failed of healingResult.failedReschedules) {
+    notifyScheduleFailed(failed.item.title, failed.item.id, failed.reason);
+  }
+
+  for (const conflict of healingResult.conflicts) {
+    if (conflict.priorityComparison === 'existing_higher') {
+      notifyConflictDetected(conflict.liquidItem.title, conflict.liquidItem.id);
+    }
+  }
+}
+
+function applyLiquidScheduleResult(
+  scheduleResult: import('@/lib/services/liquidSchedulerService').ScheduleResult,
+  get: StoreGet,
+  set: StoreSet
+): void {
+  if (scheduleResult.scheduled.length === 0 && scheduleResult.promoted.length === 0) return;
+
+  const currentItems = get().items;
+  const updatedItems = liquidScheduler.applyScheduleResult(currentItems, scheduleResult);
+
+  set(() => ({ items: updatedItems }));
+
+  for (const scheduled of scheduleResult.scheduled) {
+    oramaSearchService.indexItem({
+      ...scheduled.item,
+      startTime: scheduled.slot.start,
+      endTime: scheduled.slot.end,
+      status: 'scheduled' as const,
+      metadata: {
+        ...scheduled.item.metadata,
+        liquidSchedule: {
+          ...scheduled.item.metadata.liquidSchedule,
+          liquidState: scheduled.state,
+          scheduledBy: 'auto' as const,
+          lastScheduledAt: Date.now(),
+        }
+      }
+    }).catch(error => {
+      console.error(`Failed to index scheduled liquid item:`, error);
+    });
+  }
+}
+
 export const useUnifiedStore = create<UnifiedStore>()(
   persist(
     (set, get) => ({
       items: [],
+      _isHealing: false,
       memories: [],
       memoryStats: {
         totalMemories: 0,
@@ -180,11 +266,25 @@ export const useUnifiedStore = create<UnifiedStore>()(
         } catch (error) {
           console.error('Failed to index item:', error);
         }
+
+        if (item.type === 'event' && item.startTime && item.endTime && item.status === 'scheduled') {
+          const allItems = get().items;
+          const healingResult = selfHealingScheduler.processNewEvent(item, allItems);
+          applyHealingResult(healingResult, get, set);
+        }
       },
 
       updateItem: async (id, updates) => {
         const item = get().items.find((i) => i.id === id);
         if (!item) return;
+
+        const timeChanged = (
+          (updates.startTime !== undefined && updates.startTime !== item.startTime) ||
+          (updates.endTime !== undefined && updates.endTime !== item.endTime)
+        );
+
+        const oldStartTime = item.startTime;
+        const oldEndTime = item.endTime;
 
         const updatedItem = unifiedItemService.updateItem(item, updates);
 
@@ -206,6 +306,16 @@ export const useUnifiedStore = create<UnifiedStore>()(
           }
         } catch (error) {
           console.error('Failed to update item in index:', error);
+        }
+
+        if (timeChanged && item.type === 'event' && updatedItem.startTime && updatedItem.endTime && !get()._isHealing) {
+          set({ _isHealing: true });
+          const allItems = get().items;
+          const healingResult = selfHealingScheduler.processTimeChange(
+            updatedItem, oldStartTime, oldEndTime, allItems
+          );
+          applyHealingResult(healingResult, get, set);
+          set({ _isHealing: false });
         }
       },
 
@@ -231,6 +341,8 @@ export const useUnifiedStore = create<UnifiedStore>()(
       },
 
       deleteItem: async (id) => {
+        const deletedItem = get().items.find((i) => i.id === id);
+
         set((state) => ({
           items: state.items.filter((item) => item.id !== id)
         }));
@@ -239,6 +351,39 @@ export const useUnifiedStore = create<UnifiedStore>()(
           await oramaSearchService.deleteFromIndex(id);
         } catch (error) {
           console.error('Failed to delete item from index:', error);
+        }
+
+        if (deletedItem && deletedItem.type === 'event' && deletedItem.startTime && deletedItem.endTime) {
+          const allItems = get().items;
+          const deletionResult = selfHealingScheduler.processItemDeletion(deletedItem, allItems);
+
+          if (deletionResult.freedTimeRedistributed && deletionResult.scheduledFromFreedTime.length > 0) {
+            const rescheduledUpdates = deletionResult.scheduledFromFreedTime.map(r => ({
+              id: r.rescheduledItem.id,
+              updates: r.rescheduledItem
+            }));
+
+            set((state) => ({
+              items: state.items.map((i) => {
+                const update = rescheduledUpdates.find(u => u.id === i.id);
+                return update ? update.updates : i;
+              })
+            }));
+
+            for (const reschedule of rescheduledUpdates) {
+              oramaSearchService.updateDocument(reschedule.id, reschedule.updates).catch(error => {
+                console.error(`Failed to update rescheduled item ${reschedule.id}:`, error);
+              });
+              notifyRescheduled(
+                reschedule.updates.title,
+                reschedule.id,
+                reschedule.updates.metadata.originalSlotStart
+                  ? { start: reschedule.updates.metadata.originalSlotStart, end: reschedule.updates.metadata.originalSlotEnd || 0 }
+                  : null,
+                { start: reschedule.updates.startTime || 0, end: reschedule.updates.endTime || 0 }
+              );
+            }
+          }
         }
       },
 
@@ -312,40 +457,7 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         const allItems = get().items;
         const healingResult = selfHealingScheduler.processNewEvent(updatedItem, allItems);
-
-        if (healingResult.rescheduledItems.length > 0) {
-          const rescheduledUpdates = healingResult.rescheduledItems.map(r => ({
-            id: r.rescheduledItem.id,
-            updates: r.rescheduledItem
-          }));
-
-          set((state) => ({
-            items: state.items.map((i) => {
-              const reschedule = rescheduledUpdates.find(u => u.id === i.id);
-              return reschedule ? reschedule.updates : i;
-            })
-          }));
-
-          for (const reschedule of rescheduledUpdates) {
-            try {
-              await oramaSearchService.updateDocument(reschedule.id, reschedule.updates);
-              notifyRescheduled(
-                reschedule.updates.title,
-                reschedule.id,
-                reschedule.updates.metadata.originalSlotStart
-                  ? { start: reschedule.updates.metadata.originalSlotStart, end: reschedule.updates.metadata.originalSlotEnd || 0 }
-                  : null,
-                { start: reschedule.updates.startTime || 0, end: reschedule.updates.endTime || 0 }
-              );
-            } catch (error) {
-              console.error(`Failed to update rescheduled item ${reschedule.id}:`, error);
-            }
-          }
-
-          for (const failed of healingResult.failedReschedules) {
-            notifyScheduleFailed(failed.item.title, failed.item.id, failed.reason);
-          }
-        }
+        applyHealingResult(healingResult, get, set);
 
         set((state) => ({
           items: state.items.map((i) => i.id === id ? updatedItem : i)
@@ -355,6 +467,11 @@ export const useUnifiedStore = create<UnifiedStore>()(
           await oramaSearchService.updateDocument(id, updatedItem);
         } catch (error) {
           console.error('Failed to update converted item in index:', error);
+        }
+
+        if (item.metadata.liquidSchedule?.liquidGroupId) {
+          const scheduleResult = liquidScheduler.schedulePendingItems(get().items);
+          applyLiquidScheduleResult(scheduleResult, get, set);
         }
       },
 
@@ -391,6 +508,43 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
       getItemById: (id) => {
         return get().items.find((item) => item.id === id);
+      },
+
+      undoReschedule: (itemId: string): boolean => {
+        const undoAction = selfHealingScheduler.getUndoAction(itemId);
+        if (!undoAction) return false;
+
+        const { originalSlot, originalState } = undoAction;
+
+        set((state) => ({
+          items: state.items.map((item) => {
+            if (item.id !== itemId) return item;
+            return {
+              ...item,
+              startTime: originalSlot.start,
+              endTime: originalSlot.end,
+              status: originalState as UnifiedCalendarItem['status'],
+              updatedAt: Date.now(),
+              metadata: {
+                ...item.metadata,
+                liquidSchedule: {
+                  ...item.metadata.liquidSchedule,
+                  stabilityScore: Math.max(0, (item.metadata.liquidSchedule?.stabilityScore ?? 0) - 1),
+                },
+              },
+            };
+          })
+        }));
+
+        oramaSearchService.updateDocument(itemId, {
+          startTime: originalSlot.start,
+          endTime: originalSlot.end,
+          status: originalState as UnifiedCalendarItem['status'],
+        }).catch(error => {
+          console.error(`Failed to undo reschedule for item ${itemId}:`, error);
+        });
+
+        return true;
       },
 
       updateSettings: (newSettings) => {
