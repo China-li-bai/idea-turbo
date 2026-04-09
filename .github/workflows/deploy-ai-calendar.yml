@@ -100,7 +100,7 @@ jobs:
             pm2 delete $APP_NAME 2>/dev/null || true
 
             # Start with PM2 - standalone mode uses server.js directly
-            pm2 start server.js --name $APP_NAME --env.PORT=$APP_PORT
+            PORT=$APP_PORT pm2 start server.js --name $APP_NAME
             pm2 save
 
             echo "[INFO] PM2 started $APP_NAME on port $APP_PORT"
