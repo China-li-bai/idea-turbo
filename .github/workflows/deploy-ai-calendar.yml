@@ -6,6 +6,7 @@ on:
     paths:
       - "apps/ai-calendar/**"
       - "packages/local-first-sdk/**"
+      - ".github/workflows/deploy-ai-calendar.yml"
   workflow_dispatch:
 
 concurrency:
@@ -13,18 +14,71 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            apps/ai-calendar
-            packages/local-first-sdk
-          sparse-checkout-cone-mode: false
 
-      - name: Deploy to server
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Clean build cache
+        run: rm -rf apps/ai-calendar/.next apps/ai-calendar/tsconfig.tsbuildinfo
+
+      - name: Build local-first-sdk
+        run: pnpm build --filter @idea-turbo/local-first-sdk
+
+      - name: Build ai-calendar
+        run: pnpm build --filter ai-calendar
+
+      - name: Prepare standalone
+        run: |
+          cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/
+          cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/.next/
+
+      - name: Package application
+        run: |
+          tar --warning=no-file-changed -czf /tmp/app.tar.gz -C apps/ai-calendar/.next/standalone .
+          mv /tmp/app.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tarball
+          path: app.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tarball
+
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "app.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -35,26 +89,14 @@ jobs:
             set -e
             APP_NAME="ai-calendar"
             APP_PORT=3002
+            TAR="/tmp/app.tar.gz"
             APP_DIR="/var/www/${APP_NAME}"
 
-            echo "[INFO] Deploying ${APP_NAME} from home branch..."
+            echo "[INFO] Deploying ${APP_NAME}..."
 
-            # Pull latest code
-            cd "$APP_DIR"
-            git fetch origin home
-            git checkout home
-            git pull origin home
-
-            # Install dependencies
-            pnpm install --filter @idea-turbo/local-first-sdk --filter ai-calendar
-
-            # Build
-            pnpm build --filter @idea-turbo/local-first-sdk
-            pnpm build --filter ai-calendar
-
-            # Prepare standalone
-            cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/
-            cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/.next/
+            # Create app directory and extract
+            sudo mkdir -p "$APP_DIR"
+            sudo tar -xzf "$TAR" -C "$APP_DIR"
 
             # Set permissions
             sudo chown -R www-data:www-data "$APP_DIR"
@@ -63,11 +105,14 @@ jobs:
             # PM2 restart
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
-            cd "$APP_DIR/apps/ai-calendar"
-            pm2 start ecosystem.config.cjs
+            cd "$APP_DIR"
+            pm2 start server.js --name $APP_NAME --env PORT=$APP_PORT
             pm2 save
 
             echo "[INFO] PM2 started $APP_NAME on port $APP_PORT"
+
+            # Cleanup
+            rm -f "$TAR"
 
             # Verify
             sleep 3
