@@ -49,7 +49,8 @@ jobs:
 
       - name: Archive standalone app
         run: |
-          tar --warning=no-file-changed -czf ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
+          tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
+          mv /tmp/ai-calendar.tar.gz .
 
       - name: Copy tarball to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -84,6 +85,13 @@ jobs:
             # Extract new version
             sudo tar -xzf "$TAR" -C "$APP_DIR"
             echo "[INFO] Files extracted successfully"
+
+            # Handle monorepo structure - move nested files to root if needed
+            if [ -d "$APP_DIR/apps/ai-calendar" ]; then
+              echo "[INFO] Moving files from nested monorepo structure..."
+              sudo mv "$APP_DIR/apps/ai-calendar/"* "$APP_DIR/"
+              sudo rm -rf "$APP_DIR/apps"
+            fi
 
             # Set permissions
             sudo chown -R www-data:www-data "$APP_DIR"
