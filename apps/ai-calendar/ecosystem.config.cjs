@@ -7,7 +7,7 @@ module.exports = {
       cwd: "/var/www/ai-calendar",
       env: {
         NODE_ENV: "production",
-        PORT: 3002
+        PORT: 4439
       },
       instances: 1,
       autorestart: true,
