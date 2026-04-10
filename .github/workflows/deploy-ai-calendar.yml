@@ -44,8 +44,8 @@ jobs:
 
       - name: Prepare standalone directory
         run: |
-          cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/
-          cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/.next/
+          cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/apps/ai-calendar/
+          cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/apps/ai-calendar/.next/
 
       - name: Archive standalone app
         run: |
