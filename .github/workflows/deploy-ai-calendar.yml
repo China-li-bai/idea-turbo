@@ -106,6 +106,18 @@ jobs:
               sudo rm -rf "$APP_DIR/apps"
             fi
 
+            # Verify .next/static exists
+            if [ -d "$APP_DIR/.next/static" ]; then
+              echo "[INFO] ✅ .next/static directory exists"
+              ls -la "$APP_DIR/.next/static/" | head -n 10
+            else
+              echo "[ERROR] .next/static directory not found!"
+              echo "[INFO] Listing $APP_DIR contents:"
+              ls -la "$APP_DIR/"
+              echo "[INFO] Listing .next contents (if exists):"
+              ls -la "$APP_DIR/.next/" 2>/dev/null || echo ".next directory does not exist"
+            fi
+
             # Set permissions
             sudo chown -R www-data:www-data "$APP_DIR"
             sudo chmod -R 755 "$APP_DIR"
