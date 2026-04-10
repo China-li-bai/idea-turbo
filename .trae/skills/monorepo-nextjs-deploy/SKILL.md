@@ -94,10 +94,10 @@ jobs:
       # 构建应用
       - run: pnpm --filter your-app build
 
-      # 复制静态文件到 standalone 目录
+      # 复制静态文件到 standalone 目录（注意 monorepo 嵌套结构）
       - run: |
-          cp -r apps/your-app/public apps/your-app/.next/standalone/
-          cp -r apps/your-app/.next/static apps/your-app/.next/standalone/.next/
+          cp -r apps/your-app/public apps/your-app/.next/standalone/apps/your-app/
+          cp -r apps/your-app/.next/static apps/your-app/.next/standalone/apps/your-app/.next/
 
       # 打包 standalone 目录
       - run: |
@@ -358,6 +358,66 @@ export function hasPrivacyConsent(): boolean {
 }
 ```
 
+### 10. 静态文件 404 错误：Monorepo 嵌套结构问题 ⭐
+
+**错误**: `GET https://your-domain.com/_next/static/chunks/turbopack-xxx.js net::ERR_ABORTED 404 (Not Found)`
+
+**原因**: 在 Turborepo monorepo 中，Next.js standalone 构建会保留 monorepo 的目录结构，静态文件必须复制到正确的嵌套路径。
+
+**问题分析**:
+
+Next.js 16 使用 Turbopack 构建，会生成 `turbopack-*.js` 等静态文件。在 monorepo 结构中，standalone 构建输出如下：
+
+```
+.next/standalone/
+├── apps/
+│   └── your-app/          ← 实际应用文件在这里
+│       ├── server.js
+│       ├── .next/
+│       │   ├── server/
+│       │   └── static/    ← 静态文件应该在这里
+│       └── public/
+└── node_modules/
+```
+
+**错误配置**（静态文件复制到错误位置）:
+```yaml
+# ❌ 错误：复制到 standalone 根目录
+- run: |
+    cp -r apps/your-app/public apps/your-app/.next/standalone/
+    cp -r apps/your-app/.next/static apps/your-app/.next/standalone/.next/
+```
+
+**正确配置**（复制到 monorepo 嵌套路径）:
+```yaml
+# ✅ 正确：复制到 apps/your-app/ 子目录
+- run: |
+    cp -r apps/your-app/public apps/your-app/.next/standalone/apps/your-app/
+    cp -r apps/your-app/.next/static apps/your-app/.next/standalone/apps/your-app/.next/
+```
+
+**验证方法**:
+```bash
+# 本地构建后检查
+ls -la apps/your-app/.next/standalone/apps/your-app/
+ls -la apps/your-app/.next/standalone/apps/your-app/.next/static/
+
+# 查找 turbopack 文件
+find apps/your-app/.next/standalone/apps/your-app/.next/static -name "*turbopack*"
+```
+
+**关键经验**:
+- ✅ Monorepo 结构中，standalone 构建保留 `apps/your-app/` 嵌套结构
+- ✅ 静态文件必须复制到 `standalone/apps/your-app/` 路径下
+- ✅ Next.js 16 的 Turbopack 会生成 `turbopack-*.js` 文件，这些文件必须在 `.next/static/chunks/` 中
+- ⚠️ 如果静态文件路径错误，浏览器会缓存 404 响应，需要清除浏览器缓存
+
+**排查步骤**:
+1. 检查构建输出：`ls -la apps/your-app/.next/standalone/`
+2. 验证静态文件位置：`find apps/your-app/.next/standalone -name "static"`
+3. 检查服务器上的文件：`ls -la /var/www/your-app/apps/your-app/.next/static/`
+4. 清除浏览器缓存后重新访问
+
 ---
 
 ## 部署检查清单
@@ -368,10 +428,15 @@ export function hasPrivacyConsent(): boolean {
 - [ ] PM2 配置 `instances: 1`（Next.js 不是线程安全的）
 - [ ] GitHub Secrets 已配置 (SSH_HOST, SSH_USER, SSH_PORT, VPS_SSH_KEY)
 - [ ] Nginx 配置已创建并启用
-- [ ] 构建后复制 `public/` 和 `.next/static/` 到 standalone 目录
+- [ ] **静态文件复制到正确的 monorepo 嵌套路径** ⭐
+  ```yaml
+  cp -r apps/your-app/public apps/your-app/.next/standalone/apps/your-app/
+  cp -r apps/your-app/.next/static apps/your-app/.next/standalone/apps/your-app/.next/
+  ```
 - [ ] tar 打包使用 `/tmp` 避免竞态
 - [ ] 部署脚本**不创建** backup 目录
 - [ ] TypeScript 类型定义正确（可选参数、ArrayBuffer 类型）
+- [ ] 验证静态文件存在：`find .next/standalone/apps/your-app/.next/static -name "*turbopack*"`
 
 ---
 
@@ -395,6 +460,14 @@ sudo systemctl status nginx
 # 检查应用响应
 curl -I http://localhost:3002
 curl -I https://your-domain.com
+
+# 检查静态文件是否存在（monorepo 结构）
+ls -la /var/www/your-app/apps/your-app/.next/static/
+find /var/www/your-app -name "*turbopack*" -type f
+
+# 本地验证静态文件路径
+ls -la apps/your-app/.next/standalone/apps/your-app/.next/static/
+find apps/your-app/.next/standalone -name "static" -type d
 ```
 
 ---
