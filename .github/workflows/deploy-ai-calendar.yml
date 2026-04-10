@@ -95,7 +95,14 @@ jobs:
             # Handle monorepo structure - move nested files to root if needed
             if [ -d "$APP_DIR/apps/ai-calendar" ]; then
               echo "[INFO] Moving files from nested monorepo structure..."
-              sudo cp -r "$APP_DIR/apps/ai-calendar/"* "$APP_DIR/"
+              sudo cp -r "$APP_DIR/apps/ai-calendar"/* "$APP_DIR/"
+              sudo cp -r "$APP_DIR/apps/ai-calendar"/.* "$APP_DIR/" 2>/dev/null || true
+              
+              # Explicitly copy .next if it exists but wasn't copied
+              if [ -d "$APP_DIR/apps/ai-calendar/.next" ] && [ ! -d "$APP_DIR/.next" ]; then
+                sudo cp -r "$APP_DIR/apps/ai-calendar/.next" "$APP_DIR/"
+              fi
+              
               sudo rm -rf "$APP_DIR/apps"
             fi
 
