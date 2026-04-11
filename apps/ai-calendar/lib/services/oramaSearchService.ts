@@ -39,6 +39,41 @@ if (typeof window !== 'undefined') {
   }
 }
 
+async function loadPipelineWithRetry(
+  model: string,
+  maxRetries: number = 3
+): Promise<any> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Transformers.js] Loading model ${model}, attempt ${attempt}/${maxRetries}`);
+      const result = await pipeline("feature-extraction", model);
+      console.log(`[Transformers.js] Model ${model} loaded successfully`);
+      return result;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`[Transformers.js] Attempt ${attempt} failed:`, error);
+      
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000;
+        console.log(`[Transformers.js] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        if (attempt === 1 && env.remoteHost === 'https://hf-mirror.com') {
+          console.log('[Transformers.js] Switching to HuggingFace official CDN...');
+          env.remoteHost = 'https://huggingface.co';
+        } else if (attempt === 2) {
+          console.log('[Transformers.js] Trying alternative CDN...');
+          env.remoteHost = 'https://hf-mirror.com';
+        }
+      }
+    }
+  }
+  
+  throw new Error(`Failed to load model ${model} after ${maxRetries} attempts. Last error: ${lastError?.message}`);
+}
+
 type EntityType = ItemType;
 
 const EMBEDDING_SCHEMA_VERSION = 2;
@@ -311,7 +346,7 @@ export class OramaSearchService {
 
       if (progressCallback) progressCallback(1, 4, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
-      this.extractor = await pipeline("feature-extraction", this.modelConfig.modelName);
+      this.extractor = await loadPipelineWithRetry(this.modelConfig.modelName);
 
       if (progressCallback) progressCallback(2, 4, "正在加载本地数据...");
 

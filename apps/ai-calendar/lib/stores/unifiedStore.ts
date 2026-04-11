@@ -605,7 +605,33 @@ export const useUnifiedStore = create<UnifiedStore>()(
         items: state.items,
         settings: state.settings,
         memories: state.memories,
-      })
+      }),
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<UnifiedStore>;
+        
+        if (version < 1) {
+          console.log('[UnifiedStore] Migrating from version < 1');
+          if (state.items) {
+            state.items = state.items.map(item => ({
+              ...item,
+              metadata: item.metadata || {}
+            }));
+          }
+        }
+        
+        if (version < 2) {
+          console.log('[UnifiedStore] Migrating from version < 2');
+          if (state.items) {
+            state.items = state.items.map(item => ({
+              ...item,
+              embedding: item.embedding || [],
+              embeddingUpdatedAt: item.embeddingUpdatedAt || 0
+            }));
+          }
+        }
+        
+        return state;
+      }
     }
   )
 );

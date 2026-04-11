@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: [
     '@idea-turbo/local-first-sdk',
+    '@idea-turbo/sherpa-onnx',
   ],
   images: {
     remotePatterns: [

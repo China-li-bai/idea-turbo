@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@idea-turbo/sherpa-onnx": [
+        "../../packages/sherpa-onnx/src"
+      ],
+      "@idea-turbo/local-first-sdk": [
+        "../../packages/local-first-sdk/src"
       ]
     }
   },
