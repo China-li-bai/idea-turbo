@@ -53,6 +53,13 @@ echo ""
 echo "🌐 步骤 3: 更新 Nginx 配置"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 NGINX_CONF="/etc/nginx/sites-available/privlocal.com"
+NGINX_ENABLED_CONF="/etc/nginx/sites-enabled/privlocal.com.conf"
+
+# 先删除错误的符号链接
+if [ -L "$NGINX_ENABLED_CONF" ]; then
+  echo "删除错误的符号链接: $NGINX_ENABLED_CONF"
+  rm -f "$NGINX_ENABLED_CONF"
+fi
 
 if [ -f "$NGINX_CONF" ]; then
   # 备份
@@ -69,7 +76,11 @@ if [ -f "$NGINX_CONF" ]; then
     echo "✅ Nginx 已重载"
   else
     echo "❌ Nginx 配置测试失败，恢复备份"
-    mv "${NGINX_CONF}.backup."* "$NGINX_CONF"
+    BACKUP_FILE=$(ls -t "${NGINX_CONF}.backup."* | head -1)
+    if [ -f "$BACKUP_FILE" ]; then
+      cp "$BACKUP_FILE" "$NGINX_CONF"
+      echo "✅ 已从备份恢复"
+    fi
     exit 1
   fi
 else
