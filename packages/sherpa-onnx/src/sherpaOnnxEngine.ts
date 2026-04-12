@@ -160,25 +160,26 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   }
 
   private handleWorkerResult(text: string, isEndpoint: boolean): void {
-    if (text && text !== this.lastResult) {
-      this.lastResult = text;
+    if (!text) return;
 
-      if (isEndpoint) {
-        if (this.lastResult.trim()) {
-          this.resultList.push(this.lastResult);
-        }
+    const isFinal = isEndpoint;
+    const isInterim = !isEndpoint;
+
+    if (isFinal) {
+      if (text.trim()) {
+        this.resultList.push(text);
         this.lastResult = '';
       }
-
-      const isFinal = !isEndpoint;
-
-      this.callbacks.onResult?.({
-        transcript: text,
-        isFinal,
-        isInterim: !isFinal,
-        confidence: 0.8
-      });
+    } else {
+      this.lastResult = text;
     }
+
+    this.callbacks.onResult?.({
+      transcript: text,
+      isFinal,
+      isInterim,
+      confidence: 0.8
+    });
   }
 
   private sendToWorker(msg: WorkerInMessage): void {
