@@ -57,8 +57,8 @@ export class PrivacySanitizer {
     naturalLanguage: string,
     employees: Employee[],
     shiftTypes: ShiftType[],
-    startDate: Date,
-    endDate: Date
+    startDate: number,
+    endDate: number
   ): {
     sanitizedPrompt: string;
     sanitizedData: SanitizedData;
@@ -66,7 +66,7 @@ export class PrivacySanitizer {
     const sanitizedText = this.sanitizeNaturalLanguage(naturalLanguage);
     const sanitizedEmployees = this.sanitizeEmployees(employees);
     const dateRangeDays = Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+      (endDate - startDate) / (1000 * 60 * 60 * 24)
     ) + 1;
 
     const hasConstraints = employees.some(

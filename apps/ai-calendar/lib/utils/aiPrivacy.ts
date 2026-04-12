@@ -1,11 +1,11 @@
 import { privacySanitizer } from './privacy';
-import type { CalendarEvent } from '@/types';
+import type { UnifiedCalendarItem } from '@/types/unified';
 
 export interface SanitizedEvent {
   id: string;
   title: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: number | null;
+  endTime: number | null;
   location?: string;
 }
 
@@ -50,23 +50,23 @@ export class AIPrivacyMiddleware {
     return result;
   }
 
-  sanitizeEvent(event: CalendarEvent): SanitizedEvent {
+  sanitizeEvent(item: UnifiedCalendarItem): SanitizedEvent {
     const sanitized: SanitizedEvent = {
-      id: event.id,
-      title: this.sanitizeTitle(event.title),
-      startTime: event.startTime,
-      endTime: event.endTime,
+      id: item.id,
+      title: this.sanitizeTitle(item.title),
+      startTime: item.startTime,
+      endTime: item.endTime,
     };
 
-    if (event.location) {
-      sanitized.location = this.sanitizeLocation(event.location);
+    if (item.metadata.location) {
+      sanitized.location = this.sanitizeLocation(item.metadata.location);
     }
 
     return sanitized;
   }
 
-  sanitizeEvents(events: CalendarEvent[]): SanitizedEvent[] {
-    return events.map(event => this.sanitizeEvent(event));
+  sanitizeEvents(items: UnifiedCalendarItem[]): SanitizedEvent[] {
+    return items.map(item => this.sanitizeEvent(item));
   }
 
   sanitizeTitle(title: string): string {
@@ -133,14 +133,14 @@ export class AIPrivacyMiddleware {
       if (Array.isArray(data)) {
         safePrompt += '\n\n相关数据：\n' + JSON.stringify(
           data.map(item => 
-            'startTime' in item ? this.sanitizeEvent(item as CalendarEvent) : item
+            'startTime' in item ? this.sanitizeEvent(item as UnifiedCalendarItem) : item
           ),
           null,
           2
         );
       } else if (typeof data === 'object') {
         safePrompt += '\n\n相关数据：\n' + JSON.stringify(
-          'startTime' in data ? this.sanitizeEvent(data as CalendarEvent) : data,
+          'startTime' in data ? this.sanitizeEvent(data as UnifiedCalendarItem) : data,
           null,
           2
         );

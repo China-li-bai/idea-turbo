@@ -1,10 +1,9 @@
 import { create } from 'zustand';
-import type { UserSettings } from '@/types';
+import type { UserSettings } from '@/types/unified';
 
 interface UIState {
   currentView: 'day' | 'week' | 'month' | 'agenda';
   selectedDate: Date;
-  viewMode: 'boss' | 'assistant' | 'personal';
 
   selectedEventId: string | null;
   isModalOpen: boolean;
@@ -18,23 +17,21 @@ interface UIState {
     searchQuery: string;
   };
 
-  settings: Partial<UserSettings>;
+  uiPreferences: Partial<Pick<UserSettings, 'theme' | 'language' | 'aiMode' | 'vectorSearchEnabled' | 'autoSyncEmbeddings' | 'embeddingModel' | 'autoBackup' | 'backupFrequency'>>;
 
   setCurrentView: (view: UIState['currentView']) => void;
   setSelectedDate: (date: Date) => void;
-  setViewMode: (mode: UIState['viewMode']) => void;
   selectEvent: (id: string | null) => void;
   openModal: (type: UIState['modalType']) => void;
   closeModal: () => void;
   setLoading: (loading: boolean) => void;
   setFilters: (filters: Partial<UIState['filters']>) => void;
-  setSettings: (settings: Partial<UserSettings>) => void;
+  setUIPreferences: (prefs: Partial<UIState['uiPreferences']>) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   currentView: 'week',
   selectedDate: new Date(),
-  viewMode: 'personal',
 
   selectedEventId: null,
   isModalOpen: false,
@@ -48,7 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
     searchQuery: '',
   },
 
-  settings: {
+  uiPreferences: {
     theme: 'system',
     language: 'zh-CN',
     vectorSearchEnabled: true,
@@ -61,7 +58,6 @@ export const useUIStore = create<UIState>((set) => ({
 
   setCurrentView: (view) => set({ currentView: view }),
   setSelectedDate: (date) => set({ selectedDate: date }),
-  setViewMode: (mode) => set({ viewMode: mode }),
   selectEvent: (id) => set({ selectedEventId: id }),
   openModal: (type) => set({ isModalOpen: true, modalType: type }),
   closeModal: () => set({ isModalOpen: false, modalType: null }),
@@ -69,7 +65,7 @@ export const useUIStore = create<UIState>((set) => ({
   setFilters: (filters) => set((state) => ({
     filters: { ...state.filters, ...filters },
   })),
-  setSettings: (settings) => set((state) => ({
-    settings: { ...state.settings, ...settings },
+  setUIPreferences: (prefs) => set((state) => ({
+    uiPreferences: { ...state.uiPreferences, ...prefs },
   })),
 }));

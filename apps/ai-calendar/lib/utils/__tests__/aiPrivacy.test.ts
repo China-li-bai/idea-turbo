@@ -1,18 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AIPrivacyMiddleware } from '../aiPrivacy';
-import type { CalendarEvent } from '@/types';
+import type { UnifiedCalendarItem } from '@/types/unified';
 
-const createTestEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
+const createTestItem = (overrides: Partial<UnifiedCalendarItem> = {}): UnifiedCalendarItem => ({
   id: 'test-event',
+  type: 'event',
   title: '测试事件',
-  startTime: new Date('2024-03-15T10:00:00'),
-  endTime: new Date('2024-03-15T11:00:00'),
+  content: '测试内容',
+  startTime: new Date('2024-03-15T10:00:00').getTime(),
+  endTime: new Date('2024-03-15T11:00:00').getTime(),
   isAllDay: false,
-  reminders: [],
-  viewMode: 'personal',
-  eventType: 'regular',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  embedding: [],
+  embeddingUpdatedAt: 0,
+  status: 'scheduled',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  metadata: {},
   ...overrides,
 });
 
@@ -76,44 +79,44 @@ describe('AIPrivacyMiddleware', () => {
 
   describe('sanitizeEvent', () => {
     it('应该脱敏事件标题中的敏感信息', () => {
-      const event = createTestEvent({
+      const item = createTestItem({
         title: '密码修改会议',
       });
       
-      const result = middleware.sanitizeEvent(event);
+      const result = middleware.sanitizeEvent(item);
       expect(result.title).toContain('[敏感信息]');
     });
 
     it('应该脱敏详细地址', () => {
-      const event = createTestEvent({
+      const item = createTestItem({
         title: '客户会议',
-        location: '北京市朝阳区建国路88号SOHO现代城A座',
+        metadata: { location: '北京市朝阳区建国路88号SOHO现代城A座' },
       });
       
-      const result = middleware.sanitizeEvent(event);
+      const result = middleware.sanitizeEvent(item);
       expect(result.location).toContain('[详细地址已隐藏]');
     });
 
     it('应该保留简单地点信息', () => {
-      const event = createTestEvent({
+      const item = createTestItem({
         title: '团队会议',
-        location: '会议室A',
+        metadata: { location: '会议室A' },
       });
       
-      const result = middleware.sanitizeEvent(event);
+      const result = middleware.sanitizeEvent(item);
       expect(result.location).toBe('会议室A');
     });
 
     it('应该保留必要的事件信息', () => {
-      const event = createTestEvent({
+      const item = createTestItem({
         id: 'test-123',
         title: '项目讨论',
       });
       
-      const result = middleware.sanitizeEvent(event);
+      const result = middleware.sanitizeEvent(item);
       expect(result.id).toBe('test-123');
-      expect(result.startTime).toEqual(event.startTime);
-      expect(result.endTime).toEqual(event.endTime);
+      expect(result.startTime).toEqual(item.startTime);
+      expect(result.endTime).toEqual(item.endTime);
     });
   });
 
@@ -160,22 +163,22 @@ describe('AIPrivacyMiddleware', () => {
     });
 
     it('应该正确处理事件数据', () => {
-      const event = createTestEvent({
+      const item = createTestItem({
         title: '密码重置会议',
       });
       
-      const prompt = middleware.createSafePrompt('请分析这个事件', event);
+      const prompt = middleware.createSafePrompt('请分析这个事件', item);
       expect(prompt).toContain('请分析这个事件');
       expect(prompt).toContain('相关数据');
     });
 
     it('应该正确处理事件数组', () => {
-      const events: CalendarEvent[] = [
-        createTestEvent({ id: 'test-1', title: '会议1' }),
-        createTestEvent({ id: 'test-2', title: '会议2' }),
+      const items: UnifiedCalendarItem[] = [
+        createTestItem({ id: 'test-1', title: '会议1' }),
+        createTestItem({ id: 'test-2', title: '会议2' }),
       ];
       
-      const prompt = middleware.createSafePrompt('请分析这些事件', events);
+      const prompt = middleware.createSafePrompt('请分析这些事件', items);
       expect(prompt).toContain('请分析这些事件');
       expect(prompt).toContain('会议1');
       expect(prompt).toContain('会议2');

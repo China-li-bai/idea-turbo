@@ -11,7 +11,7 @@ export interface SchedulingConstraint {
     | 'load_balance';
   employeeId?: string;
   shiftTypeId?: string;
-  date?: Date;
+  date?: number;
   value: number | string | boolean;
   priority: number;
 }
@@ -36,8 +36,8 @@ export class LocalScheduler {
   }
 
   schedule(
-    startDate: Date,
-    endDate: Date,
+    startDate: number,
+    endDate: number,
     employees: Employee[],
     shiftTypes: ShiftType[],
     shiftsPerDay: number = 1
@@ -68,14 +68,14 @@ export class LocalScheduler {
           const shift: Shift = {
             id: uuidv4(),
             scheduleId: '',
-            date: new Date(date),
+            date,
             shiftTypeId: shiftType.id,
             employeeId: selectedEmployee.id,
           };
           result.shifts.push(shift);
           this.updateEmployeeStats(employeeStats, selectedEmployee.id, date, shiftType);
         } else {
-          result.conflicts.push(`无法为 ${date.toLocaleDateString()} 的 ${shiftType.name} 找到合适员工`);
+          result.conflicts.push(`无法为 ${new Date(date).toLocaleDateString()} 的 ${shiftType.name} 找到合适员工`);
           result.success = false;
         }
       }
@@ -87,12 +87,13 @@ export class LocalScheduler {
     return result;
   }
 
-  private generateDateRange(startDate: Date, endDate: Date): Date[] {
-    const dates: Date[] = [];
+  private generateDateRange(startDate: number, endDate: number): number[] {
+    const dates: number[] = [];
     const current = new Date(startDate);
+    const end = new Date(endDate);
     
-    while (current <= endDate) {
-      dates.push(new Date(current));
+    while (current <= end) {
+      dates.push(current.getTime());
       current.setDate(current.getDate() + 1);
     }
     
@@ -102,7 +103,7 @@ export class LocalScheduler {
   private initEmployeeStats(employees: Employee[]) {
     const stats: Record<string, { 
       totalShifts: number; 
-      lastShiftDate?: Date;
+      lastShiftDate?: number;
       lastShiftType?: string;
       consecutiveShifts: number;
     }> = {};
@@ -118,7 +119,7 @@ export class LocalScheduler {
   }
 
   private selectEmployee(
-    date: Date,
+    date: number,
     shiftType: ShiftType,
     employees: Employee[],
     employeeStats: any,
@@ -152,7 +153,7 @@ export class LocalScheduler {
 
   private checkConstraints(
     employee: Employee,
-    date: Date,
+    date: number,
     shiftType: ShiftType,
     employeeStats: any
   ): boolean {
@@ -161,8 +162,9 @@ export class LocalScheduler {
     const preferences = employee.preferences || {};
 
     if (constraints.unavailableDates) {
+      const dateStr = new Date(date).toDateString();
       const isUnavailable = constraints.unavailableDates.some(
-        d => d.toDateString() === date.toDateString()
+        d => new Date(d).toDateString() === dateStr
       );
       if (isUnavailable) return false;
     }
@@ -182,7 +184,7 @@ export class LocalScheduler {
     }
 
     if (preferences.preferredDaysOff && 
-        preferences.preferredDaysOff.includes(date.getDay())) {
+        preferences.preferredDaysOff.includes(new Date(date).getDay())) {
     }
 
     return true;
@@ -191,22 +193,23 @@ export class LocalScheduler {
   private updateEmployeeStats(
     employeeStats: any,
     employeeId: string,
-    date: Date,
+    date: number,
     shiftType: ShiftType
   ) {
     const stats = employeeStats[employeeId];
     const yesterday = new Date(date);
     yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayMs = yesterday.getTime();
 
     if (stats.lastShiftDate && 
-        stats.lastShiftDate.toDateString() === yesterday.toDateString()) {
+        stats.lastShiftDate === yesterdayMs) {
       stats.consecutiveShifts++;
     } else {
       stats.consecutiveShifts = 1;
     }
 
     stats.totalShifts++;
-    stats.lastShiftDate = new Date(date);
+    stats.lastShiftDate = date;
     stats.lastShiftType = shiftType.id;
   }
 
@@ -214,8 +217,8 @@ export class LocalScheduler {
     if (employeeCount === 0) return 0;
 
     const shiftCounts = Object.values(employeeStats).map((s: any) => s.totalShifts);
-    const avg = shiftCounts.reduce((a, b) => a + b, 0) / shiftCounts.length;
-    const variance = shiftCounts.reduce((sum, count) => sum + Math.pow(count - avg, 2), 0) / shiftCounts.length;
+    const avg = shiftCounts.reduce((a: number, b: number) => a + b, 0) / shiftCounts.length;
+    const variance = shiftCounts.reduce((sum: number, count: number) => sum + Math.pow(count - avg, 2), 0) / shiftCounts.length;
     const stdDev = Math.sqrt(variance);
 
     const maxScore = 100;
