@@ -4,7 +4,6 @@ var lastResult = '';
 var resultList = [];
 var Module = null;
 var db = null;
-var blobUrls = {};
 var MODEL_VERSION = '1.0.0';
 var DB_NAME = 'SherpaOnnxModelCache';
 var STORE_NAME = 'models';
@@ -12,35 +11,53 @@ var DB_VERSION = 1;
 var initConfig = null;
 
 self.onerror = function(e) {
+  console.error('[SherpaWorker] Uncaught error:', e);
   self.postMessage({ type: 'error', error: e.message || 'Unknown worker error' });
 };
 
+self.onunhandledrejection = function(e) {
+  console.error('[SherpaWorker] Unhandled rejection:', e);
+  self.postMessage({ type: 'error', error: e.reason ? String(e.reason) : 'Unhandled promise rejection' });
+};
+
 self.onmessage = function(e) {
-  var msg = e.data;
-  switch (msg.type) {
-    case 'init':
-      handleInit(msg.config);
-      break;
-    case 'audio':
-      handleAudio(msg.samples, msg.sampleRate);
-      break;
-    case 'reset':
-      handleReset();
-      break;
-    case 'destroy':
-      handleDestroy();
-      break;
-    case 'forceUpdateModel':
-      handleForceUpdateModel();
-      break;
-    case 'clearModelCache':
-      handleClearModelCache();
-      break;
-    case 'getModelVersion':
-      self.postMessage({ type: 'modelVersion', version: MODEL_VERSION });
-      break;
-    default:
-      console.warn('[SherpaWorker] Unknown message type:', msg.type);
+  try {
+    var msg = e.data;
+    switch (msg.type) {
+      case 'init':
+        handleInit(msg.config).catch(function(err) {
+          console.error('[SherpaWorker] handleInit error:', err);
+          postError('初始化失败: ' + String(err));
+        });
+        break;
+      case 'audio':
+        handleAudio(msg.samples, msg.sampleRate);
+        break;
+      case 'reset':
+        handleReset();
+        break;
+      case 'destroy':
+        handleDestroy();
+        break;
+      case 'forceUpdateModel':
+        handleForceUpdateModel().catch(function(err) {
+          postError('模型更新失败: ' + String(err));
+        });
+        break;
+      case 'clearModelCache':
+        handleClearModelCache().catch(function(err) {
+          postError('清除缓存失败: ' + String(err));
+        });
+        break;
+      case 'getModelVersion':
+        self.postMessage({ type: 'modelVersion', version: MODEL_VERSION });
+        break;
+      default:
+        console.warn('[SherpaWorker] Unknown message type:', msg.type);
+    }
+  } catch (err) {
+    console.error('[SherpaWorker] Message handler error:', err);
+    postError('消息处理错误: ' + String(err));
   }
 };
 
@@ -136,6 +153,9 @@ function cacheModel(url, data) {
   });
 }
 
+var blobUrls = {};
+var dataBuffers = {};
+
 function getOrCreateBlobUrl(url, data) {
   if (blobUrls[url]) {
     return blobUrls[url];
@@ -146,6 +166,8 @@ function getOrCreateBlobUrl(url, data) {
   });
   var blobUrl = URL.createObjectURL(blob);
   blobUrls[url] = blobUrl;
+  dataBuffers[blobUrl] = data;
+  console.log('[SherpaWorker] Created blob URL:', blobUrl, 'for', url);
   return blobUrl;
 }
 
@@ -155,8 +177,10 @@ async function preloadModel(cdnBaseUrl, dataFile) {
   var cached = await getCachedModel(dataUrl);
   if (cached) {
     postStatus('从缓存加载模型...');
-    getOrCreateBlobUrl(dataUrl, cached);
-    return;
+    var blobUrl = getOrCreateBlobUrl(dataUrl, cached);
+    console.log('[SherpaWorker] Model loaded from IndexedDB cache:', dataUrl);
+    console.log('[SherpaWorker] Blob URL:', blobUrl);
+    return blobUrl;
   }
 
   postStatus('下载模型中...');
@@ -167,32 +191,41 @@ async function preloadModel(cdnBaseUrl, dataFile) {
 
   var data = await response.arrayBuffer();
   await cacheModel(dataUrl, data);
-  getOrCreateBlobUrl(dataUrl, data);
+  var blobUrl = getOrCreateBlobUrl(dataUrl, data);
   postStatus('模型下载完成 (' + (data.byteLength / 1024 / 1024).toFixed(2) + 'MB)');
+  console.log('[SherpaWorker] Model downloaded and cached:', dataUrl);
+  return blobUrl;
 }
 
 async function handleInit(config) {
+  console.log('[SherpaWorker] handleInit called with config:', JSON.stringify(config));
   initConfig = config;
 
   try {
     postStatus('初始化模型缓存...');
 
     await initDB();
+    console.log('[SherpaWorker] IndexedDB initialized');
 
     postStatus('预加载模型...');
-    await preloadModel(config.cdnBaseUrl, config.dataFile);
+    var blobUrl = await preloadModel(config.cdnBaseUrl, config.dataFile);
+    console.log('[SherpaWorker] Model preloaded, blob URL:', blobUrl);
 
     postStatus('加载 WASM 模块...');
-    await loadWasmModule(config);
+    await loadWasmModule(config, blobUrl);
 
   } catch (error) {
-    postError('初始化失败: ' + String(error));
     console.error('[SherpaWorker] Init error:', error);
+    postError('初始化失败: ' + String(error));
+    throw error;
   }
 }
 
-function loadWasmModule(config) {
+function loadWasmModule(config, dataBlobUrl) {
   return new Promise(function(resolve, reject) {
+    console.log('[SherpaWorker] loadWasmModule called');
+    console.log('[SherpaWorker] dataBlobUrl:', dataBlobUrl);
+
     var moduleReady = false;
     var initTimeout = null;
     var checkInterval = null;
@@ -225,26 +258,36 @@ function loadWasmModule(config) {
       }
     }
 
-    var dataUrl = config.cdnBaseUrl + '/' + config.dataFile;
+    var preloadedData = dataBuffers[dataBlobUrl];
+    console.log('[SherpaWorker] preloadedData size:', preloadedData ? preloadedData.byteLength : 'null');
 
     self.Module = {
       locateFile: function(path, scriptDirectory) {
+        console.log('[SherpaWorker] locateFile called for:', path, 'scriptDirectory:', scriptDirectory);
+
         if (path.endsWith('.data')) {
-          if (blobUrls[dataUrl]) {
-            console.log('[SherpaWorker] Using cached blob URL for:', path);
-            return blobUrls[dataUrl];
-          }
-          console.log('[SherpaWorker] Using CDN URL for:', path);
-          return dataUrl;
+          console.log('[SherpaWorker] Returning blob URL for .data file:', dataBlobUrl);
+          return dataBlobUrl;
         }
 
         if (path.endsWith('.wasm')) {
+          console.log('[SherpaWorker] Returning path for .wasm file:', path);
           return path;
         }
 
         return scriptDirectory + path;
       },
+      getPreloadedPackage: function(remotePackageName, remotePackageSize) {
+        console.log('[SherpaWorker] getPreloadedPackage called for:', remotePackageName, 'size:', remotePackageSize);
+        if (preloadedData) {
+          console.log('[SherpaWorker] Returning preloaded data, size:', preloadedData.byteLength);
+          return preloadedData;
+        }
+        console.log('[SherpaWorker] No preloaded data available');
+        return null;
+      },
       setStatus: function(status) {
+        console.log('[SherpaWorker] setStatus:', status);
         if (!status || !status.trim()) return;
 
         if (status === 'Running...') {
@@ -283,15 +326,27 @@ function loadWasmModule(config) {
         postError('WASM 模块初始化超时');
         reject(error);
       }
-    }, 60000);
+    }, 120000);
 
     try {
       var baseUrl = config.wasmScriptsBaseUrl || '';
-      importScripts(baseUrl + '/sherpa-onnx-asr.js');
-      importScripts(baseUrl + '/sherpa-onnx-wasm-main-asr.js');
+      var asrUrl = baseUrl + '/sherpa-onnx-asr.js';
+      var wasmMainUrl = baseUrl + '/sherpa-onnx-wasm-main-asr.js';
+
+      console.log('[SherpaWorker] Loading WASM scripts:');
+      console.log('[SherpaWorker]   -', asrUrl);
+      console.log('[SherpaWorker]   -', wasmMainUrl);
+
+      importScripts(asrUrl);
+      console.log('[SherpaWorker] sherpa-onnx-asr.js loaded');
+
+      importScripts(wasmMainUrl);
+      console.log('[SherpaWorker] sherpa-onnx-wasm-main-asr.js loaded');
+
     } catch (error) {
       cleanup();
-      postError('加载 WASM 脚本失败');
+      console.error('[SherpaWorker] Failed to load WASM scripts:', error);
+      postError('加载 WASM 脚本失败: ' + String(error));
       reject(error);
     }
   });
@@ -362,6 +417,13 @@ function handleDestroy() {
   }
   lastResult = '';
   resultList = [];
+
+  Object.keys(blobUrls).forEach(function(url) {
+    URL.revokeObjectURL(blobUrls[url]);
+  });
+  blobUrls = {};
+  dataBuffers = {};
+
   self.postMessage({ type: 'destroyed' });
 }
 
@@ -421,11 +483,11 @@ async function handleClearModelCache() {
       request.onerror = function() { reject(request.error); };
     });
 
-    var urls = Object.keys(blobUrls);
-    for (var i = 0; i < urls.length; i++) {
-      URL.revokeObjectURL(blobUrls[urls[i]]);
-    }
+    Object.keys(blobUrls).forEach(function(url) {
+      URL.revokeObjectURL(blobUrls[url]);
+    });
     blobUrls = {};
+    dataBuffers = {};
 
     postStatus('缓存已清除，请刷新页面');
     self.postMessage({ type: 'clearCacheComplete' });

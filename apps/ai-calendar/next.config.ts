@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === 'development';
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
@@ -15,12 +17,82 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  allowedDevOrigins: [
-    'http://107.175.214.20:3001',
-    'http://107.175.214.20:3000',
-    'http://localhost:3001',
+  allowedDevOrigins: isDev ? [
     'http://localhost:3000',
-  ],
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://107.175.214.20:3000',
+    'http://107.175.214.20:3001',
+  ] : undefined,
+  headers: isDev
+    ? async () => []
+    : async () => [
+        {
+          source: '/sherpa-worker.js',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/javascript',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+        {
+          source: '/sherpa-onnx-asr.js',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/javascript',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+        {
+          source: '/sherpa-onnx-wasm-main-asr.js',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/javascript',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+        {
+          source: '/sherpa-onnx-wasm-main-asr.wasm',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/wasm',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+        {
+          source: '/:path*.data',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/octet-stream',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+      ],
 };
 
 export default nextConfig;
