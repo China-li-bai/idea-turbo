@@ -121,72 +121,114 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       warn: console.warn
     };
 
-    window.Module = {
-      locateFile: (path: string, scriptDirectory: string = '') => {
-        console.log('[SherpaOnnx] locateFile:', path);
-        
-        if (path.endsWith('.data')) {
-          const url = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
-          const cachedBlobUrl = modelCacheManager.getBlobUrlSync(url);
-          if (cachedBlobUrl) {
-            console.log('[SherpaOnnx] Using cached blob URL for:', path);
-            return cachedBlobUrl;
-          }
-          console.log('[SherpaOnnx] Using CDN URL for:', path);
-          return url;
-        }
-        
-        if (path.endsWith('.wasm')) {
-          return path;
-        }
-        
-        return scriptDirectory + path;
-      },
-      setStatus: (status: string) => {
-        if (!status || !status.trim()) return;
-        
-        if (status === 'Running...') {
-          this.emitStatus('模型加载完成，初始化识别器...');
-          return;
-        }
+    return new Promise<void>((resolve, reject) => {
+      let moduleReady = false;
+      let initTimeout: ReturnType<typeof setTimeout> | null = null;
+      let checkInterval: ReturnType<typeof setInterval> | null = null;
 
-        if (status.includes('from cache') || status.includes('Using cached')) {
-          this.emitStatus('从缓存加载模型...');
-          return;
-        }
+      const cleanup = () => {
+        if (initTimeout) clearTimeout(initTimeout);
+        if (checkInterval) clearInterval(checkInterval);
+      };
 
-        const downloadMatch = status.match(/Downloading data... \((\d+)\/(\d+)\)/);
-        if (downloadMatch) {
-          const downloaded = parseInt(downloadMatch[1], 10);
-          const total = parseInt(downloadMatch[2], 10);
-          const percent = total === 0 ? 0 : (downloaded * 10000 / total) / 100;
-          const sizeMB = (total / 1024 / 1024).toFixed(1);
-          this.emitStatus(`下载模型中... ${sizeMB}MB ${percent.toFixed(1)}%`);
-          return;
-        }
+      const checkModuleReady = () => {
+        if (moduleReady) return;
         
-        this.emitStatus(status);
-      },
-      onRuntimeInitialized: () => {
-        try {
-          console.log('[SherpaOnnx] Creating recognizer...');
-          this.recognizer = window.createOnlineRecognizer(window.Module);
-          this.isModelLoaded = true;
-          this.setIsInitialized(true);
-          this.emitStatus('Ready');
+        const mod = (window as any).Module;
+        if (mod && typeof mod._malloc === 'function' && typeof mod._free === 'function') {
+          moduleReady = true;
+          cleanup();
           
-          this.restoreConsole();
-          console.log('[SherpaOnnx] Recognizer created successfully');
-        } catch (error) {
-          console.error('[SherpaOnnx] Failed to create recognizer:', error);
-          this.restoreConsole();
-          this.emitError('Failed to create recognizer');
+          try {
+            console.log('[SherpaOnnx] Module exports ready, creating recognizer...');
+            this.recognizer = window.createOnlineRecognizer(window.Module);
+            this.isModelLoaded = true;
+            this.setIsInitialized(true);
+            this.emitStatus('Ready');
+            this.restoreConsole();
+            console.log('[SherpaOnnx] Recognizer created successfully');
+            resolve();
+          } catch (error) {
+            console.error('[SherpaOnnx] Failed to create recognizer:', error);
+            this.restoreConsole();
+            this.emitError('Failed to create recognizer');
+            reject(error);
+          }
         }
-      }
-    };
+      };
 
-    await this.loadScript('/sherpa-onnx-asr.js');
-    await this.loadScript('/sherpa-onnx-wasm-main-asr.js');
+      window.Module = {
+        locateFile: (path: string, scriptDirectory: string = '') => {
+          console.log('[SherpaOnnx] locateFile:', path);
+          
+          if (path.endsWith('.data')) {
+            const url = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
+            const cachedBlobUrl = modelCacheManager.getBlobUrlSync(url);
+            if (cachedBlobUrl) {
+              console.log('[SherpaOnnx] Using cached blob URL for:', path);
+              return cachedBlobUrl;
+            }
+            console.log('[SherpaOnnx] Using CDN URL for:', path);
+            return url;
+          }
+          
+          if (path.endsWith('.wasm')) {
+            return path;
+          }
+          
+          return scriptDirectory + path;
+        },
+        setStatus: (status: string) => {
+          if (!status || !status.trim()) return;
+          
+          if (status === 'Running...') {
+            this.emitStatus('模型加载完成，初始化识别器...');
+            return;
+          }
+
+          if (status.includes('from cache') || status.includes('Using cached')) {
+            this.emitStatus('从缓存加载模型...');
+            return;
+          }
+
+          const downloadMatch = status.match(/Downloading data... \((\d+)\/(\d+)\)/);
+          if (downloadMatch) {
+            const downloaded = parseInt(downloadMatch[1], 10);
+            const total = parseInt(downloadMatch[2], 10);
+            const percent = total === 0 ? 0 : (downloaded * 10000 / total) / 100;
+            const sizeMB = (total / 1024 / 1024).toFixed(1);
+            this.emitStatus(`下载模型中... ${sizeMB}MB ${percent.toFixed(1)}%`);
+            return;
+          }
+          
+          this.emitStatus(status);
+        },
+        onRuntimeInitialized: () => {
+          console.log('[SherpaOnnx] onRuntimeInitialized called');
+          checkInterval = setInterval(checkModuleReady, 100);
+        }
+      };
+
+      initTimeout = setTimeout(() => {
+        cleanup();
+        if (!moduleReady) {
+          const error = new Error('WASM module initialization timeout');
+          console.error('[SherpaOnnx]', error);
+          this.restoreConsole();
+          this.emitError('WASM 模块初始化超时');
+          reject(error);
+        }
+      }, 60000);
+
+      this.loadScript('/sherpa-onnx-asr.js')
+        .then(() => this.loadScript('/sherpa-onnx-wasm-main-asr.js'))
+        .catch((error) => {
+          cleanup();
+          this.restoreConsole();
+          this.emitError('Failed to load WASM scripts');
+          reject(error);
+        });
+    });
   }
 
   private restoreConsole(): void {
