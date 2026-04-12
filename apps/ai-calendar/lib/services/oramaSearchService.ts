@@ -32,10 +32,13 @@ if (typeof window !== 'undefined') {
     console.log('[Transformers.js] Browser cache disabled (non-secure context: IP access)');
   }
   
-  const useMirror = localStorage.getItem('use-hf-mirror') !== 'false';
+  const useMirror = localStorage.getItem('use-hf-mirror') === 'true';
   if (useMirror) {
     env.remoteHost = 'https://hf-mirror.com';
     console.log('[Transformers.js] Using HF mirror: hf-mirror.com');
+  } else {
+    env.remoteHost = 'https://huggingface.co';
+    console.log('[Transformers.js] Using official HuggingFace CDN');
   }
 }
 
