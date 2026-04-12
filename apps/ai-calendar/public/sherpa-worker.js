@@ -398,6 +398,11 @@ function handleReset() {
       var result = recognizer.getResult(stream);
       if (result.text) {
         resultList.push(result.text);
+        self.postMessage({
+          type: 'result',
+          text: result.text,
+          isEndpoint: true
+        });
       }
     }
     stream = recognizer.createStream();

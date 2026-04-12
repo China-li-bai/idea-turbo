@@ -13,6 +13,7 @@
     "@huggingface/transformers": "^3.5.1",
     "@idea-turbo/local-first-sdk": "workspace:*",
     "@idea-turbo/sherpa-onnx": "workspace:*",
+    "@idea-turbo/voice-input": "workspace:*",
     "@orama/orama": "^3.0.0",
     "@orama/plugin-data-persistence": "^3.0.0",
     "@preact/signals": "^2.8.2",

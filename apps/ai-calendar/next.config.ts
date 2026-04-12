@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@idea-turbo/local-first-sdk',
     '@idea-turbo/sherpa-onnx',
+    '@idea-turbo/voice-input',
   ],
   images: {
     remotePatterns: [

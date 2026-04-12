@@ -1,0 +1,50 @@
+{
+  "name": "@idea-turbo/voice-input",
+  "version": "1.0.0",
+  "description": "Non-blocking voice input components with WeChat-style UI",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@idea-turbo/sherpa-onnx": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.5.4"
+  },
+  "keywords": [
+    "voice",
+    "speech",
+    "input",
+    "wechat",
+    "non-blocking",
+    "async"
+  ],
+  "author": "Idea Turbo",
+  "license": "MIT"
+}
