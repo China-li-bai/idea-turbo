@@ -1,36 +1,22 @@
-import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult } from './types';
-import { setupCacheInterceptor, modelCacheManager, REMOTE_CONFIG } from './modelCacheManager';
-
-interface SherpaOnnxModule {
-  locateFile: (path: string, scriptDirectory?: string) => string;
-  setStatus: (status: string) => void;
-  onRuntimeInitialized: () => void;
-}
-
-declare global {
-  interface Window {
-    Module: SherpaOnnxModule;
-    createOnlineRecognizer: (module: SherpaOnnxModule) => any;
-  }
-}
+import { RecognitionEngine, RecognitionConfig, RecognitionCallbacks, RecognitionResult, WorkerInMessage, WorkerOutMessage } from './types';
+import { REMOTE_CONFIG } from './modelCacheManager';
 
 export class SherpaOnnxEngine extends RecognitionEngine {
+  private worker: Worker | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private microphone: MediaStream | null = null;
   private scriptProcessor: ScriptProcessorNode | null = null;
   private mediaStreamSource: MediaStreamAudioSourceNode | null = null;
   private currentTranscript: string = '';
-  private isModelLoaded: boolean = false;
   private silenceTimer: number | null = null;
   private isPackageAvailable: boolean = false;
-  private recognizer: any = null;
-  private stream: any = null;
   private recordSampleRate: number = 16000;
   private readonly expectedSampleRate = 16000;
   private lastResult: string = '';
   private resultList: string[] = [];
-  private originalConsole: { log: any; error: any; warn: any } | null = null;
+  private initResolve: ((value: void) => void) | null = null;
+  private initReject: ((reason?: any) => void) | null = null;
 
   constructor(config: RecognitionConfig, callbacks: RecognitionCallbacks) {
     super(config, callbacks);
@@ -41,39 +27,21 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       if (typeof window === 'undefined') {
         return false;
       }
-      
+
       if (typeof WebAssembly === 'undefined') {
         return false;
       }
-      
+
+      if (typeof Worker === 'undefined') {
+        return false;
+      }
+
       this.isPackageAvailable = true;
       return true;
     } catch (error) {
       this.isPackageAvailable = false;
       return false;
     }
-  }
-
-  private loadScript(src: string): Promise<void> {
-    const scriptName = src.split('/').pop() || src;
-    
-    if ((window as any).__sherpaLoadedScripts?.has(scriptName)) {
-      return Promise.resolve();
-    }
-    
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.onload = () => {
-        if (!(window as any).__sherpaLoadedScripts) {
-          (window as any).__sherpaLoadedScripts = new Set();
-        }
-        (window as any).__sherpaLoadedScripts.add(scriptName);
-        resolve();
-      };
-      script.onerror = () => reject(new Error(`Failed to load ${src}`));
-      document.head.appendChild(script);
-    });
   }
 
   async initialize(): Promise<void> {
@@ -89,157 +57,141 @@ export class SherpaOnnxEngine extends RecognitionEngine {
         return;
       }
 
-      console.log('[SherpaOnnx] Starting initialization...');
-      this.emitStatus('Preloading models...');
-      
-      await modelCacheManager.init();
-      setupCacheInterceptor();
-      
-      this.emitStatus('Preloading models (this may take a while)...');
-      await modelCacheManager.preloadAllModels((current, total, url) => {
-        const percent = Math.round((current / total) * 100);
-        this.emitStatus(`Preloading: ${current}/${total} (${percent}%)`);
+      console.log('[SherpaOnnx] Starting initialization (Worker mode)...');
+      this.emitStatus('初始化 Worker...');
+
+      const workerUrl = this.config.workerUrl || '/sherpa-worker.js';
+      this.worker = new Worker(workerUrl);
+
+      this.worker.onerror = (e) => {
+        const errorMsg = `Worker error: ${e.message}`;
+        console.error('[SherpaOnnx]', errorMsg);
+        this.emitError(errorMsg);
+        if (this.initReject) {
+          this.initReject(new Error(errorMsg));
+          this.initResolve = null;
+          this.initReject = null;
+        }
+      };
+
+      this.worker.onmessage = (e) => {
+        this.handleWorkerMessage(e.data as WorkerOutMessage);
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        this.initResolve = resolve;
+        this.initReject = reject;
+
+        const initConfig = {
+          cdnBaseUrl: this.config.remoteResources?.baseUrl || REMOTE_CONFIG.baseUrl,
+          dataFile: this.config.remoteResources?.files?.data || REMOTE_CONFIG.files.data,
+          wasmScriptsBaseUrl: this.config.wasmScriptsBaseUrl || '',
+          language: this.config.language,
+        };
+
+        this.sendToWorker({ type: 'init', config: initConfig });
+
+        setTimeout(() => {
+          if (this.initReject) {
+            const error = new Error('Worker initialization timeout');
+            this.initReject(error);
+            this.initResolve = null;
+            this.initReject = null;
+          }
+        }, 120000);
       });
-      
-      this.emitStatus('Loading WASM module...');
-      await this.setupWasmModule();
-      
+
       (window as any).__sherpaInitialized = true;
-      console.log('[SherpaOnnx] Initialization complete');
+      console.log('[SherpaOnnx] Initialization complete (Worker mode)');
     } catch (error) {
       this.emitError('Failed to initialize Sherpa-onnx: ' + String(error));
       console.error('[SherpaOnnx] Initialization error:', error);
     }
   }
 
-  private async setupWasmModule(): Promise<void> {
-    console.log('[SherpaOnnx] Setting up WASM module...');
+  private handleWorkerMessage(msg: WorkerOutMessage): void {
+    switch (msg.type) {
+      case 'status':
+        this.emitStatus(msg.message);
+        break;
 
-    this.originalConsole = {
-      log: console.log,
-      error: console.error,
-      warn: console.warn
-    };
+      case 'error':
+        this.emitError(msg.error);
+        break;
 
-    return new Promise<void>((resolve, reject) => {
-      let moduleReady = false;
-      let initTimeout: ReturnType<typeof setTimeout> | null = null;
-      let checkInterval: ReturnType<typeof setInterval> | null = null;
-
-      const cleanup = () => {
-        if (initTimeout) clearTimeout(initTimeout);
-        if (checkInterval) clearInterval(checkInterval);
-      };
-
-      const checkModuleReady = () => {
-        if (moduleReady) return;
-        
-        const mod = (window as any).Module;
-        if (mod && typeof mod._malloc === 'function' && typeof mod._free === 'function') {
-          moduleReady = true;
-          cleanup();
-          
-          try {
-            console.log('[SherpaOnnx] Module exports ready, creating recognizer...');
-            this.recognizer = window.createOnlineRecognizer(window.Module);
-            this.isModelLoaded = true;
-            this.setIsInitialized(true);
-            this.emitStatus('Ready');
-            this.restoreConsole();
-            console.log('[SherpaOnnx] Recognizer created successfully');
-            resolve();
-          } catch (error) {
-            console.error('[SherpaOnnx] Failed to create recognizer:', error);
-            this.restoreConsole();
-            this.emitError('Failed to create recognizer');
-            reject(error);
-          }
+      case 'initialized':
+        this.setIsInitialized(true);
+        if (this.initResolve) {
+          this.initResolve();
+          this.initResolve = null;
+          this.initReject = null;
         }
-      };
+        break;
 
-      window.Module = {
-        locateFile: (path: string, scriptDirectory: string = '') => {
-          console.log('[SherpaOnnx] locateFile:', path);
-          
-          if (path.endsWith('.data')) {
-            const url = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
-            const cachedBlobUrl = modelCacheManager.getBlobUrlSync(url);
-            if (cachedBlobUrl) {
-              console.log('[SherpaOnnx] Using cached blob URL for:', path);
-              return cachedBlobUrl;
-            }
-            console.log('[SherpaOnnx] Using CDN URL for:', path);
-            return url;
-          }
-          
-          if (path.endsWith('.wasm')) {
-            return path;
-          }
-          
-          return scriptDirectory + path;
-        },
-        setStatus: (status: string) => {
-          if (!status || !status.trim()) return;
-          
-          if (status === 'Running...') {
-            this.emitStatus('模型加载完成，初始化识别器...');
-            return;
-          }
+      case 'result':
+        this.handleWorkerResult(msg.text, msg.isEndpoint);
+        break;
 
-          if (status.includes('from cache') || status.includes('Using cached')) {
-            this.emitStatus('从缓存加载模型...');
-            return;
-          }
+      case 'reset':
+        console.log('[SherpaOnnx] Stream reset by worker');
+        break;
 
-          const downloadMatch = status.match(/Downloading data... \((\d+)\/(\d+)\)/);
-          if (downloadMatch) {
-            const downloaded = parseInt(downloadMatch[1], 10);
-            const total = parseInt(downloadMatch[2], 10);
-            const percent = total === 0 ? 0 : (downloaded * 10000 / total) / 100;
-            const sizeMB = (total / 1024 / 1024).toFixed(1);
-            this.emitStatus(`下载模型中... ${sizeMB}MB ${percent.toFixed(1)}%`);
-            return;
-          }
-          
-          this.emitStatus(status);
-        },
-        onRuntimeInitialized: () => {
-          console.log('[SherpaOnnx] onRuntimeInitialized called');
-          checkInterval = setInterval(checkModuleReady, 100);
-        }
-      };
+      case 'destroyed':
+        console.log('[SherpaOnnx] Worker destroyed');
+        break;
 
-      initTimeout = setTimeout(() => {
-        cleanup();
-        if (!moduleReady) {
-          const error = new Error('WASM module initialization timeout');
-          console.error('[SherpaOnnx]', error);
-          this.restoreConsole();
-          this.emitError('WASM 模块初始化超时');
-          reject(error);
-        }
-      }, 60000);
+      case 'modelVersion':
+        (window as any).__sherpaModelVersion = msg.version;
+        break;
 
-      this.loadScript('/sherpa-onnx-asr.js')
-        .then(() => this.loadScript('/sherpa-onnx-wasm-main-asr.js'))
-        .catch((error) => {
-          cleanup();
-          this.restoreConsole();
-          this.emitError('Failed to load WASM scripts');
-          reject(error);
-        });
-    });
-  }
+      case 'forceUpdateComplete':
+        this.emitStatus('模型更新完成，请刷新页面');
+        break;
 
-  private restoreConsole(): void {
-    if (this.originalConsole) {
-      console.log = this.originalConsole.log;
-      console.error = this.originalConsole.error;
-      console.warn = this.originalConsole.warn;
+      case 'clearCacheComplete':
+        this.emitStatus('缓存已清除，请刷新页面');
+        break;
+
+      case 'preloadProgress':
+        const percent = Math.round((msg.current / msg.total) * 100);
+        this.emitStatus(`Preloading: ${msg.current}/${msg.total} (${percent}%)`);
+        break;
     }
   }
 
-  private downsampleBuffer(buffer: Float32Array | Float32Array<ArrayBufferLike>, exportSampleRate: number): Float32Array | Float32Array<ArrayBufferLike> {
+  private handleWorkerResult(text: string, isEndpoint: boolean): void {
+    if (text && text !== this.lastResult) {
+      this.lastResult = text;
+
+      if (isEndpoint) {
+        if (this.lastResult.trim()) {
+          this.resultList.push(this.lastResult);
+        }
+        this.lastResult = '';
+      }
+
+      const isFinal = !isEndpoint;
+
+      this.callbacks.onResult?.({
+        transcript: text,
+        isFinal,
+        isInterim: !isFinal,
+        confidence: 0.8
+      });
+    }
+  }
+
+  private sendToWorker(msg: WorkerInMessage): void {
+    if (this.worker) {
+      if (msg.type === 'audio') {
+        this.worker.postMessage(msg, [msg.samples]);
+      } else {
+        this.worker.postMessage(msg);
+      }
+    }
+  }
+
+  private downsampleBuffer(buffer: Float32Array, exportSampleRate: number): Float32Array {
     const recordSampleRate = this.recordSampleRate;
     if (exportSampleRate === recordSampleRate) {
       return new Float32Array(buffer.buffer);
@@ -267,13 +219,11 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   async start(): Promise<void> {
     try {
       console.log('[SherpaOnnx] Starting recognition...');
-      
-      if (!this.recognizer) {
-        throw new Error('Recognizer not initialized');
+
+      if (!this.worker) {
+        throw new Error('Worker not initialized');
       }
 
-      this.stream = this.recognizer.createStream();
-      
       this.microphone = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: this.recordSampleRate,
@@ -289,20 +239,20 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       });
 
       const source = this.audioContext.createMediaStreamSource(this.microphone);
-      
+
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 512;
       source.connect(this.analyser);
 
       const bufferSize = 4096;
       this.scriptProcessor = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
-      
+
       this.scriptProcessor.onaudioprocess = (e) => {
-        if (!this.stream || !this.recognizer) return;
+        if (!this.worker) return;
 
         const inputBuffer = e.inputBuffer;
         let samples = inputBuffer.getChannelData(0);
-        
+
         if (this.config.enableVolumeDetection && this.analyser) {
           const dataArray = new Float32Array(this.analyser.frequencyBinCount);
           this.analyser.getFloatTimeDomainData(dataArray);
@@ -317,34 +267,12 @@ export class SherpaOnnxEngine extends RecognitionEngine {
 
         samples = this.downsampleBuffer(samples as any, this.expectedSampleRate) as any;
 
-        this.stream.acceptWaveform(this.expectedSampleRate, samples);
-
-        while (this.recognizer.isReady(this.stream)) {
-          this.recognizer.decode(this.stream);
-        }
-
-        if (this.recognizer.isEndpoint(this.stream)) {
-          if (this.lastResult.trim()) {
-            this.resultList.push(this.lastResult);
-          }
-          this.lastResult = '';
-          this.recognizer.reset(this.stream);
-        }
-
-        const result = this.recognizer.getResult(this.stream);
-        
-        if (result.text && result.text !== this.lastResult) {
-          this.lastResult = result.text;
-          
-          const isFinal = !this.recognizer.isEndpoint(this.stream);
-          
-          this.callbacks.onResult?.({
-            transcript: result.text,
-            isFinal,
-            isInterim: !isFinal,
-            confidence: result.tokens ? result.tokens.length / 100 : 0
-          });
-        }
+        const copy = new Float32Array(samples);
+        this.sendToWorker({
+          type: 'audio',
+          samples: copy.buffer,
+          sampleRate: this.expectedSampleRate
+        });
       };
 
       source.connect(this.scriptProcessor);
@@ -375,12 +303,8 @@ export class SherpaOnnxEngine extends RecognitionEngine {
       this.microphone = null;
     }
 
-    if (this.stream && this.recognizer) {
-      const result = this.recognizer.getResult(this.stream);
-      if (result.text) {
-        this.resultList.push(result.text);
-      }
-      this.stream = null;
+    if (this.worker) {
+      this.sendToWorker({ type: 'reset' });
     }
 
     console.log('[SherpaOnnx] Recognition stopped');
@@ -405,8 +329,9 @@ export class SherpaOnnxEngine extends RecognitionEngine {
   }
 
   isSupported(): boolean {
-    return typeof window !== 'undefined' && 
+    return typeof window !== 'undefined' &&
            typeof WebAssembly !== 'undefined' &&
+           typeof Worker !== 'undefined' &&
            typeof navigator !== 'undefined' &&
            typeof navigator.mediaDevices !== 'undefined' &&
            typeof navigator.mediaDevices.getUserMedia !== 'undefined';
@@ -427,15 +352,16 @@ export class SherpaOnnxEngine extends RecognitionEngine {
 
   destroy(): void {
     console.log('[SherpaOnnx] Destroying engine...');
-    
+
     this.stop();
-    
-    if (this.recognizer) {
-      this.recognizer.free();
-      this.recognizer = null;
+
+    if (this.worker) {
+      this.sendToWorker({ type: 'destroy' });
+      this.worker.terminate();
+      this.worker = null;
     }
-    
-    this.restoreConsole();
+
+    (window as any).__sherpaInitialized = false;
     console.log('[SherpaOnnx] Engine destroyed');
   }
 
@@ -443,15 +369,10 @@ export class SherpaOnnxEngine extends RecognitionEngine {
     console.log('[SherpaOnnx] Force updating model...');
     this.emitStatus('强制更新模型...');
 
-    try {
-      const dataUrl = `${REMOTE_CONFIG.baseUrl}/${REMOTE_CONFIG.files.data}`;
-      await modelCacheManager.forceUpdate(dataUrl);
-
-      console.log('[SherpaOnnx] Model force updated successfully');
-      this.emitStatus('模型更新完成，请刷新页面');
-    } catch (error) {
-      console.error('[SherpaOnnx] Failed to force update model:', error);
-      this.emitError('模型更新失败');
+    if (this.worker) {
+      this.sendToWorker({ type: 'forceUpdateModel' });
+    } else {
+      this.emitError('Worker 未初始化');
     }
   }
 
@@ -459,17 +380,14 @@ export class SherpaOnnxEngine extends RecognitionEngine {
     console.log('[SherpaOnnx] Clearing model cache...');
     this.emitStatus('清除模型缓存...');
 
-    try {
-      await modelCacheManager.clearAllCache();
-      console.log('[SherpaOnnx] Model cache cleared successfully');
-      this.emitStatus('缓存已清除，请刷新页面');
-    } catch (error) {
-      console.error('[SherpaOnnx] Failed to clear model cache:', error);
-      this.emitError('清除缓存失败');
+    if (this.worker) {
+      this.sendToWorker({ type: 'clearModelCache' });
+    } else {
+      this.emitError('Worker 未初始化');
     }
   }
 
   getModelVersion(): string {
-    return modelCacheManager.getModelVersion();
+    return (window as any).__sherpaModelVersion || '1.0.0';
   }
 }

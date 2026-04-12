@@ -22,7 +22,37 @@ export interface RecognitionConfig {
   enableVolumeDetection: boolean;
   enableRealtimePreview: boolean;
   remoteResources?: RemoteResourceConfig;
+  workerUrl?: string;
+  wasmScriptsBaseUrl?: string;
 }
+
+export interface WorkerInitConfig {
+  cdnBaseUrl: string;
+  dataFile: string;
+  wasmScriptsBaseUrl: string;
+  language: string;
+}
+
+export type WorkerInMessage =
+  | { type: 'init'; config: WorkerInitConfig }
+  | { type: 'audio'; samples: ArrayBuffer; sampleRate: number }
+  | { type: 'reset' }
+  | { type: 'destroy' }
+  | { type: 'forceUpdateModel' }
+  | { type: 'clearModelCache' }
+  | { type: 'getModelVersion' }
+
+export type WorkerOutMessage =
+  | { type: 'status'; message: string }
+  | { type: 'error'; error: string }
+  | { type: 'initialized' }
+  | { type: 'result'; text: string; isEndpoint: boolean }
+  | { type: 'reset' }
+  | { type: 'destroyed' }
+  | { type: 'modelVersion'; version: string }
+  | { type: 'forceUpdateComplete' }
+  | { type: 'clearCacheComplete' }
+  | { type: 'preloadProgress'; current: number; total: number; url: string }
 
 export interface RecognitionCallbacks {
   onResult: (result: RecognitionResult) => void;
