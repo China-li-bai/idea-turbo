@@ -1,4 +1,4 @@
-import type { AgentConfig } from '../core/types';
+import type { AgentConfig } from '../core/types.js';
 
 export const wisdomTeam = {
   jobs: {
