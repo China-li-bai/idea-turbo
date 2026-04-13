@@ -1,1 +1,73 @@
-{"name": "@idea-turbo/brain-trust", "version": "0.1.0", "description": "Multi-agent collaboration SDK for frontend. Wisdom team (智囊团), BYOK mode, powered by Vercel AI SDK 6.", "type": "module", "main": "./dist/index.js", "module": "./dist/index.js", "types": "./dist/index.d.ts", "exports": {".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"}, "./react": {"types": "./dist/react/index.d.ts", "import": "./dist/react/index.js"}}, "files": ["dist"], "scripts": {"build": "tsc", "dev": "tsc --watch", "test": "vitest run", "test:ui": "vitest --ui", "test:coverage": "vitest --coverage", "check-types": "tsc --noEmit", "lint": "eslint src --ext .ts,.tsx"}, "dependencies": {"zod": "^3.25.0"}, "peerDependencies": {"ai": "^4.0.0 || ^5.0.0 || ^6.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0"}, "peerDependenciesMeta": {"react": {"optional": true}, "react-dom": {"optional": true}}, "devDependencies": {"@ai-sdk/openai": "^1.0.0", "@ai-sdk/openai-compatible": "^1.0.0", "@repo/typescript-config": "workspace:*", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "ai": "^5.0.0", "happy-dom": "^15.11.7", "react": "^19.0.0", "react-dom": "^19.0.0", "typescript": "5.9.2", "vitest": "^2.1.9"}, "keywords": ["multi-agent", "crew-ai", "autogen", "wisdom-team", "vercel-ai-sdk", "byok", "local-first", "brain-trust", "orchestrator"], "author": "Idea Turbo", "license": "MIT"}
+{
+    "name": "@idea-turbo/brain-trust",
+    "version": "0.1.0",
+    "description": "Multi-agent collaboration SDK for frontend. Wisdom team (智囊团), BYOK mode, powered by Vercel AI SDK 6.",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./react": {
+            "types": "./dist/react/index.d.ts",
+            "import": "./dist/react/index.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "test": "vitest run",
+        "test:ui": "vitest --ui",
+        "test:coverage": "vitest --coverage",
+        "check-types": "tsc --noEmit",
+        "lint": "eslint src --ext .ts,.tsx"
+    },
+    "dependencies": {
+        "zod": "^3.25.0"
+    },
+    "peerDependencies": {
+        "ai": "^4.0.0 || ^5.0.0 || ^6.0.0",
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@ai-sdk/openai": "^1.0.0",
+        "@ai-sdk/openai-compatible": "^1.0.0",
+        "@repo/typescript-config": "workspace:*",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "ai": "^5.0.0",
+        "happy-dom": "^15.11.7",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "typescript": "5.9.2",
+        "vitest": "^2.1.9"
+    },
+    "keywords": [
+        "multi-agent",
+        "crew-ai",
+        "autogen",
+        "wisdom-team",
+        "vercel-ai-sdk",
+        "byok",
+        "local-first",
+        "brain-trust",
+        "orchestrator"
+    ],
+    "author": "Idea Turbo",
+    "license": "MIT"
+}
