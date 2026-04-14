@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { PixelCharacterProps, CharacterState } from '../types.js';
-import { spriteToBoxShadow } from '../sprites/sprite-renderer.js';
+import { spriteToRects } from '../sprites/sprite-renderer.js';
 import { useCharacterInteraction } from '../hooks/useCharacterInteraction.js';
 
 function getStateClass(state: CharacterState, reactionType: string | null): string {
@@ -22,7 +22,7 @@ export function PixelCharacter({
 }: PixelCharacterProps) {
   const { interaction, handlers } = useCharacterInteraction(agent.id);
 
-  const boxShadow = useMemo(() => spriteToBoxShadow(sprite), [sprite]);
+  const rects = useMemo(() => spriteToRects(sprite), [sprite]);
 
   const stateClass = getStateClass(
     isSpeaking ? 'speaking' : interaction.state,
@@ -50,12 +50,32 @@ export function PixelCharacter({
       tabIndex={0}
       aria-label={`${agent.name} - ${agent.role}`}
     >
-      <div className="pixel-character__sprite-wrapper">
-        <div
-          className="pixel-character__sprite"
-          style={{ boxShadow }}
-        />
-      </div>
+      {isSpeaking && streamingText && (
+        <div className="speech-bubble">
+          <span className="speech-bubble__text">{streamingText}</span>
+          <span className="speech-bubble__cursor" />
+        </div>
+      )}
+
+      <svg
+        className="pixel-character__sprite"
+        width="56"
+        height="80"
+        viewBox={`0 0 ${sprite.width} ${sprite.height}`}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {rects.map((rect, index) => (
+          <rect
+            key={`${rect.x}-${rect.y}-${index}`}
+            x={rect.x}
+            y={rect.y}
+            width={rect.width}
+            height={rect.height}
+            fill={rect.fill}
+          />
+        ))}
+      </svg>
 
       <div className="floating-island">
         <div
@@ -68,26 +88,17 @@ export function PixelCharacter({
         <div className="floating-island__shadow" />
       </div>
 
-      <div className="pixel-character__info">
-        <div
-          className="pixel-character__name-tag"
-          style={{ color: agent.color }}
-        >
-          {agent.name}
-        </div>
-        <div className="pixel-character__role-label">{agent.role}</div>
+      <div
+        className="pixel-character__name-tag"
+        style={{ color: agent.color }}
+      >
+        {agent.name}
       </div>
+      <div className="pixel-character__role-label">{agent.role}</div>
 
       {isSpeaking && (
         <div className="xp-bar">
           <div className="xp-bar__fill" style={{ width: '60%' }} />
-        </div>
-      )}
-
-      {isSpeaking && streamingText && (
-        <div className="speech-bubble">
-          <span className="speech-bubble__text">{streamingText}</span>
-          <span className="speech-bubble__cursor" />
         </div>
       )}
     </div>
