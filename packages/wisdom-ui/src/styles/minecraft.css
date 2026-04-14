@@ -10,7 +10,7 @@
   --ender-glow: rgba(99, 102, 241, 0.15);
   --xp-bar-green: #22C55E;
 
-  --pixel-scale: 8;
+  --pixel-scale: 4;
   --pixel-size: 1px;
 
   --spring-stiffness: 180;
@@ -177,7 +177,7 @@
 .pixel-character__sprite {
   width: 1px;
   height: 1px;
-  transform: scale(8);
+  transform: scale(4);
   transform-origin: top left;
   image-rendering: pixelated;
   transition: filter 200ms ease;
@@ -193,9 +193,9 @@
 
 .floating-island {
   position: relative;
-  width: 80px;
-  height: 16px;
-  margin-top: 4px;
+  width: 64px;
+  height: 14px;
+  margin-top: 2px;
   animation: mc-island-float 4s ease-in-out infinite;
 }
 

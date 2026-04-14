@@ -18,7 +18,7 @@ export function spriteToBoxShadow(sprite: SpriteData): string {
   return shadows.join(', ');
 }
 
-export function getSpriteDimensions(sprite: SpriteData, scale: number = 8): {
+export function getSpriteDimensions(sprite: SpriteData, scale: number = 4): {
   width: number;
   height: number;
 } {
