@@ -1,4 +1,4 @@
-import type { Agent, CrewConfig, CrewEvent, CrewMode } from './types';
+import type { Agent, CrewConfig, CrewEvent, CrewMode } from './types.js';
 
 export class WisdomCrew {
   private readonly agents: Agent[];

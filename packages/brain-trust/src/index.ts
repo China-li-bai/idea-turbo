@@ -1,5 +1,5 @@
-export { createAgent } from './core/agent';
-export { WisdomCrew, createCrew } from './core/crew';
+export { createAgent } from './core/agent.js';
+export { WisdomCrew, createCrew } from './core/crew.js';
 export type {
   AgentConfig,
   Agent,
@@ -9,6 +9,6 @@ export type {
   CrewConfig,
   CrewEvent,
   CrewResult,
-} from './core/types';
+} from './core/types.js';
 
-export { wisdomTeam, allAgents, defaultAgents } from './agents/wisdom-team';
+export { wisdomTeam, allAgents, defaultAgents } from './agents/wisdom-team.js';

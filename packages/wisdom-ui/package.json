@@ -1,0 +1,58 @@
+{
+  "name": "@idea-turbo/wisdom-ui",
+  "version": "0.1.0",
+  "description": "Minecraft-style pixel character UI for Brain Trust wisdom team. Interactive agents with mouse-triggered reactions.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": {
+      "import": "./dist/styles.css"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && cp src/styles/minecraft.css dist/styles.css",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "@idea-turbo/brain-trust": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "5.9.2",
+    "vitest": "^2.1.9",
+    "happy-dom": "^15.11.7"
+  },
+  "keywords": [
+    "minecraft",
+    "pixel-art",
+    "wisdom-team",
+    "multi-agent",
+    "brain-trust",
+    "interactive",
+    "character-ui"
+  ],
+  "author": "Idea Turbo",
+  "license": "MIT"
+}

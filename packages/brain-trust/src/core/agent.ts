@@ -1,5 +1,5 @@
 import { generateText, streamText } from 'ai';
-import type { AgentConfig, Agent, StreamChunk, AgentResult } from './types';
+import type { AgentConfig, Agent, StreamChunk, AgentResult } from './types.js';
 
 export function createAgent(config: AgentConfig): Agent {
   return {

@@ -31,6 +31,12 @@
       ],
       "@idea-turbo/local-first-sdk": [
         "../../packages/local-first-sdk/src"
+      ],
+      "@idea-turbo/brain-trust": [
+        "../../packages/brain-trust/dist"
+      ],
+      "@idea-turbo/wisdom-ui": [
+        "../../packages/wisdom-ui/dist"
       ]
     }
   },
