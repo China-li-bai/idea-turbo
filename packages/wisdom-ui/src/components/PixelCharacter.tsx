@@ -29,19 +29,6 @@ export function PixelCharacter({
     interaction.reaction?.type ?? null,
   );
 
-  const reactionMap: Record<string, string> = useMemo(() => ({
-    jobs: 'shake',
-    musk: 'spin',
-    sunzi: 'glow',
-    confucius: 'wave',
-    graham: 'jump',
-    andressen: 'glow',
-    inamori: 'wave',
-    yangming: 'shake',
-    mao: 'spin',
-    laotzu: 'glow',
-  }), []);
-
   return (
     <div
       className={`pixel-character ${stateClass} ${className}`}
@@ -63,17 +50,12 @@ export function PixelCharacter({
       tabIndex={0}
       aria-label={`${agent.name} - ${agent.role}`}
     >
-      {isSpeaking && streamingText && (
-        <div className="speech-bubble">
-          <span className="speech-bubble__text">{streamingText}</span>
-          <span className="speech-bubble__cursor" />
-        </div>
-      )}
-
-      <div
-        className="pixel-character__sprite"
-        style={{ boxShadow }}
-      />
+      <div className="pixel-character__sprite-wrapper">
+        <div
+          className="pixel-character__sprite"
+          style={{ boxShadow }}
+        />
+      </div>
 
       <div className="floating-island">
         <div
@@ -86,17 +68,26 @@ export function PixelCharacter({
         <div className="floating-island__shadow" />
       </div>
 
-      <div
-        className="pixel-character__name-tag"
-        style={{ color: agent.color }}
-      >
-        {agent.name}
+      <div className="pixel-character__info">
+        <div
+          className="pixel-character__name-tag"
+          style={{ color: agent.color }}
+        >
+          {agent.name}
+        </div>
+        <div className="pixel-character__role-label">{agent.role}</div>
       </div>
-      <div className="pixel-character__role-label">{agent.role}</div>
 
       {isSpeaking && (
         <div className="xp-bar">
           <div className="xp-bar__fill" style={{ width: '60%' }} />
+        </div>
+      )}
+
+      {isSpeaking && streamingText && (
+        <div className="speech-bubble">
+          <span className="speech-bubble__text">{streamingText}</span>
+          <span className="speech-bubble__cursor" />
         </div>
       )}
     </div>
