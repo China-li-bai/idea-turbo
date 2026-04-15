@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { PixelCharacterProps, CharacterState } from '../types.js';
-import { spriteToBoxShadow } from '../sprites/sprite-renderer.js';
+import { spriteToRects } from '../sprites/sprite-renderer.js';
 import { useCharacterInteraction } from '../hooks/useCharacterInteraction.js';
 
 function getStateClass(state: CharacterState, reactionType: string | null): string {
@@ -22,25 +22,12 @@ export function PixelCharacter({
 }: PixelCharacterProps) {
   const { interaction, handlers } = useCharacterInteraction(agent.id);
 
-  const boxShadow = useMemo(() => spriteToBoxShadow(sprite), [sprite]);
+  const rects = useMemo(() => spriteToRects(sprite), [sprite]);
 
   const stateClass = getStateClass(
     isSpeaking ? 'speaking' : interaction.state,
     interaction.reaction?.type ?? null,
   );
-
-  const reactionMap: Record<string, string> = useMemo(() => ({
-    jobs: 'shake',
-    musk: 'spin',
-    sunzi: 'glow',
-    confucius: 'wave',
-    graham: 'jump',
-    andressen: 'glow',
-    inamori: 'wave',
-    yangming: 'shake',
-    mao: 'spin',
-    laotzu: 'glow',
-  }), []);
 
   return (
     <div
@@ -70,10 +57,25 @@ export function PixelCharacter({
         </div>
       )}
 
-      <div
+      <svg
         className="pixel-character__sprite"
-        style={{ boxShadow }}
-      />
+        width="56"
+        height="80"
+        viewBox={`0 0 ${sprite.width} ${sprite.height}`}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {rects.map((rect, index) => (
+          <rect
+            key={`${rect.x}-${rect.y}-${index}`}
+            x={rect.x}
+            y={rect.y}
+            width={rect.width}
+            height={rect.height}
+            fill={rect.fill}
+          />
+        ))}
+      </svg>
 
       <div className="floating-island">
         <div

@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
     '@idea-turbo/local-first-sdk',
     '@idea-turbo/sherpa-onnx',
     '@idea-turbo/voice-input',
+    '@idea-turbo/brain-trust',
+    '@idea-turbo/wisdom-ui',
   ],
   images: {
     remotePatterns: [

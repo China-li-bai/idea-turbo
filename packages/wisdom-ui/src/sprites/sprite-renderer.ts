@@ -1,8 +1,15 @@
 import type { SpriteData } from '../types.js';
 
-export function spriteToBoxShadow(sprite: SpriteData): string {
-  const shadows: string[] = [];
-  const pixelSize = 1;
+export interface SpriteRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fill: string;
+}
+
+export function spriteToRects(sprite: SpriteData): SpriteRect[] {
+  const rects: SpriteRect[] = [];
 
   for (let y = 0; y < sprite.grid.length; y++) {
     const row = sprite.grid[y]!;
@@ -11,19 +18,26 @@ export function spriteToBoxShadow(sprite: SpriteData): string {
       if (colorCode === '0') continue;
       const color = sprite.palette[colorCode];
       if (!color) continue;
-      shadows.push(`${x * pixelSize}px ${y * pixelSize}px 0 ${pixelSize}px ${color}`);
+
+      rects.push({
+        x,
+        y,
+        width: 1,
+        height: 1,
+        fill: color,
+      });
     }
   }
 
-  return shadows.join(', ');
+  return rects;
 }
 
-export function getSpriteDimensions(sprite: SpriteData, scale: number = 4): {
+export function getSpriteDimensions(sprite: SpriteData): {
   width: number;
   height: number;
 } {
   return {
-    width: sprite.width * scale,
-    height: sprite.height * scale,
+    width: sprite.width,
+    height: sprite.height,
   };
 }

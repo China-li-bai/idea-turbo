@@ -97,13 +97,13 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
   };
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} role="main" aria-label={t('boss.todayTitle')}>
       {!aiStatus.isReady && (
-        <div className={styles.aiStatusBar}>
+        <div className={styles.aiStatusBar} role="status" aria-live="polite">
           {aiStatus.isLoading ? (
             <span className={styles.aiLoading}>🔄 {t('boss.aiLoading')}</span>
           ) : aiStatus.error ? (
-            <span className={styles.aiError}>⚠️ {aiStatus.error}</span>
+            <span className={styles.aiError} role="alert">⚠️ {aiStatus.error}</span>
           ) : null}
         </div>
       )}
@@ -120,15 +120,16 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
           autoComplete="off"
           spellCheck={false}
           disabled={isCreating}
+          aria-label={t('boss.inputPlaceholder')}
         />
-        {error && <div className={styles.error}>{error}</div>}
+        {error && <div className={styles.error} role="alert">{error}</div>}
       </div>
 
       <div className={styles.main}>
-        <div className={styles.timeline}>
+        <div className={styles.timeline} role="region" aria-label={t('boss.todayTitle')}>
           <p className={styles.sectionTitle}>{t('boss.todayTitle')}</p>
           
-          <div className={styles.eventList}>
+          <div className={styles.eventList} role="list">
             {todayEvents.length === 0 ? (
               <div className={styles.emptyState}>{t('boss.noEvents')}</div>
             ) : (
@@ -137,6 +138,15 @@ export default function BossView({ onOpenSecretary }: BossViewProps) {
                   key={event.id} 
                   className={styles.eventCard}
                   onClick={() => handleCompleteEvent(event.id)}
+                  role="listitem"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleCompleteEvent(event.id);
+                    }
+                  }}
+                  aria-label={`${event.title} - ${formatTime(event.startTime || 0)}`}
                 >
                   <span className={styles.eventTime}>
                     {formatTime(event.startTime || 0)}

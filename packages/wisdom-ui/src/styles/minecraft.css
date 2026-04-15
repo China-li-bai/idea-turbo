@@ -10,15 +10,8 @@
   --ender-glow: rgba(99, 102, 241, 0.15);
   --xp-bar-green: #22C55E;
 
-  --pixel-scale: 4;
-  --pixel-size: 1px;
-
-  --spring-stiffness: 180;
-  --spring-damping: 12;
-
   --font-pixel: 'Press Start 2P', monospace;
   --font-body: 'Geist', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Geist Mono', 'Fira Code', monospace;
 }
 
 .wisdom-board {
@@ -83,10 +76,11 @@
   will-change: transform;
   contain: layout style paint;
   transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
 }
 
 .pixel-character:hover {
-  transform: scale(1.08);
+  transform: scale(1.08) translateY(-4px);
 }
 
 .pixel-character:active {
@@ -175,10 +169,8 @@
 }
 
 .pixel-character__sprite {
-  width: 1px;
-  height: 1px;
-  transform: scale(4);
-  transform-origin: top left;
+  width: 56px;
+  height: 80px;
   image-rendering: pixelated;
   transition: filter 200ms ease;
 }
@@ -195,7 +187,7 @@
   position: relative;
   width: 64px;
   height: 14px;
-  margin-top: 2px;
+  margin-top: -4px;
   animation: mc-island-float 4s ease-in-out infinite;
 }
 
@@ -237,11 +229,13 @@
 
 .pixel-character__name-tag {
   font-family: var(--font-pixel);
-  font-size: 8px;
-  margin-top: 8px;
+  font-size: 9px;
+  line-height: 1.4;
+  margin-top: 12px;
   text-align: center;
   white-space: nowrap;
   transition: color 200ms ease, text-shadow 200ms ease;
+  letter-spacing: 0.02em;
 }
 
 .pixel-character__role-label {
@@ -251,6 +245,7 @@
   margin-top: 4px;
   text-align: center;
   white-space: nowrap;
+  opacity: 0.85;
 }
 
 .pixel-character:hover .pixel-character__name-tag {
@@ -324,7 +319,7 @@
   height: 4px;
   background-color: var(--bedrock);
   border-radius: 2px;
-  margin-top: 6px;
+  margin-top: 8px;
   overflow: hidden;
 }
 

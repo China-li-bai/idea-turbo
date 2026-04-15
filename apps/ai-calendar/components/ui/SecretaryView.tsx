@@ -13,6 +13,14 @@ import { parseTimeQuery, formatRelativeDate } from '@/lib/utils/nlpParserLegacy'
 import AIConfigPanel from './AIConfigPanel';
 import styles from './SecretaryView.module.scss';
 
+interface I18nText {
+  'zh-CN': string;
+  'en-US': string;
+  [key: string]: string;
+}
+
+const txt = (obj: I18nText, locale: string) => obj[locale] || obj['zh-CN'];
+
 interface ProposalAction {
   type: 'reschedule' | 'create' | 'cancel';
   targetId: string;
@@ -85,6 +93,21 @@ export default function SecretaryView() {
   const aiStatus = useAIStatus();
   const { t, locale } = useLocale();
 
+  const i18n = {
+    targetNotFound: txt({ 'zh-CN': '找不到目标日程', 'en-US': 'Target event not found' }, locale),
+    unknownAction: txt({ 'zh-CN': '未知操作类型', 'en-US': 'Unknown action type' }, locale),
+    noMatchingEvent: txt({ 'zh-CN': '未找到匹配的日程', 'en-US': 'No matching event found' }, locale),
+    minutes: txt({ 'zh-CN': '分钟', 'en-US': ' minutes' }, locale),
+    events: txt({ 'zh-CN': '的日程', 'en-US': ' events' }, locale),
+    localSearch: txt({ 'zh-CN': '本地搜索', 'en-US': 'local search' }, locale),
+    actionCompleted: txt({ 'zh-CN': '操作已完成', 'en-US': 'Action completed' }, locale),
+    approved: txt({ 'zh-CN': '已批准此安排', 'en-US': 'Approved' }, locale),
+    tbd: txt({ 'zh-CN': '待定', 'en-US': 'TBD' }, locale),
+    actionConfirmation: txt({ 'zh-CN': '操作确认', 'en-US': 'Action Confirmation' }, locale),
+    confirmExecute: txt({ 'zh-CN': '确认执行', 'en-US': 'Confirm' }, locale),
+    clickToConfirm: txt({ 'zh-CN': '请点击下方按钮确认创建', 'en-US': 'Click the button below to confirm' }, locale)
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -133,7 +156,7 @@ export default function SecretaryView() {
       const item = allItems.find(i => i.id === action.targetId);
       
       if (!item) {
-        return { success: false, error: locale.startsWith('zh') ? '找不到目标日程' : 'Target event not found' };
+        return { success: false, error: i18n.targetNotFound };
       }
 
       switch (action.type) {
@@ -165,7 +188,7 @@ export default function SecretaryView() {
         }
         
         default:
-          return { success: false, error: locale.startsWith('zh') ? '未知操作类型' : 'Unknown action type' };
+          return { success: false, error: i18n.unknownAction };
       }
     } catch (error) {
       console.error('Failed to execute action:', error);
@@ -274,10 +297,8 @@ export default function SecretaryView() {
         let content = plan.explanation + '\n\n';
         content += `📅 **${title}**\n`;
         content += `时间: ${actions[0].afterPreview}\n`;
-        content += `时长: ${eventDuration} 分钟\n\n`;
-        content += locale.startsWith('zh') 
-          ? '请点击下方按钮确认创建' 
-          : 'Click the button below to confirm';
+        content += `时长: ${eventDuration} ${i18n.minutes}\n\n`;
+        content += i18n.clickToConfirm;
         
         return { content, actions };
       }
@@ -319,7 +340,7 @@ export default function SecretaryView() {
           content += `从: ${actions[0].beforePreview}\n`;
           content += `到: ${actions[0].afterPreview}\n\n`;
         } else {
-          content += `⚠️ ${locale.startsWith('zh') ? '未找到匹配的日程' : 'No matching event found'}\n\n`;
+          content += `⚠️ ${i18n.noMatchingEvent}\n\n`;
         }
       }
       
@@ -620,7 +641,7 @@ export default function SecretaryView() {
         
         return { content: availabilityContent };
       } else if (timeQuery.type === 'short_relative') {
-        timeQueryDescription = `${timeQuery.windowMinutes}${locale.startsWith('zh') ? '分钟内' : ' minutes'}`;
+        timeQueryDescription = `${timeQuery.windowMinutes}${i18n.minutes}`;
         
         searchResults = scheduledEvents.filter(item => {
           if (!item.startTime) return false;
@@ -668,7 +689,7 @@ export default function SecretaryView() {
       }
       
       let content = timeFiltered
-        ? `${timeQueryDescription}${locale.startsWith('zh') ? '的日程' : ' events'} (${rawResults.length})\n\n`
+        ? `${timeQueryDescription}${i18n.events} (${rawResults.length})\n\n`
         : t('secretary.foundItems').replace('{count}', String(rawResults.length)) + '\n\n';
       
       rawResults.slice(0, 3).forEach((result, index) => {
@@ -734,7 +755,7 @@ export default function SecretaryView() {
       return { content: t('secretary.noResults') };
     }
     
-    let content = t('secretary.foundItems').replace('{count}', String(relevantItems.length)) + ` (${locale.startsWith('zh') ? '本地搜索' : 'local search'})\n\n`;
+    let content = t('secretary.foundItems').replace('{count}', String(relevantItems.length)) + ` (${i18n.localSearch})\n\n`;
     
     relevantItems.slice(0, 3).forEach((item, index) => {
       content += `${index + 1}. **${item.title}** (${item.type === 'idea' ? t('secretary.idea') : t('secretary.event')})\n`;
@@ -762,7 +783,7 @@ export default function SecretaryView() {
         if (msg.id === messageId) {
           return {
             ...msg,
-            content: msg.content + `\n\n${allSuccess ? '✅' : '❌'} ${locale.startsWith('zh') ? '操作已完成' : 'Action completed'}`,
+            content: msg.content + `\n\n${allSuccess ? '✅' : '❌'} ${i18n.actionCompleted}`,
             actions: undefined
           };
         }
@@ -798,7 +819,7 @@ export default function SecretaryView() {
       if (msg.id === messageId && msg.proposal) {
         return {
           ...msg,
-          content: msg.content + `\n\n✅ ${locale.startsWith('zh') ? '已批准此安排' : 'Approved'}`,
+          content: msg.content + `\n\n✅ ${i18n.approved}`,
           proposal: undefined
         };
       }
@@ -852,7 +873,7 @@ export default function SecretaryView() {
         </div>
       )}
       
-      <div className={styles.messages}>
+      <div className={styles.messages} role="log" aria-live="polite" aria-label={t('secretary.chatLog') || 'Chat messages'}>
         {messages.length === 0 ? (
           <div className={styles.welcome}>
             <div className={styles.welcomeIcon}>🤖</div>
@@ -924,7 +945,7 @@ export default function SecretaryView() {
                       <div className={styles.proposalDetails}>
                         <p className={styles.detailLabel}>{t('secretary.time')}</p>
                         <p className={styles.detailValue}>{message.proposal.time}</p>
-                        <p>📍 {message.proposal.location || (locale.startsWith('zh') ? '待定' : 'TBD')}</p>
+                        <p>📍 {message.proposal.location || i18n.tbd}</p>
                       </div>
                       <div className={styles.proposalActions}>
                         <button 
@@ -948,7 +969,7 @@ export default function SecretaryView() {
                           className={styles.approveBtn}
                           onClick={() => handleApprove(message.id)}
                         >
-                          {locale.startsWith('zh') ? '确认执行' : 'Confirm'}
+                          {i18n.confirmExecute}
                         </button>
                         <button className={styles.editBtn}>{t('secretary.cancel')}</button>
                       </div>

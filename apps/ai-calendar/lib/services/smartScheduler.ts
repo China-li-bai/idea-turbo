@@ -14,6 +14,7 @@ import {
   parseISO
 } from 'date-fns';
 import type { UnifiedCalendarItem } from '@/types/unified';
+import { timeConfigManager } from '@/lib/config/timeConfig';
 
 export interface TimeSlot {
   start: Date;
@@ -43,27 +44,28 @@ export interface SchedulerOptions {
   maxSearchDays: number;
 }
 
-const DEFAULT_OPTIONS: SchedulerOptions = {
-  workHours: { start: 9, end: 18 },
-  workDays: [1, 2, 3, 4, 5],
-  defaultDuration: 60,
-  bufferMinutes: 15,
-  maxSearchDays: 14
-};
-
 export class SmartScheduler {
   private options: SchedulerOptions;
 
   constructor(options?: Partial<SchedulerOptions>) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    const config = timeConfigManager.getConfig();
+    const defaultOptions: SchedulerOptions = {
+      workHours: config.workHours,
+      workDays: config.workDays,
+      defaultDuration: config.defaultDuration,
+      bufferMinutes: config.bufferMinutes,
+      maxSearchDays: config.maxSearchDays,
+    };
+    this.options = { ...defaultOptions, ...options };
   }
 
   findFreeSlots(
     date: Date,
     duration: number,
     existingEvents: UnifiedCalendarItem[],
-    slotInterval: number = 30
+    slotInterval?: number
   ): TimeSlot[] {
+    const interval = slotInterval ?? timeConfigManager.getConfig().slotInterval;
     const slots: TimeSlot[] = [];
     const dayStart = this.getWorkDayStart(date);
     const dayEnd = this.getWorkDayEnd(date);
@@ -91,7 +93,7 @@ export class SmartScheduler {
         conflictWith: conflict
       });
 
-      current = addMinutes(current, slotInterval);
+      current = addMinutes(current, interval);
     }
 
     return slots;
