@@ -358,7 +358,7 @@ function parseExplicitTime(input: string): { hour: number; minute: number } | nu
   const patterns = [
     /(\d{1,2})[:：时時](\d{1,2})/,
     /(\d{1,2})\s*(am|pm|a\.m\.|p\.m\.)/i,
-    /(\d{1,2})\s*(点|時)/,
+    /(\d{1,2})\s*(点|點|时|時)/,
   ];
   
   for (const pattern of patterns) {
@@ -377,7 +377,69 @@ function parseExplicitTime(input: string): { hour: number; minute: number } | nu
       return { hour, minute };
     }
   }
+
+  const halfHourMatch = input.match(/(\d{1,2})\s*(点|點)\s*半/);
+  if (halfHourMatch) {
+    const hour = parseInt(halfHourMatch[1]);
+    return resolveAmbiguousTime(hour, 30);
+  }
+
+  const quarterMatch = input.match(/(\d{1,2})\s*(点|點)\s*(一|二|三)?刻/);
+  if (quarterMatch) {
+    const hour = parseInt(quarterMatch[1]);
+    const quarterText = quarterMatch[3];
+    let minute = 0;
+    
+    if (quarterText === '一') minute = 15;
+    else if (quarterText === '二') minute = 30;
+    else if (quarterText === '三') minute = 45;
+    else minute = 15;
+    
+    return resolveAmbiguousTime(hour, minute);
+  }
+
+  const chineseNumberMatch = input.match(/(\d{1,2})\s*(点|點)\s*(十)?(\d)?/);
+  if (chineseNumberMatch) {
+    const hour = parseInt(chineseNumberMatch[1]);
+    let minute = 0;
+    
+    if (chineseNumberMatch[3]) {
+      minute = 10;
+      if (chineseNumberMatch[4]) {
+        minute += parseInt(chineseNumberMatch[4]);
+      }
+    } else if (chineseNumberMatch[4]) {
+      minute = parseInt(chineseNumberMatch[4]);
+    }
+    
+    return resolveAmbiguousTime(hour, minute);
+  }
+  
   return null;
+}
+
+function resolveAmbiguousTime(hour: number, minute: number): { hour: number; minute: number } {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
+  const morningHour = hour < 12 ? hour : hour === 12 ? 0 : hour;
+  const afternoonHour = hour < 12 ? hour + 12 : hour;
+  
+  const morningMinutes = morningHour * 60 + minute;
+  const afternoonMinutes = afternoonHour * 60 + minute;
+  const currentMinutes = currentHour * 60 + currentMinute;
+  
+  const morningDiff = (morningMinutes - currentMinutes + 24 * 60) % (24 * 60);
+  const afternoonDiff = (afternoonMinutes - currentMinutes + 24 * 60) % (24 * 60);
+  
+  if (morningDiff < afternoonDiff && morningDiff > 0) {
+    return { hour: morningHour, minute };
+  } else if (afternoonDiff > 0) {
+    return { hour: afternoonHour, minute };
+  }
+  
+  return { hour: afternoonHour, minute };
 }
 
 function parseAbsoluteDate(input: string): { month: number; day: number; year?: number } | null {
