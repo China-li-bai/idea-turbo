@@ -1,4 +1,5 @@
 @use 'mixins' as mixins;
+@use 'design-tokens' as tokens;
 
 html {
   scroll-behavior: smooth;
