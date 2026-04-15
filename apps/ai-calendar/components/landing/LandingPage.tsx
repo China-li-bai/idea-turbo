@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useI18nStore } from '@/lib/stores/i18nStore'
 import { useTranslation } from '@/lib/utils/translations'
 import styles from './landing.module.scss'
@@ -277,10 +278,16 @@ export default function LandingPage() {
       {/* Navigation */}
       <header className={`${styles.header} ${scrollY > 50 ? styles.headerScrolled : ''}`}>
         <div className={styles.headerContent}>
-          <div className={styles.logo}>
-            <span className={styles.logoIcon}>🛡️</span>
+          <Link href="/app" className={styles.logo}>
+            <Image 
+              src="/android-chrome-512x512.png" 
+              alt="PrivLocal" 
+              width={32} 
+              height={32}
+              className={styles.logoImage}
+            />
             <span className={styles.logoText}>PrivLocal</span>
-          </div>
+          </Link>
 
           <nav className={`${styles.nav} ${mobileMenuOpen ? styles.navOpen : ''}`}>
             <a href="#features" className={styles.navLink}>{t.landing.nav.features}</a>
@@ -293,7 +300,7 @@ export default function LandingPage() {
             <button className={styles.langSwitch} onClick={() => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN')}>
               {navLabels.langSwitch}
             </button>
-            <a href="#cta" className={styles.ctaButton}>{t.landing.nav.cta}</a>
+            <Link href="/app" className={styles.ctaButton}>{t.landing.nav.cta}</Link>
             <button className={styles.mobileMenuBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               ☰
             </button>
@@ -325,9 +332,9 @@ export default function LandingPage() {
             <p className={styles.heroSubtitle}>{t.landing.hero.subtitle}</p>
 
             <div className={styles.heroActions}>
-              <a href="#cta" className={styles.primaryButton}>
+              <Link href="/app" className={styles.primaryButton}>
                 {t.landing.hero.primaryButton}
-              </a>
+              </Link>
               <button onClick={scrollToFeatures} className={styles.secondaryButton}>
                 ↓ {t.landing.hero.secondaryButton}
               </button>
@@ -572,10 +579,16 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerContainer}>
-          <div className={styles.footerBrand}>
-            <span className={styles.logoIcon}>🛡️</span>
+          <Link href="/app" className={styles.footerBrand}>
+            <Image 
+              src="/android-chrome-512x512.png" 
+              alt="PrivLocal" 
+              width={28} 
+              height={28}
+              className={styles.logoImage}
+            />
             <span className={styles.logoText}>PrivLocal</span>
-          </div>
+          </Link>
           <p className={styles.footerTagline}>{t.landing.footer.tagline}</p>
 
           <div className={styles.footerLinks}>

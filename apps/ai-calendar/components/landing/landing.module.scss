@@ -40,6 +40,12 @@
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  text-decoration: none;
+}
+
+.logoImage {
+  border-radius: 8px;
+  object-fit: contain;
 }
 
 .logoIcon {
@@ -1133,6 +1139,8 @@
   justify-content: center;
   gap: 10px;
   margin-bottom: 16px;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .footerTagline {
