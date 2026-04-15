@@ -402,18 +402,31 @@ export class OramaSearchService {
     const dataKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors`;
     const versionKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors_version`;
     const backupKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors_backup`;
+    const dimensionsKey = `OramaSearchDB_${this.currentModelType}_ai-calendar-vectors_dimensions`;
 
     try {
-      const [data, version] = await Promise.all([
+      const [data, version, storedDimensions] = await Promise.all([
         localforage.getItem<string>(dataKey),
-        localforage.getItem<number>(versionKey)
+        localforage.getItem<number>(versionKey),
+        localforage.getItem<number>(dimensionsKey)
       ]);
 
       if (version !== EMBEDDING_SCHEMA_VERSION) {
         console.log(`[OramaSearchService] Schema version mismatch (stored: ${version}, current: ${EMBEDDING_SCHEMA_VERSION}), clearing old data...`);
         await Promise.all([
           localforage.removeItem(dataKey),
-          localforage.removeItem(versionKey)
+          localforage.removeItem(versionKey),
+          localforage.removeItem(dimensionsKey)
+        ]);
+        return false;
+      }
+
+      if (storedDimensions && storedDimensions !== this.modelConfig.dimensions) {
+        console.log(`[OramaSearchService] Dimension mismatch (stored: ${storedDimensions}D, current: ${this.modelConfig.dimensions}D), clearing old data for model switch...`);
+        await Promise.all([
+          localforage.removeItem(dataKey),
+          localforage.removeItem(versionKey),
+          localforage.removeItem(dimensionsKey)
         ]);
         return false;
       }
@@ -429,6 +442,7 @@ export class OramaSearchService {
           throw new Error("Restored database has invalid schema");
         }
 
+        console.log(`[OramaSearchService] Restored from IndexedDB: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
         return true;
       } catch (restoreError) {
         console.error(`[OramaSearchService] Failed to restore database, attempting backup recovery:`, restoreError);
@@ -792,29 +806,44 @@ export class OramaSearchService {
     const data = await persist(this.db, "json");
     const dataKey = `OramaSearchDB_${this.currentModelType}_${name}`;
     const versionKey = `OramaSearchDB_${this.currentModelType}_${name}_version`;
+    const dimensionsKey = `OramaSearchDB_${this.currentModelType}_${name}_dimensions`;
 
     await Promise.all([
       localforage.setItem(dataKey, data),
-      localforage.setItem(versionKey, EMBEDDING_SCHEMA_VERSION)
+      localforage.setItem(versionKey, EMBEDDING_SCHEMA_VERSION),
+      localforage.setItem(dimensionsKey, this.modelConfig.dimensions)
     ]);
     
-    console.log(`[OramaSearchService] Saved to localforage: ${dataKey}`);
+    console.log(`[OramaSearchService] Saved to localforage: ${dataKey} (${this.modelConfig.dimensions}D)`);
   }
 
   async load(name: string = "ai-calendar-vectors"): Promise<boolean> {
     const dataKey = `OramaSearchDB_${this.currentModelType}_${name}`;
     const versionKey = `OramaSearchDB_${this.currentModelType}_${name}_version`;
+    const dimensionsKey = `OramaSearchDB_${this.currentModelType}_${name}_dimensions`;
 
-    const [data, version] = await Promise.all([
+    const [data, version, storedDimensions] = await Promise.all([
       localforage.getItem<string>(dataKey),
-      localforage.getItem<number>(versionKey)
+      localforage.getItem<number>(versionKey),
+      localforage.getItem<number>(dimensionsKey)
     ]);
 
     if (version !== EMBEDDING_SCHEMA_VERSION) {
       console.log(`[OramaSearchService] Schema version mismatch (stored: ${version}, current: ${EMBEDDING_SCHEMA_VERSION}), clearing old data...`);
       await Promise.all([
         localforage.removeItem(dataKey),
-        localforage.removeItem(versionKey)
+        localforage.removeItem(versionKey),
+        localforage.removeItem(dimensionsKey)
+      ]);
+      return false;
+    }
+
+    if (storedDimensions && storedDimensions !== this.modelConfig.dimensions) {
+      console.log(`[OramaSearchService] Dimension mismatch in load() (stored: ${storedDimensions}D, current: ${this.modelConfig.dimensions}D), clearing old data...`);
+      await Promise.all([
+        localforage.removeItem(dataKey),
+        localforage.removeItem(versionKey),
+        localforage.removeItem(dimensionsKey)
       ]);
       return false;
     }
@@ -823,6 +852,7 @@ export class OramaSearchService {
       try {
         this.db = await restore("json", data);
         this.isReady = true;
+        console.log(`[OramaSearchService] Loaded from localforage: ${dataKey} (${this.modelConfig.dimensions}D)`,data);
         return true;
       } catch (error) {
         console.error('[OramaSearchService] Failed to restore database:', error);
