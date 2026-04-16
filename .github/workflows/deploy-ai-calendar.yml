@@ -49,12 +49,18 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Prepare standalone directory
+      - name: Prepare full build directory
         run: |
-          cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/apps/ai-calendar/
-          cp -r apps/ai-calendar/.next/static apps/ai-calendar/.next/standalone/apps/ai-calendar/.next/
+          mkdir -p apps/ai-calendar/.next/standalone
+          cp -r apps/ai-calendar/.next apps/ai-calendar/.next/standalone/
+          cp -r apps/ai-calendar/package.json apps/ai-calendar/.next/standalone/
+          cp -r apps/ai-calendar/package-lock.json apps/ai-calendar/.next/standalone/ 2>/dev/null || true
+          cp -r apps/ai-calendar/public apps/ai-calendar/.next/standalone/
 
-      - name: Archive standalone app
+      - name: Install dependencies for standalone
+        run: cd apps/ai-calendar/.next/standalone && pnpm install --prod
+
+      - name: Archive full app
         run: |
           tar --warning=no-file-changed -czf /tmp/ai-calendar.tar.gz -C apps/ai-calendar/.next/standalone .
           mv /tmp/ai-calendar.tar.gz .
@@ -99,30 +105,12 @@ jobs:
             sudo tar -xzf "$TAR" -C "$APP_DIR"
             echo "[INFO] Files extracted successfully"
 
-            # Handle monorepo structure - move nested files to root if needed
-            if [ -d "$APP_DIR/apps/ai-calendar" ]; then
-              echo "[INFO] Moving files from nested monorepo structure..."
-              sudo cp -r "$APP_DIR/apps/ai-calendar"/* "$APP_DIR/"
-              sudo cp -r "$APP_DIR/apps/ai-calendar"/.* "$APP_DIR/" 2>/dev/null || true
-              
-              # Explicitly copy .next if it exists but wasn't copied
-              if [ -d "$APP_DIR/apps/ai-calendar/.next" ] && [ ! -d "$APP_DIR/.next" ]; then
-                sudo cp -r "$APP_DIR/apps/ai-calendar/.next" "$APP_DIR/"
-              fi
-              
-              sudo rm -rf "$APP_DIR/apps"
-            fi
-
             # Verify .next/static exists
             if [ -d "$APP_DIR/.next/static" ]; then
               echo "[INFO] ✅ .next/static directory exists"
-              ls -la "$APP_DIR/.next/static/" | head -n 10
             else
               echo "[ERROR] .next/static directory not found!"
-              echo "[INFO] Listing $APP_DIR contents:"
               ls -la "$APP_DIR/"
-              echo "[INFO] Listing .next contents (if exists):"
-              ls -la "$APP_DIR/.next/" 2>/dev/null || echo ".next directory does not exist"
             fi
 
             # Set permissions
@@ -132,11 +120,8 @@ jobs:
             # Clean up tarball
             rm -f "$TAR"
 
-            # PM2 deployment - install dependencies first
+            # PM2 deployment (dependencies already installed in CI)
             cd "$APP_DIR"
-
-            # Install dependencies (needed for standalone mode too)
-            pnpm install --no-frozen-lockfile
 
             # Stop existing process
             pm2 stop $APP_NAME 2>/dev/null || true
