@@ -6,6 +6,9 @@ on:
     paths:
       - "apps/ai-calendar/**"
       - "packages/local-first-sdk/**"
+      - "packages/brain-trust/**"
+      - "packages/voice-input/**"
+      - "packages/wisdom-ui/**"
       - ".github/workflows/deploy-ai-calendar.yml"
   workflow_dispatch:
 
@@ -34,8 +37,12 @@ jobs:
       - name: Clean build cache
         run: rm -rf apps/ai-calendar/.next apps/ai-calendar/tsconfig.tsbuildinfo
 
-      - name: Build local-first-sdk package
-        run: pnpm --filter @idea-turbo/local-first-sdk build
+      - name: Build workspace dependencies
+        run: |
+          pnpm --filter @idea-turbo/local-first-sdk build
+          pnpm --filter @idea-turbo/brain-trust build
+          pnpm --filter @idea-turbo/voice-input build
+          pnpm --filter @idea-turbo/wisdom-ui build
 
       - name: Build ai-calendar app
         run: pnpm --filter ai-calendar build
