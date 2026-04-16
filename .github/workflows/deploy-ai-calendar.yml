@@ -132,14 +132,17 @@ jobs:
             # Clean up tarball
             rm -f "$TAR"
 
-            # PM2 deployment (standalone mode - no pnpm install needed)
+            # PM2 deployment - install dependencies first
             cd "$APP_DIR"
+
+            # Install dependencies (needed for standalone mode too)
+            pnpm install --no-frozen-lockfile
 
             # Stop existing process
             pm2 stop $APP_NAME 2>/dev/null || true
             pm2 delete $APP_NAME 2>/dev/null || true
 
-            # Start with PM2 - standalone mode uses server.js directly
+            # Start with PM2
             PORT=$APP_PORT pm2 start server.js --name $APP_NAME
             pm2 save
 
