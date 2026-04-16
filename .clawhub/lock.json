@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "prisma": {
+      "version": "1.0.0",
+      "installedAt": 1776345722715
+    },
+    "postgresql-db": {
+      "version": "1.0.3",
+      "installedAt": 1776346871503
+    },
+    "redis-store": {
+      "version": "1.0.0",
+      "installedAt": 1776347041314
+    },
+    "firecrawl-api": {
+      "version": "1.0.0",
+      "installedAt": 1776348542253
+    }
+  }
+}
