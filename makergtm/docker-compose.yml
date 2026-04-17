@@ -1,0 +1,46 @@
+services:
+  chroma:
+    image: chromadb/chroma:1.5.7
+    container_name: launchcircle-chroma
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - launchcircle-network
+
+  backend:
+    build: ./backend
+    container_name: launchcircle-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - chroma
+    env_file:
+      - ./backend/.env
+    networks:
+      - launchcircle-network
+
+  frontend:
+    image: nginx:alpine
+    container_name: launchcircle-frontend
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/.next:/usr/share/nginx/html
+      - ./nginx/launchcircle.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+    networks:
+      - launchcircle-network
+
+networks:
+  launchcircle-network:
+    driver: bridge
