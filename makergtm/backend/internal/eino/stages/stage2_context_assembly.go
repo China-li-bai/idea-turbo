@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"launchcircle-backend/internal/eino"
 	"launchcircle-backend/internal/chroma"
+	"launchcircle-backend/internal/eino/runtime"
+	"launchcircle-backend/internal/eino/types"
 )
 
 type ContextAssemblyStage struct{}
@@ -15,8 +16,8 @@ func NewContextAssemblyStage() *ContextAssemblyStage {
 	return &ContextAssemblyStage{}
 }
 
-func (s *ContextAssemblyStage) Run(ctx context.Context, state *eino.PipelineState, platform string) (*eino.Stage2Output, error) {
-	profile, ok := eino.GetStyleProfile(platform)
+func (s *ContextAssemblyStage) Run(ctx context.Context, state *types.PipelineState, platform string) (*types.Stage2Output, error) {
+	profile, ok := runtime.GetStyleProfile(platform)
 	if !ok {
 		return nil, fmt.Errorf("不支持的平台: %s", platform)
 	}
@@ -34,7 +35,7 @@ func (s *ContextAssemblyStage) Run(ctx context.Context, state *eino.PipelineStat
 
 	systemPrompt := buildSystemPrompt(profile, factsText)
 
-	output := &eino.Stage2Output{
+	output := &types.Stage2Output{
 		SystemPrompt:    systemPrompt,
 		FewShotExamples: fewShotText,
 		CompressedCases: compressedCases,
@@ -44,11 +45,11 @@ func (s *ContextAssemblyStage) Run(ctx context.Context, state *eino.PipelineStat
 	return output, nil
 }
 
-func compressCases(results []chroma.QueryResult) []eino.CompressedCase {
-	var cases []eino.CompressedCase
+func compressCases(results []chroma.QueryResult) []types.CompressedCase {
+	var cases []types.CompressedCase
 	for _, r := range results {
 		compressed := cleanContent(r.Document)
-		cases = append(cases, eino.CompressedCase{
+		cases = append(cases, types.CompressedCase{
 			Content:  compressed,
 			Metadata: r.Metadata,
 			Score:     r.Distance,
@@ -85,7 +86,7 @@ func cleanContent(content string) string {
 	return result
 }
 
-func buildFactsText(facts []eino.Fact) string {
+func buildFactsText(facts []types.Fact) string {
 	var sb strings.Builder
 	sb.WriteString("\n=== VERIFIED PRODUCT FACTS (do not deviate from these) ===\n")
 	for i, f := range facts {
@@ -95,7 +96,7 @@ func buildFactsText(facts []eino.Fact) string {
 	return sb.String()
 }
 
-func buildFewShotText(examples []eino.FewShotExample) string {
+func buildFewShotText(examples []types.FewShotExample) string {
 	var sb strings.Builder
 	sb.WriteString("\n=== REFERENCE EXAMPLES (study the style, not copy content) ===\n")
 	for i, ex := range examples {
@@ -107,7 +108,7 @@ func buildFewShotText(examples []eino.FewShotExample) string {
 	return sb.String()
 }
 
-func buildSystemPrompt(profile *eino.StyleProfile, factsText string) string {
+func buildSystemPrompt(profile *types.StyleProfile, factsText string) string {
 	var sb strings.Builder
 	sb.WriteString(profile.SystemPrompt)
 	sb.WriteString(factsText)

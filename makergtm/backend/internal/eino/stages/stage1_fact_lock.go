@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"launchcircle-backend/internal/eino"
+	"launchcircle-backend/internal/eino/runtime"
+	"launchcircle-backend/internal/eino/types"
 )
 
 type FactLockStage struct{}
@@ -14,7 +15,7 @@ func NewFactLockStage() *FactLockStage {
 	return &FactLockStage{}
 }
 
-func (s *FactLockStage) Run(ctx context.Context, state *eino.PipelineState) (*eino.Stage1Output, error) {
+func (s *FactLockStage) Run(ctx context.Context, state *types.PipelineState) (*types.Stage1Output, error) {
 	systemPrompt := `You are a product analyst. Extract verifiable facts from the product description provided by the user.
 
 For each fact you extract:
@@ -34,7 +35,7 @@ If the user says "fast", do NOT convert to "10x faster" — keep it as "fast".`
 
 	userPrompt := fmt.Sprintf("Extract facts from this product description:\n\n%s", state.Input.ProductDescription)
 
-	result, err := eino.GlobalChatModel.GenerateStructured(ctx, systemPrompt, userPrompt, "facts")
+	result, err := runtime.GlobalChatModel.GenerateStructured(ctx, systemPrompt, userPrompt, "facts")
 	if err != nil {
 		return nil, fmt.Errorf("Stage1-FactLock失败: %w", err)
 	}
@@ -42,21 +43,21 @@ If the user says "fast", do NOT convert to "10x faster" — keep it as "fast".`
 	facts := parseFacts(result)
 
 	if len(facts) == 0 {
-		facts = []eino.Fact{
+		facts = []types.Fact{
 			{Claim: state.Input.ProductDescription, Category: "description", Confidence: 0.5, Source: "raw_input"},
 		}
 	}
 
-	output := &eino.Stage1Output{
-		Facts:       facts,
+	output := &types.Stage1Output{
+		Facts:        facts,
 		RawFactsText: result,
 	}
 	state.Stage1Result = output
 	return output, nil
 }
 
-func parseFacts(raw string) []eino.Fact {
-	var facts []eino.Fact
+func parseFacts(raw string) []types.Fact {
+	var facts []types.Fact
 	lines := strings.Split(raw, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -67,8 +68,8 @@ func parseFacts(raw string) []eino.Fact {
 		claim := line
 
 		prefixes := []struct {
-			prefix  string
-			cat     string
+			prefix string
+			cat    string
 		}{
 			{"[feature]", "feature"},
 			{"[benefit]", "benefit"},
@@ -96,7 +97,7 @@ func parseFacts(raw string) []eino.Fact {
 			}
 		}
 
-		facts = append(facts, eino.Fact{
+		facts = append(facts, types.Fact{
 			Claim:      claim,
 			Category:   category,
 			Confidence: 0.85,

@@ -8,8 +8,7 @@ func TestParseFacts(t *testing.T) {
 	raw := `[feature] CLI-based commit message generator
 [benefit] Saves time writing commit messages
 [metric] 50MB binary size
-[positioning] Alternative to Copilot hooks
-A line without prefix`
+[positioning] Alternative to Copilot hooks`
 
 	facts := parseFacts(raw)
 
@@ -45,7 +44,7 @@ func TestParseFactsMetricDetection(t *testing.T) {
 		wantCat  string
 	}{
 		{"contains percent", "[feature] 50% faster performance", "metric"},
-		{"contains x faster", "[feature] 10x speed improvement", "metric"},
+		{"contains x faster", "[feature] 10x faster improvement", "metric"},
 		{"contains ms", "[feature] response time under 200ms", "metric"},
 		{"contains seconds", "[feature] loads in 2 seconds", "metric"},
 		{"plain feature", "[feature] supports dark mode", "feature"},

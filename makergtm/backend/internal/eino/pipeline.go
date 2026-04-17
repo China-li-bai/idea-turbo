@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"launchcircle-backend/internal/eino/stages"
+	"launchcircle-backend/internal/eino/types"
 )
 
 type Pipeline struct {
@@ -31,24 +32,24 @@ func InitPipeline() {
 	log.Println("Eino Pipeline 初始化完成 (5-Stage Humanization)")
 }
 
-func (p *Pipeline) Run(ctx context.Context, input *GenerateInput) (*PipelineResult, error) {
+func (p *Pipeline) Run(ctx context.Context, input *types.GenerateInput) (*PipelineResult, error) {
 	return p.RunWithProgress(ctx, input, nil)
 }
 
-func (p *Pipeline) RunWithProgress(ctx context.Context, input *GenerateInput, cb ProgressCallback) (*PipelineResult, error) {
-	if err := SanitizeInput(input); err != nil {
+func (p *Pipeline) RunWithProgress(ctx context.Context, input *types.GenerateInput, cb types.ProgressCallback) (*PipelineResult, error) {
+	if err := types.SanitizeInput(input); err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
 	}
 
 	startTime := time.Now()
 
-	state := NewPipelineState(input)
+	state := types.NewPipelineState(input)
 	result := &PipelineResult{
 		PlatformResults: make(map[string]*PlatformResult, len(input.Platforms)),
 	}
 
 	if cb != nil {
-		cb(ProgressEvent{Type: EventGenerationStart, Data: map[string]interface{}{"platforms": input.Platforms, "total": len(input.Platforms)}, Timestamp: time.Now().UnixMilli()})
+		cb(types.ProgressEvent{Type: types.EventGenerationStart, Data: map[string]interface{}{"platforms": input.Platforms, "total": len(input.Platforms)}, Timestamp: time.Now().UnixMilli()})
 	}
 
 	var mu sync.Mutex
@@ -67,7 +68,7 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, input *GenerateInput, cb
 					Error: err.Error(),
 				}
 				if cb != nil {
-					cb(ProgressEvent{Type: EventError, Platform: plat, Data: map[string]string{"error": err.Error()}, Timestamp: time.Now().UnixMilli()})
+					cb(types.ProgressEvent{Type: types.EventError, Platform: plat, Data: map[string]string{"error": err.Error()}, Timestamp: time.Now().UnixMilli()})
 				}
 				return
 			}
@@ -82,17 +83,17 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, input *GenerateInput, cb
 		len(input.Platforms), result.TotalDuration)
 
 	if cb != nil {
-		cb(ProgressEvent{Type: EventAllDone, Data: map[string]interface{}{"duration_ms": result.TotalDuration.Milliseconds()}, Timestamp: time.Now().UnixMilli()})
+		cb(types.ProgressEvent{Type: types.EventAllDone, Data: map[string]interface{}{"duration_ms": result.TotalDuration.Milliseconds()}, Timestamp: time.Now().UnixMilli()})
 	}
 	return result, nil
 }
 
-func (p *Pipeline) runForPlatform(ctx context.Context, state *PipelineState, platform string) (*PlatformResult, error) {
+func (p *Pipeline) runForPlatform(ctx context.Context, state *types.PipelineState, platform string) (*PlatformResult, error) {
 	return p.runForPlatformWithProgress(ctx, state, platform, nil)
 }
 
-func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *PipelineState, platform string, cb ProgressCallback) (*PlatformResult, error) {
-	emit := func(event ProgressEvent) {
+func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *types.PipelineState, platform string, cb types.ProgressCallback) (*PlatformResult, error) {
+	emit := func(event types.ProgressEvent) {
 		if cb != nil {
 			event.Platform = platform
 			event.Timestamp = time.Now().UnixMilli()
@@ -100,7 +101,7 @@ func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *Pipeli
 		}
 	}
 
-	platformState := &PipelineState{
+	platformState := &types.PipelineState{
 		Input:     state.Input,
 		MaxRounds: 3,
 	}
@@ -112,7 +113,7 @@ func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *Pipeli
 		return nil, fmt.Errorf("Fact Lock失败: %w", err)
 	}
 	log.Printf("[%s] Stage1-FactLock 完成 (%d facts, %.2fs)", platform, len(stage1Output.Facts), time.Since(stage1Start).Seconds())
-	emit(ProgressEvent{Type: EventStageComplete, Stage: "fact_lock", Data: map[string]interface{}{"fact_count": len(stage1Output.Facts), "duration_ms": time.Since(stage1Start).Milliseconds()}})
+	emit(types.ProgressEvent{Type: types.EventStageComplete, Stage: "fact_lock", Data: map[string]interface{}{"fact_count": len(stage1Output.Facts), "duration_ms": time.Since(stage1Start).Milliseconds()}})
 
 	stage2Start := time.Now()
 	stage2Output, err := p.contextAssembly.Run(ctx, platformState, platform)
@@ -120,10 +121,9 @@ func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *Pipeli
 		return nil, fmt.Errorf("Context Assembly失败: %w", err)
 	}
 	log.Printf("[%s] Stage2-ContextAssembly 完成 (%d cases, %.2fs)", platform, len(stage2Output.CompressedCases), time.Since(stage2Start).Seconds())
-	emit(ProgressEvent{Type: EventStageComplete, Stage: "context_assembly", Data: map[string]interface{}{"case_count": len(stage2Output.CompressedCases), "duration_ms": time.Since(stage2Start).Milliseconds()}})
+	emit(types.ProgressEvent{Type: types.EventStageComplete, Stage: "context_assembly", Data: map[string]interface{}{"case_count": len(stage2Output.CompressedCases), "duration_ms": time.Since(stage2Start).Milliseconds()}})
 
-	var finalCopy *GeneratedCopy
-	var qualityReport *QualityMetrics
+	var finalCopy *types.GeneratedCopy
 
 	for round := 0; round <= platformState.MaxRounds; round++ {
 		platformState.Round = round
@@ -134,20 +134,20 @@ func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *Pipeli
 			return nil, fmt.Errorf("Generation(第%d轮)失败: %w", round+1, err)
 		}
 		log.Printf("[%s] Stage3-Generation 第%d轮 完成 (%.2fs)", platform, round+1, time.Since(stage3Start).Seconds())
-		emit(ProgressEvent{Type: EventStageComplete, Stage: "generation", Round: round + 1, Data: map[string]interface{}{"duration_ms": time.Since(stage3Start).Milliseconds(), "tagline": stage3Output.DraftCopy.Tagline}})
+		emit(types.ProgressEvent{Type: types.EventStageComplete, Stage: "generation", Round: round + 1, Data: map[string]interface{}{"duration_ms": time.Since(stage3Start).Milliseconds(), "tagline": stage3Output.DraftCopy.Tagline}})
 
 		stage4Start := time.Now()
 		stage4Output, err := p.qualityGate.Run(ctx, platformState)
 		if err != nil {
 			return nil, fmt.Errorf("Quality Gate(第%d轮)失败: %w", round+1, err)
 		}
+		overallScore := calculateOverallScore(stage4Output.QualityChecks)
 		log.Printf("[%s] Stage4-QualityGate 第%d轮 score=%.2f passed=%v (%.2fs)",
-			platform, round+1, stage4Output.Quality.OverallScore, stage4Output.IsPassed, time.Since(stage4Start).Seconds())
-		emit(ProgressEvent{Type: EventQualityResult, Round: round + 1, Data: map[string]interface{}{"score": stage4Output.Quality.OverallScore, "passed": stage4Output.IsPassed, "feedback": stage4Output.Quality.Feedback}})
+			platform, round+1, overallScore, stage4Output.Passed, time.Since(stage4Start).Seconds())
+		emit(types.ProgressEvent{Type: types.EventQualityResult, Round: round + 1, Data: map[string]interface{}{"score": overallScore, "passed": stage4Output.Passed}})
 
-		if stage4Output.IsPassed || round >= platformState.MaxRounds {
+		if stage4Output.Passed || round >= platformState.MaxRounds {
 			finalCopy = stage3Output.DraftCopy
-			qualityReport = stage4Output.Quality
 			break
 		}
 
@@ -156,27 +156,34 @@ func (p *Pipeline) runForPlatformWithProgress(ctx context.Context, state *Pipeli
 		if err != nil {
 			log.Printf("[%s] Stage5-Refinement 第%d轮 失败，使用当前draft: %v", platform, round+1, err)
 			finalCopy = stage3Output.DraftCopy
-			qualityReport = stage4Output.Quality
 			break
 		}
 		log.Printf("[%s] Stage5-Refinement 第%d轮 完成 (%.2fs)", platform, round+1, time.Since(stage5Start).Seconds())
-		emit(ProgressEvent{Type: EventRefinement, Round: round + 1, Data: map[string]interface{}{"duration_ms": time.Since(stage5Start).Milliseconds()}})
+		emit(types.ProgressEvent{Type: types.EventRefinement, Round: round + 1, Data: map[string]interface{}{"duration_ms": time.Since(stage5Start).Milliseconds()}})
 
-		platformState.Stage3Result = &Stage3Output{DraftCopy: stage5Output.RefinedCopy}
+		platformState.Stage3Result = &types.Stage3Output{DraftCopy: stage5Output.FinalCopy}
 	}
 
-	emit(ProgressEvent{Type: EventPlatformDone, Data: map[string]interface{}{
+	emit(types.ProgressEvent{Type: types.EventPlatformDone, Data: map[string]interface{}{
 		"tagline":          finalCopy.Tagline,
-		"quality_score":    qualityReport.OverallScore,
-		"passed":           qualityReport.Passed,
 		"rounds_completed": platformState.Round + 1,
 	}})
 
 	return &PlatformResult{
 		Copy:            finalCopy,
-		QualityReport:   qualityReport,
 		RoundsCompleted: platformState.Round + 1,
 	}, nil
+}
+
+func calculateOverallScore(checks []types.QualityCheck) float64 {
+	if len(checks) == 0 {
+		return 0
+	}
+	var total float64
+	for _, c := range checks {
+		total += c.Score
+	}
+	return total / float64(len(checks))
 }
 
 type PipelineResult struct {
@@ -190,11 +197,14 @@ func (d DurationMs) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%d", d)), nil
 }
 
+func (d DurationMs) Milliseconds() int64 {
+	return int64(d)
+}
+
 type PlatformResult struct {
-	Copy            *GeneratedCopy   `json:"copy"`
-	QualityReport   *QualityMetrics   `json:"quality_report,omitempty"`
-	RoundsCompleted int               `json:"rounds_completed"`
-	Error           string            `json:"error,omitempty"`
+	Copy            *types.GeneratedCopy `json:"copy"`
+	RoundsCompleted int                   `json:"rounds_completed"`
+	Error           string                `json:"error,omitempty"`
 }
 
 func (r *PipelineResult) ToJSONMap() map[string]interface{} {
@@ -209,8 +219,6 @@ func (r *PipelineResult) ToJSONMap() map[string]interface{} {
 			"body":             pr.Copy.Body,
 			"cta":              pr.Copy.CTA,
 			"full_text":        pr.Copy.FullText,
-			"quality_score":    pr.QualityReport.OverallScore,
-			"passed":           pr.QualityReport.Passed,
 			"rounds_completed": pr.RoundsCompleted,
 		}
 	}

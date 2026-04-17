@@ -1,23 +1,14 @@
 package eino
 
-var styleRegistry = map[string]*StyleProfile{}
+import (
+	"launchcircle-backend/internal/eino/runtime"
+	"launchcircle-backend/internal/eino/types"
+)
 
-func init() {
-	styleRegistry["producthunt"] = GetProductHuntProfile()
-	styleRegistry["x_thread"] = GetXThreadProfile()
-	styleRegistry["jike"] = GetJikeProfile()
-	styleRegistry["hackernews"] = GetHackerNewsProfile()
-}
-
-func GetStyleProfile(platform string) (*StyleProfile, bool) {
-	p, ok := styleRegistry[platform]
-	return p, ok
+func GetStyleProfile(platform string) (*types.StyleProfile, bool) {
+	return runtime.GetStyleProfile(platform)
 }
 
 func GetAllPlatforms() []string {
-	platforms := make([]string, 0, len(styleRegistry))
-	for p := range styleRegistry {
-		platforms = append(platforms, p)
-	}
-	return platforms
+	return runtime.GetAllPlatforms()
 }

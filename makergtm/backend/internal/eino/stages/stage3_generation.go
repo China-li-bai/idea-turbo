@@ -6,14 +6,15 @@ import (
 	"regexp"
 	"strings"
 
-	"launchcircle-backend/internal/eino"
+	"launchcircle-backend/internal/eino/runtime"
+	"launchcircle-backend/internal/eino/types"
 )
 
 type GenerationStage struct{}
 
 var (
 	reTagline = regexp.MustCompile(`(?i)\*\*Tagline:\*\*\s*(.+?)(?:\n|$)`)
-	reBody    = regexp.MustCompile(`(?i)\*\*Body:\*\*\s*([\s\S]+?)(?=\*\*CTA:|\Z)`)
+	reBody    = regexp.MustCompile(`(?i)\*\*Body:\*\*\s*([\s\S]+?)(?:\*\*CTA:|$)`)
 	reCTA     = regexp.MustCompile(`(?i)\*\*CTA:\*\*\s*(.+?)(?:\n|$)`)
 )
 
@@ -21,7 +22,7 @@ func NewGenerationStage() *GenerationStage {
 	return &GenerationStage{}
 }
 
-func (s *GenerationStage) Run(ctx context.Context, state *eino.PipelineState) (*eino.Stage3Output, error) {
+func (s *GenerationStage) Run(ctx context.Context, state *types.PipelineState) (*types.Stage3Output, error) {
 	stage2 := state.Stage2Result
 	profile := stage2.StyleProfile
 
@@ -57,21 +58,21 @@ OUTPUT FORMAT:
 		strings.Join(profile.Format.RequiredSections, ", "),
 	)
 
-	result, err := eino.GlobalChatModel.Generate(ctx, stage2.SystemPrompt, userPrompt)
+	result, err := runtime.GlobalChatModel.Generate(ctx, stage2.SystemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("Stage3-生成失败: %w", err)
 	}
 
 	copy := parseGeneratedCopy(result, profile.Platform)
 
-	output := &eino.Stage3Output{
+	output := &types.Stage3Output{
 		DraftCopy: copy,
 	}
 	state.Stage3Result = output
 	return output, nil
 }
 
-func buildCasesPrompt(cases []eino.CompressedCase) string {
+func buildCasesPrompt(cases []types.CompressedCase) string {
 	var sb strings.Builder
 	for i, c := range cases {
 		sb.WriteString(fmt.Sprintf("Case %d (relevance: %.2f):\n%s\n\n", i+1, c.Score, c.Content))
@@ -79,8 +80,8 @@ func buildCasesPrompt(cases []eino.CompressedCase) string {
 	return sb.String()
 }
 
-func parseGeneratedCopy(raw string, platform string) *eino.GeneratedCopy {
-	copy := &eino.GeneratedCopy{Platform: platform, FullText: raw}
+func parseGeneratedCopy(raw string, platform string) *types.GeneratedCopy {
+	copy := &types.GeneratedCopy{Platform: platform, FullText: raw}
 
 	if matches := reTagline.FindStringSubmatch(raw); len(matches) > 1 {
 		copy.Tagline = strings.TrimSpace(matches[1])

@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"launchcircle-backend/internal/eino"
-	"launchcircle-backend/internal/model"
 )
 
 type GenerateRequest struct {

@@ -3,7 +3,8 @@ package stages
 import (
 	"testing"
 
-	"launchcircle-backend/internal/eino"
+	"launchcircle-backend/internal/eino/runtime"
+	"launchcircle-backend/internal/eino/types"
 )
 
 func TestGetStyleProfile(t *testing.T) {
@@ -21,7 +22,7 @@ func TestGetStyleProfile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.platform, func(t *testing.T) {
-			got, ok := GetStyleProfile(tt.platform)
+			got, ok := runtime.GetStyleProfile(tt.platform)
 			if ok != tt.wantOK {
 				t.Errorf("GetStyleProfile(%q) ok = %v, want %v", tt.platform, ok, tt.wantOK)
 			}
@@ -36,7 +37,7 @@ func TestGetStyleProfile(t *testing.T) {
 }
 
 func TestProductHuntProfile(t *testing.T) {
-	profile := GetProductHuntProfile()
+	profile := runtime.GetProductHuntProfile()
 	if profile == nil {
 		t.Fatal("GetProductHuntProfile() returned nil")
 	}
@@ -61,14 +62,14 @@ func TestProductHuntProfile(t *testing.T) {
 }
 
 func TestXThreadProfile(t *testing.T) {
-	profile := GetXThreadProfile()
+	profile := runtime.GetXThreadProfile()
 	if profile == nil {
 		t.Fatal("GetXThreadProfile() returned nil")
 	}
 	if profile.Platform != "x_thread" {
 		t.Errorf("Platform = %q, want x_thread", profile.Platform)
 	}
-	if profile.Targets.BurstinessMin < GetProductHuntProfile().Targets.BurstinessMin {
+	if profile.Targets.BurstinessMin < runtime.GetProductHuntProfile().Targets.BurstinessMin {
 		t.Log("X Thread should have higher burstiness target than PH (conversational)")
 	}
 	if len(profile.Examples) == 0 {
@@ -77,7 +78,7 @@ func TestXThreadProfile(t *testing.T) {
 }
 
 func TestJikeProfile(t *testing.T) {
-	profile := GetJikeProfile()
+	profile := runtime.GetJikeProfile()
 	if profile == nil {
 		t.Fatal("GetJikeProfile() returned nil")
 	}
@@ -94,17 +95,17 @@ func TestJikeProfile(t *testing.T) {
 }
 
 func TestHackerNewsProfile(t *testing.T) {
-	profile := GetHackerNewsProfile()
+	profile := runtime.GetHackerNewsProfile()
 	if profile == nil {
 		t.Fatal("GetHackerNewsProfile() returned nil")
 	}
-	if profile.Format.BodyMaxLength <= GetProductHuntProfile().Format.BodyMaxLength {
+	if profile.Format.BodyMaxLength <= runtime.GetProductHuntProfile().Format.BodyMaxLength {
 		t.Log("HN should allow longer body text than PH (technical depth)")
 	}
 }
 
 func TestGetAllPlatforms(t *testing.T) {
-	platforms := GetAllPlatforms()
+	platforms := runtime.GetAllPlatforms()
 	if len(platforms) != 4 {
 		t.Errorf("GetAllPlatforms() returned %d platforms, want 4", len(platforms))
 	}
@@ -123,7 +124,7 @@ func TestGetAllPlatforms(t *testing.T) {
 func TestFewShotExamplesStructure(t *testing.T) {
 	for _, plat := range []string{"producthunt", "x_thread", "jike", "hackernews"} {
 		t.Run(plat, func(t *testing.T) {
-			profile, _ := GetStyleProfile(plat)
+			profile, _ := runtime.GetStyleProfile(plat)
 			for i, ex := range profile.Examples {
 				if ex.InputContext == "" {
 					t.Errorf("Example %d InputContext is empty", i)
@@ -143,11 +144,11 @@ func TestFewShotExamplesStructure(t *testing.T) {
 }
 
 func TestPipelineStateCreation(t *testing.T) {
-	input := &GenerateInput{
+	input := &types.GenerateInput{
 		ProductDescription: "A test product",
 		Platforms:          []string{"producthunt"},
 	}
-	state := NewPipelineState(input)
+	state := types.NewPipelineState(input)
 	if state.Input != input {
 		t.Error("State Input should match provided input")
 	}
@@ -161,13 +162,13 @@ func TestPipelineStateCreation(t *testing.T) {
 
 func TestProgressEventConstants(t *testing.T) {
 	constants := []string{
-		EventGenerationStart,
-		EventStageComplete,
-		EventQualityResult,
-		EventRefinement,
-		EventPlatformDone,
-		EventAllDone,
-		EventError,
+		types.EventGenerationStart,
+		types.EventStageComplete,
+		types.EventQualityResult,
+		types.EventRefinement,
+		types.EventPlatformDone,
+		types.EventAllDone,
+		types.EventError,
 	}
 	seen := make(map[string]bool)
 	for _, c := range constants {
