@@ -7,10 +7,10 @@ async function getONNX() {
   return ONNXModule
 }
 
-import * as FileSystem from 'expo-file-system/legacy'
 import type { IEmbeddingEngine } from './EmbeddingEngine'
+import { getDocumentDirectory, getFileInfo, readAsStringAsync } from './fs-utils'
 
-const DOC_DIR = (FileSystem as any).documentDirectory || ''
+const DOC_DIR = getDocumentDirectory()
 const MODEL_DIR = DOC_DIR + 'models/embedding/'
 const ONNX_MODEL_PATH = MODEL_DIR + 'onnx/model_quantized.onnx'
 const VOCAB_PATH = MODEL_DIR + 'vocab.txt'
@@ -37,7 +37,7 @@ class BertWordPieceTokenizer {
 
   async init(vocabPath: string): Promise<void> {
     try {
-      const content = await FileSystem.readAsStringAsync(vocabPath)
+      const content = await readAsStringAsync(vocabPath)
       const lines = content.split('\n')
       this.vocab.clear()
       for (let i = 0; i < lines.length; i++) {
@@ -222,12 +222,12 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
       console.log('[OnnxEmbedding] 🔄 Loading BGE-Micro-v2...')
       console.log(`[OnnxEmbedding]   Model: ${onnxPath}`)
 
-      const modelExists = await FileSystem.getInfoAsync(onnxPath)
+      const modelExists = await getFileInfo(onnxPath)
       if (!modelExists.exists) {
         throw new Error('ONNX model file not found: ' + onnxPath)
       }
 
-      const vocabExists = await FileSystem.getInfoAsync(vocabPath)
+      const vocabExists = await getFileInfo(vocabPath)
       if (!vocabExists.exists) {
         throw new Error('Vocab file not found: ' + vocabPath)
       }

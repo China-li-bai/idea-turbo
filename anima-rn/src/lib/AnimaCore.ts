@@ -91,7 +91,10 @@ export class AnimaCore {
     return this._initError
   }
 
-  async init(modelPath?: string): Promise<SystemStatus> {
+  async init(
+    modelPath?: string,
+    onProgress?: (progress: number, phase: 'extracting' | 'model' | 'memory') => void
+  ): Promise<SystemStatus> {
     if (this._initialized) return this.getSystemStatus()
 
     console.log('[AnimaCore] 🚀 初始化 Anima 核心系统...')
@@ -99,18 +102,23 @@ export class AnimaCore {
 
     try {
       console.log('[AnimaCore] │ Step 1/3: 加载端侧 AI 模型 (llama.rn)...')
-      const brainLoaded = await loadLocalBrain(modelPath)
+      onProgress?.(0.1, 'extracting')
+      const brainLoaded = await loadLocalBrain(modelPath, (p) => {
+        onProgress?.(0.1 + p * 0.7, 'model')
+      })
       if (!brainLoaded) {
         throw new Error('AI 模型加载失败')
       }
 
       console.log('[AnimaCore] │ Step 2/3: 初始化记忆系统 (SQLite + Embedding)...')
+      onProgress?.(0.85, 'memory')
       if (!isMemoryReady()) {
         await initMemorySystem()
       }
 
       console.log('[AnimaCore] │ Step 3/3: 注册状态监听...')
       this._brainUnsub = subscribeToBrainState(() => {})
+      onProgress?.(1.0, 'model')
 
       this._initialized = true
       this._initError = null

@@ -1,7 +1,7 @@
 import { initLlama } from './llama-adapter'
 import type { LlamaContext } from 'llama.rn'
-import * as FileSystem from 'expo-file-system/legacy'
 import { Asset } from 'expo-asset'
+import { getDocumentDirectory, getFileInfo, copyFile, downloadFile } from './fs-utils'
 import { SPECIES_CONFIG, PERSONALITY_OPTIONS, type Pet, type PetSpecies, type ChatMode } from '../types'
 import {
   detectPromptInjection,
@@ -26,8 +26,7 @@ const BUNDLED_MODEL = require('../../models/smollm-360m-instruct-add-basics-q8_0
 let MODEL_PATH = ''
 
 async function getModelDirectory(): Promise<string> {
-  const dir = (FileSystem as any).documentDirectory || (FileSystem as any).cacheDirectory || ''
-  return dir
+  return getDocumentDirectory()
 }
 
 export async function ensureModelExists(onDownloadProgress?: (progress: number) => void): Promise<string> {
@@ -35,17 +34,17 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
   const path = `${dir}${MODEL_FILENAME}`
   MODEL_PATH = path
 
-  const info = await FileSystem.getInfoAsync(path)
+  const info = await getFileInfo(path)
   if (info.exists) {
     const sizeMB = ((info.size || 0) / 1024 / 1024).toFixed(1)
     console.log('[LocalBrain] 📁 Model file exists:', path, `(${sizeMB}MB)`)
     return path
   }
 
-  console.log('[LocalBrain] 📦 Extracting bundled model...')
+  console.log('[LocalBrain] 📦 Extracting model from App Bundle...')
 
   try {
-    console.log('[LocalBrain]   Loading model asset...')
+    console.log('[LocalBrain]   Loading bundled asset...')
     const asset = Asset.fromModule(BUNDLED_MODEL)
     await asset.downloadAsync()
     
@@ -56,13 +55,10 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
       throw new Error('Failed to get asset URI')
     }
 
-    console.log('[LocalBrain]   Copying to filesystem:', path)
-    await FileSystem.copyAsync({
-      from: sourceUri,
-      to: path,
-    })
+    console.log('[LocalBrain]   Copying to document directory:', path)
+    await copyFile(sourceUri, path)
 
-    const copiedInfo = await FileSystem.getInfoAsync(path)
+    const copiedInfo = await getFileInfo(path)
     if (!copiedInfo.exists) {
       throw new Error('Copy verification failed')
     }
@@ -75,16 +71,13 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
     console.log('[LocalBrain] 📥 Falling back to download from:', MODEL_URL)
 
     try {
-      const downloadRes = await FileSystem.downloadAsync(MODEL_URL, path, {
-        headers: { 'User-Agent': 'AnimaApp/1.0' },
-        sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-      })
+      const downloadRes = await downloadFile(MODEL_URL, path)
 
       if (downloadRes.status !== 200) {
         throw new Error(`Download failed with status ${downloadRes.status}`)
       }
 
-      console.log('[LocalBrain] ✅ Model downloaded:', `(${downloadRes.headers?.['Content-Length'] || 'unknown'} bytes)`)
+      console.log('[LocalBrain] ✅ Model downloaded')
       return downloadRes.uri
     } catch (dlErr: any) {
       console.error('[LocalBrain] ❌ Download error:', dlErr.message)
@@ -153,7 +146,7 @@ export async function loadLocalBrain(
       path = await ensureModelExists()
     }
 
-    const fileInfo = await FileSystem.getInfoAsync(path)
+    const fileInfo = await getFileInfo(path)
     if (!fileInfo.exists) {
       throw new Error(`模型文件不存在: ${path}`)
     }
@@ -172,7 +165,7 @@ export async function loadLocalBrain(
         use_mlock: true,
         use_mmap: true,
       },
-      (progress) => {
+      (progress: number) => {
         const adjusted = 0.2 + progress * 0.8
         brainState.loadProgress = Math.round(adjusted * 100) / 100
         onProgress?.(adjusted)
@@ -185,8 +178,8 @@ export async function loadLocalBrain(
     brainState.loadProgress = 1.0
     notifyListeners()
 
-    console.log('[LocalBrain] ✅ Model loaded:', llamaContext.model.desc)
-    console.log('[LocalBrain] GPU enabled:', llamaContext.gpu)
+    console.log('[LocalBrain] ✅ Model loaded:', llamaContext?.model?.desc || 'unknown')
+    console.log('[LocalBrain] GPU enabled:', llamaContext?.gpu || false)
 
     try {
       await initMemorySystem()
