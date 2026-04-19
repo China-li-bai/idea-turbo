@@ -1,7 +1,7 @@
 import { initLlama } from './llama-adapter'
 import type { LlamaContext } from 'llama.rn'
 import { Asset } from 'expo-asset'
-import { getDocumentDirectory, getFileInfo, copyFile, downloadFile } from './fs-utils'
+import * as FileSystem from 'expo-file-system/legacy'
 import { SPECIES_CONFIG, PERSONALITY_OPTIONS, type Pet, type PetSpecies, type ChatMode } from '../types'
 import {
   detectPromptInjection,
@@ -25,19 +25,19 @@ const BUNDLED_MODEL = require('../../models/smollm-360m-instruct-add-basics-q8_0
 
 let MODEL_PATH = ''
 
-async function getModelDirectory(): Promise<string> {
-  return getDocumentDirectory()
+function getModelDirectory(): string {
+  return FileSystem.documentDirectory || ''
 }
 
 export async function ensureModelExists(onDownloadProgress?: (progress: number) => void): Promise<string> {
-  const dir = await getModelDirectory()
+  const dir = getModelDirectory()
   const path = `${dir}${MODEL_FILENAME}`
   MODEL_PATH = path
 
-  const info = await getFileInfo(path)
+  const info = await FileSystem.getInfoAsync(path)
   if (info.exists) {
-    const sizeMB = ((info.size || 0) / 1024 / 1024).toFixed(1)
-    console.log('[LocalBrain] 📁 Model file exists:', path, `(${sizeMB}MB)`)
+    const sizeMB = ((info as any).size || 0) / 1024 / 1024
+    console.log('[LocalBrain] 📁 Model file exists:', path, `(${sizeMB.toFixed(1)}MB)`)
     return path
   }
 
@@ -56,25 +56,25 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
     }
 
     console.log('[LocalBrain]   Copying to document directory:', path)
-    await copyFile(sourceUri, path)
+    await FileSystem.copyAsync({ from: sourceUri, to: path })
 
-    const copiedInfo = await getFileInfo(path)
+    const copiedInfo = await FileSystem.getInfoAsync(path)
     if (!copiedInfo.exists) {
       throw new Error('Copy verification failed')
     }
 
-    const copiedMB = ((copiedInfo.size || 0) / 1024 / 1024).toFixed(1)
-    console.log('[LocalBrain] ✅ Bundled model extracted:', `(${copiedMB}MB)`)
+    const copiedMB = ((copiedInfo as any).size || 0) / 1024 / 1024
+    console.log('[LocalBrain] ✅ Bundled model extracted:', `(${copiedMB.toFixed(1)}MB)`)
     return path
   } catch (bundleErr: any) {
     console.warn('[LocalBrain] ⚠️ Bundle extraction failed:', bundleErr.message)
     console.log('[LocalBrain] 📥 Falling back to download from:', MODEL_URL)
 
     try {
-      const downloadRes = await downloadFile(MODEL_URL, path)
+      const downloadRes = await FileSystem.downloadAsync(MODEL_URL, path)
 
-      if (downloadRes.status !== 200) {
-        throw new Error(`Download failed with status ${downloadRes.status}`)
+      if (!downloadRes) {
+        throw new Error('Download returned null')
       }
 
       console.log('[LocalBrain] ✅ Model downloaded')
@@ -146,7 +146,7 @@ export async function loadLocalBrain(
       path = await ensureModelExists()
     }
 
-    const fileInfo = await getFileInfo(path)
+    const fileInfo = await FileSystem.getInfoAsync(path) as any
     if (!fileInfo.exists) {
       throw new Error(`模型文件不存在: ${path}`)
     }
