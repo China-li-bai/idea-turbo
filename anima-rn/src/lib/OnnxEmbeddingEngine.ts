@@ -7,7 +7,7 @@ async function getONNX() {
   return ONNXModule
 }
 
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import type { IEmbeddingEngine } from './EmbeddingEngine'
 
 const DOC_DIR = (FileSystem as any).documentDirectory || ''

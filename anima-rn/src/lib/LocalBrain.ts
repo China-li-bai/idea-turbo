@@ -1,6 +1,6 @@
 import { initLlama } from './llama-adapter'
 import type { LlamaContext } from 'llama.rn'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import { Asset } from 'expo-asset'
 import { SPECIES_CONFIG, PERSONALITY_OPTIONS, type Pet, type PetSpecies, type ChatMode } from '../types'
 import {
@@ -37,7 +37,8 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
 
   const info = await FileSystem.getInfoAsync(path)
   if (info.exists) {
-    console.log('[LocalBrain] 📁 Model file exists:', path, `(${(info.size || 0) / 1024 / 1024:.1f}MB)`)
+    const sizeMB = ((info.size || 0) / 1024 / 1024).toFixed(1)
+    console.log('[LocalBrain] 📁 Model file exists:', path, `(${sizeMB}MB)`)
     return path
   }
 
@@ -66,7 +67,8 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
       throw new Error('Copy verification failed')
     }
 
-    console.log('[LocalBrain] ✅ Bundled model extracted:', `(${(copiedInfo.size || 0) / 1024 / 1024:.1f}MB)`)
+    const copiedMB = ((copiedInfo.size || 0) / 1024 / 1024).toFixed(1)
+    console.log('[LocalBrain] ✅ Bundled model extracted:', `(${copiedMB}MB)`)
     return path
   } catch (bundleErr: any) {
     console.warn('[LocalBrain] ⚠️ Bundle extraction failed:', bundleErr.message)
