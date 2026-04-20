@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Large model files (downloaded on-demand, not committed)
+*.gguf
+models/
+!.models/embedding/onnx/model_quantized.onnx
+!.models/embedding/vocab.vocab

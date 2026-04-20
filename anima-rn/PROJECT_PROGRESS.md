@@ -9,10 +9,11 @@
 核心愿景：三级记忆分层 + Letta 归档决策 + PI 安全防护 + 访客社交模式
 
 技术选型（方案A：极致性能跨平台组合）：
-- 端侧推理：llama.rn (GGUF) / SmolLM-360M-Instruct
+- 端侧推理：llama.rn (GGUF) / SmolLM-360M-Instruct / Qwen3-0.6B
 - Embedding：BGE-Micro-v2 ONNX → Keyword 128d 降级
 - 存储：expo-sqlite (WAL) + 向量扩展
 - 框架：Expo React Native + TypeScript + Zustand
+- 模型策略：混合方案（ONNX Embedding 内置 ~17MB + GGUF 按需下载）
 
 ---
 
@@ -70,6 +71,8 @@
 | EmbeddingEngine | src/lib/EmbeddingEngine.ts | 227 | Keyword(128d) + ONNX(BGE-Micro) 双引擎 / 相似度检索 |
 | PrivacyGuard | src/lib/PrivacyGuard.ts | 197 | PI检测9模式 / 3级隐私分级 / 输出消毒 / 安全Prompt |
 | OnnxEmbeddingEngine | src/lib/OnnxEmbeddingEngine.ts | — | ONNX Runtime BGE-Micro 嵌入 (真机备用) |
+| ModelManager | src/lib/ModelManager.ts | ~326 | 模型注册/下载/删除/切换/电池感知/语言匹配 |
+| BatteryManager | src/lib/BatteryManager.ts | — | 三级电源模式(full/saver/critical)/电池监听 |
 | UI | App.tsx | 563 | 聊天界面 / 系统状态面板 / 思维步骤条 / 输入区 |
 | Types | src/types/index.ts | 182 | 15+ 接口 / 枚举 / 配置常量 (Pet/Message/Memory/Privacy) |
 | Store | src/store/index.ts | 83 | Zustand 全局状态 / View路由 / Thinking状态 |
@@ -113,8 +116,8 @@
 
 | # | 功能 | 状态 | 说明 |
 |---|------|------|------|
-| 16 | ONNX Embedding 引擎 | 代码就绪, 未真机验证 | OnnxEmbeddingEngine.ts 存在, 需要 RN 设备跑通 onnxruntime-react-native |
-| 17 | llama.rn 端侧推理 | Mock通过, 待真机测试 | SmolLM-360M-Instruct GGUF 模型已就位 (~360MB) |
+| 16 | ONNX Embedding 引擎 | ✅ config plugin 已添加, 待真机验证 | app.json 添加 `onnxruntime-react-native` plugin, 修复 Android 原生链接 |
+| 17 | llama.rn 端侧推理 | Mock通过, 待真机测试 | SmolLM-360M 改为按需下载(~200MB), Qwen3-0.6B 可选升级(~639MB) |
 | 18 | 多宠物支持 | 类型完备, UI单宠 | types 支持, App.tsx 硬编码单宠 |
 | 19 | 分享链接机制 | 类型定义存在 | ShareLink interface 有, 无生成/验证逻辑 |
 
@@ -139,6 +142,9 @@
 | 2026-04-18 | 空 Prompt Injection 误报 | `(.{0,30})(?:\1){2,}` 允许空串匹配导致任何输入命中 suspicious | PrivacyGuard.ts:13 `.{0,30}` -> `.{1,30}` | B6/B7/空串测试修复 |
 | 2026-04-18 | piBlocked 返回 undefined | 正常 Chat 路径未显式设置 piBlocked 字段 | AnimaCore.ts:183 添加 `piBlocked: false` | E5/多轮/safe测试修复 |
 | 2026-04-18 | AnimaCore 无法在测试中导入 | class 定义缺少 export 关键字 | AnimaCore.ts:76 添加 export | 测试实例化问题修复 |
+| 2026-04-20 | ONNX Runtime Android 崩溃 `Cannot read property 'install' of null` | onnxruntime-react-native 的 OnnxruntimePackage() 未被 Expo autolink 到 MainApplication.kt | app.json plugins 添加 `onnxruntime-react-native` | Android ONNX 引擎从完全不可用→正常工作 |
+| 2026-04-20 | HuggingFace Qwen3-0.6B GGUF 404 | 官方仓库只有 Q8_0 版本，Q4_K_M/Q2_K 不存在 | ModelManager.ts 改用 ModelScope Q8_0 URL | 下载地址从 404→HTTP 200 |
+| 2026-04-20 | EAS 上传包体 727MB | GGUF 模型 369MB + 冗余 embedding 文件 132MB 全部打包 | 改为混合方案：GGUF 按需下载 + .easignore 排除冗余 | 上传包体从 727MB→~27MB |
 
 ---
 
