@@ -3,7 +3,6 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
   reactStrictMode: true,
   transpilePackages: [
     '@idea-turbo/local-first-sdk',
