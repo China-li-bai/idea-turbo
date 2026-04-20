@@ -14,6 +14,7 @@ module.exports = {
     '^expo-vector-search$': '<rootDir>/src/__mocks__/expo-vector-search.ts',
     '^react-native$': '<rootDir>/src/__mocks__/react-native.ts',
     '^expo-status-bar$': '<rootDir>/src/__mocks__/expo-status-bar.ts',
+    '\\.(onnx|vocab|gguf)$': '<rootDir>/src/__mocks__/file-asset.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

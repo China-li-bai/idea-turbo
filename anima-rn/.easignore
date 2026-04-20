@@ -40,9 +40,16 @@ docs/
 *.md
 !README.md
 
-# 大型资源文件 (模型已打包在 bundle 中)
-# 如果 models 目录很大可以考虑排除，让云端从 CDN 下载
-# models/
+# 大型资源文件
+# GGUF 模型改为按需下载，不再 require() 打包，可以排除
+models/smollm-360m-instruct-add-basics-q8_0.gguf
+
+# Embedding 冗余文件 (只用 model_quantized.onnx + vocab.vocab)
+models/embedding/model.safetensors
+models/embedding/pytorch_model.bin
+models/embedding/onnx/model.onnx
+models/embedding/1_Pooling/
+models/embedding/README.md
 
 # 杂项
 .env.local

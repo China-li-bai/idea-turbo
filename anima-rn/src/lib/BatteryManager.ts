@@ -65,6 +65,23 @@ export function shouldRunConsolidation(): boolean {
   return _currentState.powerMode === 'full' || _currentState.isCharging
 }
 
+export type RecommendedModelQuality = 'full' | 'standard' | 'lite' | 'none'
+
+export function getRecommendedModelQuality(): RecommendedModelQuality {
+  switch (_currentState.powerMode) {
+    case 'full':
+      return 'full'
+    case 'saving':
+      return 'lite'
+    case 'critical':
+      return 'none'
+  }
+}
+
+export function shouldAutoUpgradeModel(): boolean {
+  return _currentState.powerMode === 'full' && _currentState.isCharging
+}
+
 export function subscribeToBatteryState(fn: (state: BatteryState) => void): () => void {
   _listeners.add(fn)
   fn({ ..._currentState })

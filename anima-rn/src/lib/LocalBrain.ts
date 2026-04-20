@@ -1,6 +1,5 @@
 import { initLlama } from './llama-adapter'
 import type { LlamaContext } from 'llama.rn'
-import { Asset } from 'expo-asset'
 import * as FileSystem from 'expo-file-system/legacy'
 import { SPECIES_CONFIG, PERSONALITY_OPTIONS, type Pet, type PetSpecies, type ChatMode } from '../types'
 import {
@@ -18,72 +17,37 @@ import {
   addSemanticFact,
   extractAndClassify,
 } from './MemorySystem'
-
-const MODEL_FILENAME = 'smollm-360m-instruct-add-basics-q8_0.gguf'
-const MODEL_URL = 'https://huggingface.co/monospace-org/smollm-360m-instruct-GGUF/resolve/main/smollm-360m-instruct-add-basics-q8_0.gguf'
-const BUNDLED_MODEL = require('../../models/smollm-360m-instruct-add-basics-q8_0.gguf')
+import {
+  ensureAnyModel,
+  scanInstalledModels,
+  getActiveModelPath,
+  setActiveModel,
+  getActiveModelInfo,
+  selectBestModelForBattery,
+  type ModelInfo,
+} from './ModelManager'
 
 let MODEL_PATH = ''
 
-function getModelDirectory(): string {
-  return FileSystem.documentDirectory || ''
-}
-
 export async function ensureModelExists(onDownloadProgress?: (progress: number) => void): Promise<string> {
-  const dir = getModelDirectory()
-  const path = `${dir}${MODEL_FILENAME}`
+  await scanInstalledModels()
+
+  const activePath = getActiveModelPath()
+  if (activePath) {
+    MODEL_PATH = activePath
+    return activePath
+  }
+
+  const path = await ensureAnyModel()
+  if (!path) {
+    throw new Error('没有可用的 AI 模型，请先下载模型')
+  }
+  const modelInfo = getActiveModelInfo()
+  if (modelInfo) {
+    setActiveModel(modelInfo.id)
+  }
   MODEL_PATH = path
-
-  const info = await FileSystem.getInfoAsync(path)
-  if (info.exists) {
-    const sizeMB = ((info as any).size || 0) / 1024 / 1024
-    console.log('[LocalBrain] 📁 Model file exists:', path, `(${sizeMB.toFixed(1)}MB)`)
-    return path
-  }
-
-  console.log('[LocalBrain] 📦 Extracting model from App Bundle...')
-
-  try {
-    console.log('[LocalBrain]   Loading bundled asset...')
-    const asset = Asset.fromModule(BUNDLED_MODEL)
-    await asset.downloadAsync()
-    
-    const sourceUri = asset.localUri || asset.uri
-    console.log('[LocalBrain]   Asset URI:', sourceUri)
-
-    if (!sourceUri) {
-      throw new Error('Failed to get asset URI')
-    }
-
-    console.log('[LocalBrain]   Copying to document directory:', path)
-    await FileSystem.copyAsync({ from: sourceUri, to: path })
-
-    const copiedInfo = await FileSystem.getInfoAsync(path)
-    if (!copiedInfo.exists) {
-      throw new Error('Copy verification failed')
-    }
-
-    const copiedMB = ((copiedInfo as any).size || 0) / 1024 / 1024
-    console.log('[LocalBrain] ✅ Bundled model extracted:', `(${copiedMB.toFixed(1)}MB)`)
-    return path
-  } catch (bundleErr: any) {
-    console.warn('[LocalBrain] ⚠️ Bundle extraction failed:', bundleErr.message)
-    console.log('[LocalBrain] 📥 Falling back to download from:', MODEL_URL)
-
-    try {
-      const downloadRes = await FileSystem.downloadAsync(MODEL_URL, path)
-
-      if (!downloadRes) {
-        throw new Error('Download returned null')
-      }
-
-      console.log('[LocalBrain] ✅ Model downloaded')
-      return downloadRes.uri
-    } catch (dlErr: any) {
-      console.error('[LocalBrain] ❌ Download error:', dlErr.message)
-      throw new Error(`模型加载失败: 内置(${bundleErr.message}) + 下载(${dlErr.message})`)
-    }
-  }
+  return path
 }
 
 export function setModelPath(path: string) {
@@ -180,6 +144,11 @@ export async function loadLocalBrain(
 
     console.log('[LocalBrain] ✅ Model loaded:', llamaContext?.model?.desc || 'unknown')
     console.log('[LocalBrain] GPU enabled:', llamaContext?.gpu || false)
+
+    const activeModel = getActiveModelInfo()
+    if (activeModel) {
+      console.log(`[LocalBrain] 🏷️ 活跃模型: ${activeModel.name} (${activeModel.architecture})`)
+    }
 
     try {
       await initMemorySystem()

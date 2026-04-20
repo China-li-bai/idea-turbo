@@ -18,10 +18,11 @@ const DEFAULT_PET: Pet = {
   updatedAt: new Date().toISOString(),
 }
 
-type InitPhase = 'idle' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
+type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
 
 const PHASE_TEXT: Record<InitPhase, string> = {
   idle: '',
+  downloading: '📥 正在下载 AI 模型...',
   extracting: '📦 正在提取 AI 模型...',
   loading: '🧠 正在唤醒大脑...',
   memory: '💾 正在整理记忆...',
@@ -63,13 +64,14 @@ export default function App() {
 
   const handleAutoInit = useCallback(async () => {
     setInitError(null)
-    setInitPhase('extracting')
-    setLoadProgress(10)
+    setInitPhase('downloading')
+    setLoadProgress(5)
     setLoading(true)
 
     try {
       const status = await animaCore.init(undefined, (progress, phase) => {
         setLoadProgress(Math.round(progress * 100))
+        if (phase === 'extracting') setInitPhase('extracting')
         if (phase === 'model') setInitPhase('loading')
         if (phase === 'memory') setInitPhase('memory')
       })
@@ -275,7 +277,7 @@ export default function App() {
             <Text style={styles.loadingEmoji}>{currentPet?.avatarEmoji}</Text>
             <ActivityIndicator size="large" color="#3b82f6" />
             <Text style={styles.loadingText}>{PHASE_TEXT[initPhase]}</Text>
-            <Text style={styles.loadingSubText}>首次启动需要从 App 包中提取 AI 模型 (~369MB)</Text>
+            <Text style={styles.loadingSubText}>首次启动需要下载 AI 模型 (~200MB)，请连接 WiFi</Text>
           </View>
         )}
 

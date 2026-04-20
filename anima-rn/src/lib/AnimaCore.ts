@@ -1,5 +1,6 @@
 import {
   loadLocalBrain,
+  unloadLocalBrain,
   getBrainState,
   generatePetReply,
   generateVisitorReply,
@@ -33,6 +34,19 @@ import {
   type PowerMode,
   type BatteryState,
 } from './BatteryManager'
+import {
+  scanInstalledModels,
+  getActiveModelInfo,
+  getInstalledModels,
+  getModelRegistry,
+  downloadModel,
+  deleteModel,
+  setActiveModel,
+  selectBestModelForBattery,
+  autoUpgradeOnWifi,
+  type ModelInfo,
+  type InstalledModel,
+} from './ModelManager'
 import type { Pet, Message, ChatMode, MemoryNode, PrivacyLevel } from '../types'
 
 export interface SystemStatus {
@@ -42,6 +56,8 @@ export interface SystemStatus {
     loadProgress: number
     error: string | null
     modelInfo: string | null
+    activeModel: ModelInfo | null
+    installedModels: InstalledModel[]
   }
   memory: {
     isReady: boolean
@@ -335,7 +351,9 @@ export class AnimaCore {
         isLoading: brainState.isLoading,
         loadProgress: brainState.loadProgress,
         error: brainState.error,
-        modelInfo: brainState.isLoaded ? 'SmolLM-360M-Instruct' : null,
+        modelInfo: brainState.isLoaded ? (getActiveModelInfo()?.name || 'Unknown') : null,
+        activeModel: getActiveModelInfo() ?? null,
+        installedModels: getInstalledModels(),
       },
       memory: {
         isReady: isMemoryReady(),
@@ -369,6 +387,39 @@ export class AnimaCore {
         lastConsolidation: null,
       }
     } catch {}
+  }
+
+  async listAvailableModels(): Promise<ModelInfo[]> {
+    return getModelRegistry()
+  }
+
+  async listInstalledModels(): Promise<InstalledModel[]> {
+    await scanInstalledModels()
+    return getInstalledModels()
+  }
+
+  async downloadModel(modelId: string, onProgress?: (progress: number) => void): Promise<string> {
+    return downloadModel(modelId, onProgress)
+  }
+
+  async removeModel(modelId: string): Promise<boolean> {
+    return deleteModel(modelId)
+  }
+
+  async switchModel(modelId: string): Promise<boolean> {
+    const success = setActiveModel(modelId)
+    if (!success) return false
+
+    await unloadLocalBrain()
+    const installed = getInstalledModels()
+    const target = installed.find((m) => m.id === modelId)
+    if (!target) return false
+
+    return loadLocalBrain(target.path)
+  }
+
+  async tryAutoUpgrade(): Promise<string | null> {
+    return autoUpgradeOnWifi()
   }
 
   async destroy(): Promise<void> {

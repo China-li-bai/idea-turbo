@@ -1,7 +1,10 @@
 export const documentDirectory = '/tmp/anima-test/'
 
 export async function getInfoAsync(_path: string) {
-  return { exists: true, isDirectory: false, uri: _path, size: 0, modificationTime: 0 }
+  if (_path.includes('models/') && _path.endsWith('.gguf')) {
+    return { exists: true, isDirectory: false, uri: _path, size: 100 * 1024 * 1024, modificationTime: 0 }
+  }
+  return { exists: true, isDirectory: false, uri: _path, size: 1024, modificationTime: 0 }
 }
 
 export async function readAsStringAsync(_path: string) {
