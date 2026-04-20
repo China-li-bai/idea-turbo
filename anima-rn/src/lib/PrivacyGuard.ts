@@ -5,7 +5,7 @@ const INJECTION_PATTERNS: Array<{ pattern: RegExp; risk: 'suspicious' | 'dangero
   { pattern: /(?:secret|privacy|private|confidential|hidden|隐藏|秘密|隐私|私密|机密)/i, risk: 'suspicious', label: '隐私探测' },
   { pattern: /(?:ignore|forget|override|bypass|绕过|忽略|忘记|覆盖|越狱|jailbreak|system prompt|系统指令|原始指令)/i, risk: 'dangerous', label: '指令越狱' },
   { pattern: /(?:假装|扮演|simulate|act as|我是主人|i am the owner|我是.{0,5}主人)/i, risk: 'dangerous', label: '身份伪装' },
-  { pattern: /(?:JSON?|格式化|结构化|输出为|export|dump|导出|序列化)/i, risk: 'suspicious', label: '结构化提取' },
+  { pattern: /(?:JSON|格式化输出|输出为JSON|export|dump|导出全部|序列化输出)/i, risk: 'suspicious', label: '结构化提取' },
   { pattern: /(?:规则|rule|instruction|指令).{0,5}(?:是什么|告诉我|show me|list|列出|显示)/i, risk: 'dangerous', label: '规则探询' },
   { pattern: /(?:日记|吐槽|抱怨|哭|难过|伤心|不开心|depressed|sad).{0,20}(?:详情|具体|内容|说了什么)/i, risk: 'suspicious', label: '情感深挖' },
   { pattern: /(?:地址|住址|电话|手机|身份证|银行卡|账号|密码|address|phone|id card)/i, risk: 'dangerous', label: 'PII探测' },

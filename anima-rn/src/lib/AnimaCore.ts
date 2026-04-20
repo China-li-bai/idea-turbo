@@ -4,6 +4,7 @@ import {
   generatePetReply,
   generateVisitorReply,
   subscribeToBrainState,
+  getFallbackReply,
 } from './LocalBrain'
 import {
   initMemorySystem,
@@ -18,9 +19,20 @@ import {
   consolidateMemories,
   getAllMemories,
   getRecentContext,
+  clearConsolidationTimer,
 } from './MemorySystem'
 import { detectPromptInjection, classifyPrivacyFromContent } from './PrivacyGuard'
 import { initEmbeddingEngine, isUsingOnnxEngine, getEmbeddingEngine } from './EmbeddingEngine'
+import {
+  initBatteryManager,
+  getPowerMode,
+  shouldUseLocalModel,
+  shouldRunConsolidation,
+  getBatteryState,
+  subscribeToBatteryState,
+  type PowerMode,
+  type BatteryState,
+} from './BatteryManager'
 import type { Pet, Message, ChatMode, MemoryNode, PrivacyLevel } from '../types'
 
 export interface SystemStatus {
@@ -47,6 +59,11 @@ export interface SystemStatus {
   privacy: {
     lastPiCheck: string | null
     blockedCount: number
+  }
+  battery: {
+    level: number
+    isCharging: boolean
+    powerMode: PowerMode
   }
 }
 
@@ -82,6 +99,7 @@ export class AnimaCore {
   private _piBlockCount = 0
   private _lastPiCheck: string | null = null
   private _brainUnsub: (() => void) | null = null
+  private _batteryUnsub: (() => void) | null = null
   private _cachedMemoryStats = {
     episodicCount: 0,
     semanticCount: 0,
@@ -124,6 +142,7 @@ export class AnimaCore {
 
       console.log('[AnimaCore] │ Step 3/3: 注册状态监听...')
       this._brainUnsub = subscribeToBrainState(() => {})
+      this._batteryUnsub = initBatteryManager()
       onProgress?.(1.0, 'model')
 
       this._initialized = true
@@ -176,6 +195,17 @@ export class AnimaCore {
 
     addToWorkingMemory(conversationId, 'user', userMessage)
     this.trackConversation(conversationId)
+
+    if (!shouldUseLocalModel()) {
+      thinkingSteps.push(`🔋 电量低,使用快速回复模式`)
+      const fallback = getFallbackReply(userMessage, pet)
+      addToWorkingMemory(conversationId, 'pet', fallback)
+      return {
+        reply: fallback,
+        thinkingSteps,
+        piBlocked: false,
+      }
+    }
 
     thinkingSteps.push(`${pet.avatarEmoji}🧠 正在回忆...`)
 
@@ -324,6 +354,7 @@ export class AnimaCore {
         lastPiCheck: this._lastPiCheck,
         blockedCount: this._piBlockCount,
       },
+      battery: getBatteryState(),
     }
   }
 
@@ -345,11 +376,16 @@ export class AnimaCore {
       this._brainUnsub()
       this._brainUnsub = null
     }
+    if (this._batteryUnsub) {
+      this._batteryUnsub()
+      this._batteryUnsub = null
+    }
 
     for (const convId of this._conversationTrackers.keys()) {
       clearWorkingMemory(convId)
     }
     this._conversationTrackers.clear()
+    clearConsolidationTimer()
 
     this._initialized = false
     console.log('[AnimaCore] 🔓 核心系统已销毁')
@@ -421,6 +457,9 @@ export class AnimaCore {
     console.log(`[AnimaCore] │ 💾 记忆: ${status.memory.isReady ? '✅' : '❌'} | 📔${status.memory.episodicCount} 🧠${status.memory.semanticCount}`)
     console.log(`[AnimaCore] │ 🔢 Embedding: ${status.embedding.engineName} (${status.embedding.dimensions}d) ${status.embedding.isOnnx ? '⚡ONNX' : '🔤关键词'}`)
     console.log(`[AnimaCore] │ 🛡️ PI防护: 拦截${status.privacy.blockedCount}次`)
+    const bat = status.battery
+    const batIcon = bat.powerMode === 'full' ? '🔋' : bat.powerMode === 'saving' ? '🪫' : '🪫⚠️'
+    console.log(`[AnimaCore] │ ${batIcon} 电池: ${bat.level}% ${bat.isCharging ? '⚡充电中' : ''} 模式:${bat.powerMode}`)
     console.log(`[AnimaCore] └────────────────────────────────`)
   }
 }

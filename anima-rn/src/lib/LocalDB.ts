@@ -152,6 +152,7 @@ export async function insertEpisodicMemory(
   memory: Omit<EpisodicRow, 'access_count' | 'last_accessed' | 'created_at'>
 ): Promise<void> {
   const database = getDB()
+  const sanitizedContent = memory.content.slice(0, 500)
   await database.runAsync(
     `INSERT OR REPLACE INTO episodic_memories 
      (id, pet_id, content, timestamp, privacy_level, tags, importance, embedding_json)
@@ -159,7 +160,7 @@ export async function insertEpisodicMemory(
     [
       memory.id,
       memory.pet_id,
-      memory.content,
+      sanitizedContent,
       memory.timestamp,
       memory.privacy_level,
       memory.tags,
@@ -296,10 +297,11 @@ export async function insertConversation(
   metadata?: Record<string, any>
 ): Promise<void> {
   const database = getDB()
+  const sanitizedContent = content.slice(0, 2000)
   await database.runAsync(
     `INSERT INTO conversations (id, pet_id, conversation_id, role, content, metadata)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [`conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, petId, conversationId, role, content, JSON.stringify(metadata ?? {})]
+    [`conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, petId, conversationId, role, sanitizedContent, JSON.stringify(metadata ?? {})]
   )
 }
 

@@ -33,9 +33,13 @@ const SEMANTIC_CONFIDENCE_BOOST = 0.1
 const SEMANTIC_CONFIDENCE_DECAY = 0.02
 const IMPORTANCE_THRESHOLD = 0.15
 const CONSOLIDATION_INTERVAL_MS = 10 * 60 * 1000
+const CONSOLIDATION_DELAY_MS = 5000
+const CONSOLIDATION_TURN_THRESHOLD = 6
+
 let workingMemories: Map<string, WorkingMemory> = new Map()
 let isInitialized = false
 let lastConsolidationTime = Date.now()
+let conversationTurnCounter = 0
 
 export async function initMemorySystem(): Promise<void> {
   if (isInitialized) return
@@ -95,7 +99,16 @@ export function addToWorkingMemory(
 
   updateTopicSummary(wm)
 
-  if (Date.now() - lastConsolidationTime > CONSOLIDATION_INTERVAL_MS) {
+  if (role === 'user') {
+    conversationTurnCounter++
+  }
+
+  const timeSinceLastConsolidation = Date.now() - lastConsolidationTime
+  const shouldConsolidate =
+    (conversationTurnCounter >= CONSOLIDATION_TURN_THRESHOLD) ||
+    (timeSinceLastConsolidation > CONSOLIDATION_INTERVAL_MS && conversationTurnCounter >= 2)
+
+  if (shouldConsolidate) {
     scheduleBackgroundConsolidation()
   }
 }
@@ -410,11 +423,21 @@ function scheduleBackgroundConsolidation(): void {
   consolidationTimer = setTimeout(async () => {
     consolidationTimer = null
     try {
+      const turns = conversationTurnCounter
+      conversationTurnCounter = 0
+      console.log(`[MemorySystem] 🔄 自动触发记忆整理 (累积${turns}轮对话)`)
       await consolidateMemories('*')
     } catch (e: any) {
       console.error('[MemorySystem] 后台整理失败:', e.message)
     }
-  }, 1000)
+  }, CONSOLIDATION_DELAY_MS)
+}
+
+export function clearConsolidationTimer(): void {
+  if (consolidationTimer) {
+    clearTimeout(consolidationTimer)
+    consolidationTimer = null
+  }
 }
 
 export function extractAndClassify(rawText: string, petId: string): MemoryExtractResult {
@@ -537,8 +560,14 @@ export async function getAllMemories(petId: string): Promise<{
   }
 }
 
-export async function resetAllMemory(): Promise<void> {
+export async function resetAllMemory(confirmToken?: string): Promise<void> {
+  if (confirmToken !== 'CONFIRM_RESET_ALL_MEMORY') {
+    console.warn('[MemorySystem] ⚠️ 记忆清空需要确认令牌')
+    return
+  }
+
   workingMemories.clear()
+  conversationTurnCounter = 0
   try {
     const { getDB } = await import('./LocalDB')
     const database = getDB()
