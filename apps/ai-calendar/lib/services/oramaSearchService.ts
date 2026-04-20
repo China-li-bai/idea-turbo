@@ -17,6 +17,25 @@ import {
 const env = await import("@huggingface/transformers").then(m => m.env);
 const { pipeline } = await import("@huggingface/transformers");
 
+async function checkWebGPUSupport(): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.gpu) {
+    return false;
+  }
+  
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      return false;
+    }
+    
+    const device = await adapter.requestDevice();
+    return !!device;
+  } catch (error) {
+    console.warn('[Transformers.js v4] WebGPU check failed:', error);
+    return false;
+  }
+}
+
 if (typeof window !== 'undefined') {
   env.allowLocalModels = false;
   
@@ -26,48 +45,78 @@ if (typeof window !== 'undefined') {
   
   if (isSecureContext || isLocalhost) {
     env.useBrowserCache = true;
-    console.log('[Transformers.js] Browser cache enabled (secure context)');
+    console.log('[Transformers.js v4] Browser cache enabled (secure context)');
   } else {
     env.useBrowserCache = false;
-    console.log('[Transformers.js] Browser cache disabled (non-secure context: IP access)');
+    console.log('[Transformers.js v4] Browser cache disabled (non-secure context: IP access)');
   }
   
   const useMirror = localStorage.getItem('use-hf-mirror') === 'true';
   if (useMirror) {
     env.remoteHost = 'https://hf-mirror.com';
-    console.log('[Transformers.js] Using HF mirror: hf-mirror.com');
+    console.log('[Transformers.js v4] Using HF mirror: hf-mirror.com');
   } else {
     env.remoteHost = 'https://huggingface.co';
-    console.log('[Transformers.js] Using official HuggingFace CDN');
+    console.log('[Transformers.js v4] Using official HuggingFace CDN');
   }
 }
 
 async function loadPipelineWithRetry(
   model: string,
-  maxRetries: number = 3
-): Promise<any> {
+  maxRetries: number = 3,
+  preferWebGPU: boolean = true
+): Promise<{ extractor: any; device: 'webgpu' | 'wasm' }> {
   let lastError: Error | null = null;
+  let useWebGPU = preferWebGPU;
+  
+  if (preferWebGPU && typeof window !== 'undefined') {
+    const hasWebGPU = await checkWebGPUSupport();
+    if (hasWebGPU) {
+      console.log('[Transformers.js v4] WebGPU available, will use GPU acceleration');
+    } else {
+      console.log('[Transformers.js v4] WebGPU not available, falling back to WASM (CPU)');
+      useWebGPU = false;
+    }
+  }
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[Transformers.js] Loading model ${model}, attempt ${attempt}/${maxRetries}`);
-      const result = await pipeline("feature-extraction", model);
-      console.log(`[Transformers.js] Model ${model} loaded successfully`);
-      return result;
+      const device = useWebGPU ? 'webgpu' : 'wasm';
+      console.log(`[Transformers.js v4] Loading model ${model} with ${device.toUpperCase()}, attempt ${attempt}/${maxRetries}`);
+      
+      const result = await pipeline("feature-extraction", model, {
+        device: device,
+        dtype: 'fp16',
+        progress_callback: (progress: any) => {
+          if (progress && progress.status === 'progress') {
+            const percent = Math.round((progress.loaded / progress.total) * 100);
+            console.log(`[Transformers.js v4] Model loading: ${percent}% (${progress.loaded}/${progress.total})`);
+          }
+        }
+      });
+      
+      console.log(`[Transformers.js v4] Model ${model} loaded successfully with ${device.toUpperCase()}`);
+      return { extractor: result, device };
     } catch (error) {
       lastError = error as Error;
-      console.error(`[Transformers.js] Attempt ${attempt} failed:`, error);
+      console.error(`[Transformers.js v4] Attempt ${attempt} failed:`, error);
+      
+      if (useWebGPU && attempt === 1) {
+        console.log('[Transformers.js v4] WebGPU failed, falling back to WASM...');
+        useWebGPU = false;
+        continue;
+      }
       
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
-        console.log(`[Transformers.js] Retrying in ${delay}ms...`);
+        console.log(`[Transformers.js v4] Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         
         if (attempt === 1 && env.remoteHost === 'https://hf-mirror.com') {
-          console.log('[Transformers.js] Switching to HuggingFace official CDN...');
+          console.log('[Transformers.js v4] Switching to HuggingFace official CDN...');
           env.remoteHost = 'https://huggingface.co';
         } else if (attempt === 2) {
-          console.log('[Transformers.js] Trying alternative CDN...');
+          console.log('[Transformers.js v4] Trying alternative CDN...');
           env.remoteHost = 'https://hf-mirror.com';
         }
       }
@@ -168,6 +217,7 @@ export class OramaSearchService {
   private modelConfig: AIModelConfig = AI_MODELS[DEFAULT_AI_MODEL];
   private db: any = null;
   private extractor: any = null;
+  private currentDevice: 'webgpu' | 'wasm' = 'wasm';
   private isReady = false;
   private initPromise: Promise<void> | null = null;
   private needsSave = false;
@@ -200,6 +250,10 @@ export class OramaSearchService {
 
   get currentModel(): AIModelConfig {
     return this.modelConfig;
+  }
+
+  get device(): 'webgpu' | 'wasm' {
+    return this.currentDevice;
   }
 
   private scheduleSave(): void {
@@ -349,7 +403,11 @@ export class OramaSearchService {
 
       if (progressCallback) progressCallback(1, 4, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
-      this.extractor = await loadPipelineWithRetry(this.modelConfig.modelName);
+      const { extractor, device } = await loadPipelineWithRetry(this.modelConfig.modelName);
+      this.extractor = extractor;
+      this.currentDevice = device;
+      
+      console.log(`[OramaSearchService] Model initialized with ${device.toUpperCase()} backend`);
 
       if (progressCallback) progressCallback(2, 4, "正在加载本地数据...");
 
@@ -358,7 +416,7 @@ export class OramaSearchService {
       if (loaded) {
         if (progressCallback) progressCallback(4, 4, "从本地数据恢复完成");
         this.isReady = true;
-        console.log(`OramaSearchService restored from IndexedDB: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
+        console.log(`[OramaSearchService] Restored from IndexedDB: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
         return;
       }
 
@@ -391,9 +449,9 @@ export class OramaSearchService {
       if (progressCallback) progressCallback(4, 4, "初始化完成");
 
       this.isReady = true;
-      console.log(`OramaSearchService initialized with model: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D)`);
+      console.log(`[OramaSearchService] Initialized with model: ${this.modelConfig.modelName} (${this.modelConfig.dimensions}D, ${this.currentDevice.toUpperCase()})`);
     } catch (error) {
-      console.error("Failed to initialize OramaSearchService:", error);
+      console.error("[OramaSearchService] Failed to initialize:", error);
       throw error;
     }
   }
