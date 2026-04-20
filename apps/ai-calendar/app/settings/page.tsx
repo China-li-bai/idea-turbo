@@ -2,9 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { aiConfigManager } from '@/lib/ai/config';
+import { aiService } from '@/lib/ai';
 import type { AIConfig, ProviderConfig } from '@/lib/ai/types';
+import type { LocalLLMStatus } from '@/lib/ai/providers/localLLM';
 
 const PROVIDER_INFO = {
+  local: {
+    name: '本地模型',
+    description: 'Qwen2.5-0.5B（免费，无需 API Key，离线可用）',
+    getApiKeyUrl: '',
+  },
   openai: {
     name: 'OpenAI',
     description: 'GPT-4o, GPT-4 Turbo, GPT-3.5',
@@ -32,10 +39,25 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [localStatus, setLocalStatus] = useState<LocalLLMStatus | null>(null);
 
   useEffect(() => {
     loadConfig();
+    watchLocalStatus();
   }, []);
+
+  const watchLocalStatus = async () => {
+    // 等待 aiService 初始化完成
+    await aiService.getProvider('local').catch(() => null);
+    
+    const localProvider = aiService.getLocalProvider();
+    if (localProvider) {
+      setLocalStatus(localProvider.status);
+      localProvider.setStatusCallback((status) => {
+        setLocalStatus({ ...status });
+      });
+    }
+  };
 
   const loadConfig = async () => {
     try {
@@ -72,6 +94,8 @@ export default function SettingsPage() {
       const cfg = await aiConfigManager.getConfig();
       setConfig(cfg);
       setMessage({ type: 'success', text: '设置已重置！' });
+      // 刷新页面以应用新配置
+      window.location.reload();
     } catch (error) {
       setMessage({ type: 'error', text: '重置失败，请重试。' });
     }
@@ -164,6 +188,68 @@ export default function SettingsPage() {
                 const info = PROVIDER_INFO[key as keyof typeof PROVIDER_INFO];
                 const isDefault = config.defaultProvider === key;
                 const hasKey = provider.apiKey && provider.apiKey.length > 0;
+
+                if (key === 'local') {
+                  return (
+                    <div
+                      key={key}
+                      className={`border rounded-lg p-4 ${
+                        isDefault ? 'border-green-500 bg-green-50' : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            {info?.name || key}
+                            {isDefault && (
+                              <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                                默认
+                              </span>
+                            )}
+                          </h3>
+                          <p className="text-sm text-gray-500">{info?.description}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm px-2 py-1 rounded ${
+                            localStatus?.isReady
+                              ? 'text-green-600 bg-green-100'
+                              : localStatus?.isLoading
+                              ? 'text-yellow-600 bg-yellow-100'
+                              : 'text-gray-400 bg-gray-100'
+                          }`}>
+                            {localStatus?.isReady
+                              ? `✓ 就绪 (${localStatus.device.toUpperCase()})`
+                              : localStatus?.isLoading
+                              ? `加载中... ${localStatus.progress ? Math.round((localStatus.progress.current / localStatus.progress.total) * 100) : 0}%`
+                              : '未加载'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {localStatus?.isLoading && localStatus.progress && (
+                        <div className="mt-3">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${Math.min(100, (localStatus.progress.current / localStatus.progress.total) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {localStatus.progress.status} ({(localStatus.progress.current / 1024 / 1024).toFixed(1)}MB / {(localStatus.progress.total / 1024 / 1024).toFixed(1)}MB)
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="mt-3 bg-gray-50 rounded p-3">
+                        <p className="text-xs text-gray-600">
+                          💡 本地模型在浏览器中运行，数据不会上传到任何服务器。首次使用需要下载模型文件（约 300MB），之后会缓存在本地。
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
