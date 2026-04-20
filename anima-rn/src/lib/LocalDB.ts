@@ -106,7 +106,7 @@ export async function initLocalDB(): Promise<SQLiteDatabase> {
   `)
 
   console.log('[LocalDB] ✅ 数据库初始化完成')
-  return db
+  return db!
 }
 
 export function getDB(): SQLiteDatabase {

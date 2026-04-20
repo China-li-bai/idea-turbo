@@ -5,7 +5,9 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleNameMapper: {
+    '^expo-file-system/legacy$': '<rootDir>/src/__mocks__/expo-file-system.ts',
     '^expo-file-system$': '<rootDir>/src/__mocks__/expo-file-system.ts',
+    '^expo-asset$': '<rootDir>/src/__mocks__/expo-asset.ts',
     '^expo-sqlite$': '<rootDir>/src/__mocks__/expo-sqlite.ts',
     '^llama\\.rn$': '<rootDir>/src/__mocks__/llama-rn.ts',
     '^onnxruntime-react-native$': '<rootDir>/src/__mocks__/onnxruntime-react-native.ts',
