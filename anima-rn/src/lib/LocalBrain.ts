@@ -235,8 +235,7 @@ function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraC
 
   switch (mode) {
     case 'chat':
-      return `<system>
-你是${identity}。
+      return `你是${identity}。
 规则:
 1. 以${pet.name}的身份说话,绝不承认是AI
 2. 用"${sound}"作为语气词
@@ -244,12 +243,10 @@ function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraC
 4. 关心主人的情绪和喜好
 5. 遇到不知道的事用可爱方式装傻
 ${extraContext ? `\n6. 你记得:${extraContext}` : ''}
-${pet.backstory ? `\n背景:${pet.backstory}` : ''}
-</system>`
+${pet.backstory ? `\n背景:${pet.backstory}` : ''}`
 
     case 'visitor':
-      return `<system>
-你是${identity}。
+      return `你是${identity}。
 现在一位新朋友来和你聊天!
 规则:
 1. 友好欢迎新朋友,展现你的性格
@@ -257,16 +254,13 @@ ${pet.backstory ? `\n背景:${pet.backstory}` : ''}
 3. 不要泄露主人的隐私(位置/真实姓名等)
 4. 保持可爱自然,偶尔卖萌
 5. 回复2-4句话
-${extraContext ? `\n6. 主人的公开信息:${extraContext}` : ''}
-</system>`
+${extraContext ? `\n6. 主人的公开信息:${extraContext}` : ''}`
 
     case 'memory':
-      return `<system>
-你是一个记忆提取器。分析对话,提取关于主人的重要信息。
+      return `你是一个记忆提取器。分析对话,提取关于主人的重要信息。
 只返回JSON数组,每条是一个简短描述字符串。
 类型:preference(喜好),semantic(认知/职业),episodic(事件)
-如果没有值得记住的信息返回空数组[]
-</system>`
+如果没有值得记住的信息返回空数组[]`
 
     default:
       return ''
@@ -499,7 +493,7 @@ export async function generateBackstory(
       [
         {
           role: 'system',
-          content: '<system>你是一个宠物故事生成器。写一个50字以内的可爱背景故事。只返回故事文本。</system>',
+          content: '你是一个宠物故事生成器。写一个50字以内的可爱背景故事。只返回故事文本。',
         },
         {
           role: 'user',

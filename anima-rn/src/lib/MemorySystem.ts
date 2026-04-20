@@ -539,9 +539,9 @@ export async function getAllMemories(petId: string): Promise<{
 
 export async function resetAllMemory(): Promise<void> {
   workingMemories.clear()
-  const db = (await import('./LocalDB')).getDB
   try {
-    const database = (await import('./LocalDB')).getDB()
+    const { getDB } = await import('./LocalDB')
+    const database = getDB()
     await database.execAsync(`
       DELETE FROM episodic_memories;
       DELETE FROM semantic_facts;

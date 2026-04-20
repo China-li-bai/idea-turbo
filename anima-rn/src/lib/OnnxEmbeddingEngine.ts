@@ -8,12 +8,103 @@ async function getONNX() {
 }
 
 import type { IEmbeddingEngine } from './EmbeddingEngine'
-import { getDocumentDirectory, getFileInfo, readAsStringAsync } from './fs-utils'
+import { ensureDocumentDirectory, getDocumentDirectory, getFileInfo, readAsStringAsync, makeDirectoryAsync, copyFile } from './fs-utils'
+import { Asset } from 'expo-asset'
+import * as FileSystem from 'expo-file-system/legacy'
 
-const DOC_DIR = getDocumentDirectory()
-const MODEL_DIR = DOC_DIR + 'models/embedding/'
-const ONNX_MODEL_PATH = MODEL_DIR + 'onnx/model_quantized.onnx'
-const VOCAB_PATH = MODEL_DIR + 'vocab.txt'
+const BUNDLED_ONNX_MODEL = require('../../models/embedding/onnx/model_quantized.onnx')
+const BUNDLED_VOCAB = require('../../models/embedding/vocab.vocab')
+
+const EMBEDDING_MODEL_DIR = 'models/embedding/'
+const ONNX_SUBDIR = 'onnx/'
+
+let _modelDir = ''
+let _onnxModelPath = ''
+let _vocabPath = ''
+
+async function ensureEmbeddingModelExists(): Promise<string> {
+  const docDir = await ensureDocumentDirectory()
+  _modelDir = docDir + EMBEDDING_MODEL_DIR
+  _onnxModelPath = _modelDir + ONNX_SUBDIR + 'model_quantized.onnx'
+  _vocabPath = _modelDir + 'vocab.txt'
+
+  const modelInfo = await getFileInfo(_onnxModelPath)
+  const vocabInfo = await getFileInfo(_vocabPath)
+
+  if (modelInfo.exists && vocabInfo.exists) {
+    console.log('[OnnxEmbedding] 📁 Model files already exist at:', _modelDir)
+    return _modelDir
+  }
+
+  console.log('[OnnxEmbedding] 📦 Extracting embedding model from App Bundle...')
+
+  try {
+    await makeDirectoryAsync(_modelDir + ONNX_SUBDIR, { intermediates: true })
+  } catch (e: any) {
+    if (!e.message?.includes('already exists')) {
+      console.warn('[OnnxEmbedding] ⚠️ mkdir failed:', e.message)
+    }
+  }
+
+  try {
+    if (!modelInfo.exists) {
+      console.log('[OnnxEmbedding]   Extracting ONNX model...')
+      const onnxAsset = Asset.fromModule(BUNDLED_ONNX_MODEL)
+      await onnxAsset.downloadAsync()
+      const onnxUri = onnxAsset.localUri || onnxAsset.uri
+      if (!onnxUri) throw new Error('Failed to get ONNX asset URI')
+      await copyFile(onnxUri, _onnxModelPath)
+      console.log('[OnnxEmbedding]   ✅ ONNX model extracted')
+    }
+
+    if (!vocabInfo.exists) {
+      console.log('[OnnxEmbedding]   Extracting vocab...')
+      const vocabAsset = Asset.fromModule(BUNDLED_VOCAB)
+      await vocabAsset.downloadAsync()
+      const vocabUri = vocabAsset.localUri || vocabAsset.uri
+      if (!vocabUri) throw new Error('Failed to get vocab asset URI')
+      await copyFile(vocabUri, _vocabPath)
+      console.log('[OnnxEmbedding]   ✅ Vocab extracted')
+    }
+
+    const verifyModel = await getFileInfo(_onnxModelPath)
+    const verifyVocab = await getFileInfo(_vocabPath)
+    if (!verifyModel.exists || !verifyVocab.exists) {
+      throw new Error('File verification failed after extraction')
+    }
+
+    console.log('[OnnxEmbedding] ✅ All embedding model files extracted')
+    return _modelDir
+  } catch (bundleErr: any) {
+    console.warn('[OnnxEmbedding] ⚠️ Bundle extraction failed:', bundleErr.message)
+    console.log('[OnnxEmbedding] 📥 Attempting download from HuggingFace...')
+
+    try {
+      const HF_BASE = 'https://huggingface.co/BAAI/bge-micro-v2/resolve/main/'
+      if (!modelInfo.exists) {
+        console.log('[OnnxEmbedding]   Downloading ONNX model...')
+        const dlResult = await FileSystem.downloadAsync(
+          HF_BASE + 'onnx/model_quantized.onnx',
+          _onnxModelPath
+        )
+        if (!dlResult) throw new Error('ONNX download returned null')
+      }
+      if (!vocabInfo.exists) {
+        console.log('[OnnxEmbedding]   Downloading vocab...')
+        const dlResult = await FileSystem.downloadAsync(
+          HF_BASE + 'vocab.txt',
+          _vocabPath
+        )
+        if (!dlResult) throw new Error('Vocab download returned null')
+      }
+      console.log('[OnnxEmbedding] ✅ Embedding model downloaded')
+      return _modelDir
+    } catch (dlErr: any) {
+      console.error('[OnnxEmbedding] ❌ Download failed:', dlErr.message)
+      throw new Error(`Embedding model load failed: bundle(${bundleErr.message}) + download(${dlErr.message})`)
+    }
+  }
+}
 
 const MAX_SEQ_LENGTH = 512
 const HIDDEN_SIZE = 384
@@ -216,8 +307,12 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
     this._error = null
 
     try {
-      const onnxPath = modelDir ? modelDir + '/onnx/model_quantized.onnx' : ONNX_MODEL_PATH
-      const vocabPath = modelDir ? modelDir + '/vocab.txt' : VOCAB_PATH
+      if (!modelDir) {
+        await ensureEmbeddingModelExists()
+      }
+
+      const onnxPath = modelDir ? modelDir + '/onnx/model_quantized.onnx' : _onnxModelPath
+      const vocabPath = modelDir ? modelDir + '/vocab.txt' : _vocabPath
 
       console.log('[OnnxEmbedding] 🔄 Loading BGE-Micro-v2...')
       console.log(`[OnnxEmbedding]   Model: ${onnxPath}`)
@@ -302,17 +397,18 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
     }
 
     try {
-      const results = await this.session!.run(feeds)
+      const results: Record<string, any> = await this.session!.run(feeds)
 
       let lastHiddenState: Float32Array | null = null
 
       for (const [name, tensor] of Object.entries(results)) {
+        const t = tensor as any
         if (
           name.includes('last_hidden') ||
           name.includes('output') ||
-          (tensor.dims && tensor.dims.length === 3 && tensor.dims[2] === HIDDEN_SIZE)
+          (t.dims && t.dims.length === 3 && t.dims[2] === HIDDEN_SIZE)
         ) {
-          const data = tensor.data as Float32Array | number[]
+          const data = t.data as Float32Array | number[]
           lastHiddenState = data instanceof Float32Array ? data : new Float32Array(data)
           break
         }
@@ -320,8 +416,9 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
 
       if (!lastHiddenState) {
         for (const [, tensor] of Object.entries(results)) {
-          if (tensor.dims && tensor.dims.length === 3) {
-            const data = tensor.data as Float32Array | number[]
+          const t = tensor as any
+          if (t.dims && t.dims.length === 3) {
+            const data = t.data as Float32Array | number[]
             lastHiddenState = data instanceof Float32Array ? data : new Float32Array(data)
             break
           }
@@ -329,7 +426,7 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
       }
 
       if (!lastHiddenState) {
-        const firstTensor = Object.values(results)[0]
+        const firstTensor = Object.values(results)[0] as any
         if (firstTensor) {
           const data = firstTensor.data as Float32Array | number[]
           lastHiddenState = data instanceof Float32Array ? data : new Float32Array(data)
@@ -400,11 +497,18 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
     if (a.length !== b.length) return 0
 
     let dotProduct = 0
+    let normA = 0
+    let normB = 0
+
     for (let i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i]
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
     }
 
-    return dotProduct
+    const denom = Math.sqrt(normA) * Math.sqrt(normB)
+    if (denom === 0) return 0
+    return dotProduct / denom
   }
 
   async release(): Promise<void> {

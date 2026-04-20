@@ -7,7 +7,14 @@ async function getSQLite() {
   return SQLiteModule
 }
 
-type SQLiteDatabase = any
+type SQLiteDatabase = {
+  execAsync: (sql: string) => Promise<void>
+  runAsync: (sql: string, params?: any[]) => Promise<{ lastInsertRowId: number; changes: number }>
+  getFirstAsync<T = any>(sql: string, params?: any[]): Promise<T | null>
+  getAllAsync<T = any>(sql: string, params?: any[]): Promise<T[]>
+  closeAsync: () => Promise<void>
+}
+type PrivacyLevel = 1 | 2 | 3
 
 const DB_NAME = 'anima_local.db'
 
@@ -19,7 +26,7 @@ export async function initLocalDB(): Promise<SQLiteDatabase> {
   const SQLite = await getSQLite()
   db = await SQLite.openDatabaseAsync(DB_NAME)
 
-  await db.execAsync(`
+  await db!.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
 
@@ -104,7 +111,7 @@ export async function initLocalDB(): Promise<SQLiteDatabase> {
 
 export function getDB(): SQLiteDatabase {
   if (!db) throw new Error('[LocalDB] 数据库未初始化，请先调用 initLocalDB()')
-  return db
+  return db!
 }
 
 export async function closeDB(): Promise<void> {

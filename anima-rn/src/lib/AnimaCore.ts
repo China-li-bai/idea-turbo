@@ -82,6 +82,12 @@ export class AnimaCore {
   private _piBlockCount = 0
   private _lastPiCheck: string | null = null
   private _brainUnsub: (() => void) | null = null
+  private _cachedMemoryStats = {
+    episodicCount: 0,
+    semanticCount: 0,
+    conversationCount: 0,
+    lastConsolidation: null as string | null,
+  }
 
   get isInitialized(): boolean {
     return this._initialized
@@ -124,6 +130,8 @@ export class AnimaCore {
       this._initError = null
       console.log('[AnimaCore] └─────────────────────────────────────')
       console.log('[AnimaCore] ✅ Anima 核心系统就绪!')
+
+      await this.refreshMemoryStats()
 
       const status = this.getSystemStatus()
       this.logSystemStatus(status)
@@ -289,15 +297,6 @@ export class AnimaCore {
 
   getSystemStatus(): SystemStatus {
     const brainState = getBrainState()
-
-    let memoryStats = { episodicCount: 0, semanticCount: 0, conversationCount: 0, lastConsolidation: null as string | null }
-    if (isMemoryReady()) {
-      getAllMemories('status-check').then((memData) => {
-        memoryStats.episodicCount = memData.episodic.length
-        memoryStats.semanticCount = memData.semantic.length
-      }).catch(() => {})
-    }
-
     const engine = getEmbeddingEngine()
 
     return {
@@ -310,7 +309,10 @@ export class AnimaCore {
       },
       memory: {
         isReady: isMemoryReady(),
-        ...memoryStats,
+        episodicCount: this._cachedMemoryStats.episodicCount,
+        semanticCount: this._cachedMemoryStats.semanticCount,
+        conversationCount: this._cachedMemoryStats.conversationCount,
+        lastConsolidation: this._cachedMemoryStats.lastConsolidation,
       },
       embedding: {
         engineName: engine.name,
@@ -323,6 +325,19 @@ export class AnimaCore {
         blockedCount: this._piBlockCount,
       },
     }
+  }
+
+  async refreshMemoryStats(): Promise<void> {
+    if (!isMemoryReady()) return
+    try {
+      const memData = await getAllMemories('status-refresh')
+      this._cachedMemoryStats = {
+        episodicCount: memData.episodic.length,
+        semanticCount: memData.semantic.length,
+        conversationCount: 0,
+        lastConsolidation: null,
+      }
+    } catch {}
   }
 
   async destroy(): Promise<void> {

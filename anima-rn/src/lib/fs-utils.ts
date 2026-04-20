@@ -1,18 +1,19 @@
 import { Platform } from 'react-native'
 
 let FileSystem: any = null
+let _documentDirectory: string = ''
 
 async function getFS(): Promise<any> {
   if (FileSystem) return FileSystem
 
   try {
     const fs = await import('expo-file-system/legacy')
-    FileSystem = fs.default || fs
+    FileSystem = fs
     return FileSystem
   } catch {
     try {
       const fs = await import('expo-file-system')
-      FileSystem = fs.default || fs
+      FileSystem = fs
       return FileSystem
     } catch {
       throw new Error('expo-file-system not available')
@@ -20,11 +21,16 @@ async function getFS(): Promise<any> {
   }
 }
 
-function getDocumentDirectory(): string {
-  if (Platform.OS === 'android') {
-    return '/data/user/0/com.weigh.animarn/files/'
-  }
-  return ''
+export async function ensureDocumentDirectory(): Promise<string> {
+  if (_documentDirectory) return _documentDirectory
+
+  const FS = await getFS()
+  _documentDirectory = FS.documentDirectory || ''
+  return _documentDirectory
+}
+
+export function getDocumentDirectory(): string {
+  return _documentDirectory
 }
 
 export async function getFileInfo(path: string): Promise<{ exists: boolean; size?: number }> {
@@ -105,20 +111,5 @@ export async function downloadFile(url: string, to: string, options?: any): Prom
 }
 
 export function documentDirectory(): string {
-  if (typeof require !== 'undefined') {
-    try {
-      const FS = require('expo-file-system/legacy').default || require('expo-file-system/legacy')
-      return FS.documentDirectory || ''
-    } catch {
-      try {
-        const FS = require('expo-file-system').default || require('expo-file-system')
-        return FS.documentDirectory || ''
-      } catch {
-        return ''
-      }
-    }
-  }
-  return ''
+  return _documentDirectory
 }
-
-export { getDocumentDirectory }

@@ -1,0 +1,49 @@
+# Dependencies (由 npm install 在云端重新安装)
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Expo/EAS 构建产物 (不需要上传)
+android/
+ios/
+*.apk
+*.aab
+*.ipa
+.web-cache/
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# TypeScript 缓存
+*.tsbuildinfo
+
+# Metro 缓存
+.metro-health-check*
+
+# 开发文档 (可选排除)
+docs/
+*.md
+!README.md
+
+# 大型资源文件 (模型已打包在 bundle 中)
+# 如果 models 目录很大可以考虑排除，让云端从 CDN 下载
+# models/
+
+# 杂项
+.env.local
+.env.*.local

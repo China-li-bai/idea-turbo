@@ -18,6 +18,17 @@ const DEFAULT_PET: Pet = {
   updatedAt: new Date().toISOString(),
 }
 
+type InitPhase = 'idle' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
+
+const PHASE_TEXT: Record<InitPhase, string> = {
+  idle: '',
+  extracting: '📦 正在提取 AI 模型...',
+  loading: '🧠 正在唤醒大脑...',
+  memory: '💾 正在整理记忆...',
+  ready: '✅ 准备就绪！',
+  error: '❌ 初始化失败',
+}
+
 export default function App() {
   const {
     messages,
@@ -31,32 +42,51 @@ export default function App() {
     setSystemStatus,
     isCoreInitialized,
     setCoreInitialized,
-    setView,
     setLoading,
   } = useAppStore()
 
   const [inputText, setInputText] = useState('')
   const [initError, setInitError] = useState<string | null>(null)
   const [showSystemPanel, setShowSystemPanel] = useState(false)
+  const [initPhase, setInitPhase] = useState<InitPhase>('idle')
+  const [loadProgress, setLoadProgress] = useState(0)
 
   useEffect(() => {
     if (!currentPet) setCurrentPet(DEFAULT_PET)
   }, [])
 
-  const handleInit = useCallback(async () => {
+  useEffect(() => {
+    if (currentPet && initPhase === 'idle') {
+      handleAutoInit()
+    }
+  }, [currentPet])
+
+  const handleAutoInit = useCallback(async () => {
     setInitError(null)
+    setInitPhase('extracting')
+    setLoadProgress(10)
     setLoading(true)
+
     try {
-      const status = await animaCore.init()
+      const status = await animaCore.init(undefined, (progress, phase) => {
+        setLoadProgress(Math.round(progress * 100))
+        if (phase === 'model') setInitPhase('loading')
+        if (phase === 'memory') setInitPhase('memory')
+      })
+      setInitPhase('ready')
+      setLoadProgress(100)
       setSystemStatus(status)
       setCoreInitialized(true)
+
+      setTimeout(() => setInitPhase('ready'), 500)
     } catch (e: any) {
+      setInitPhase('error')
       setInitError(e.message || '初始化失败')
-      console.error('[App] Init error:', e)
+      console.error('[App] Auto-init error:', e)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentPet])
 
   async function handleSend() {
     if (!inputText.trim() || !currentPet || !isCoreInitialized) return
@@ -132,6 +162,7 @@ export default function App() {
   }
 
   const brainReady = isCoreInitialized && systemStatus?.brain.isLoaded
+  const isLoading = initPhase !== 'idle' && initPhase !== 'ready' && initPhase !== 'error'
 
   return (
     <SafeAreaView style={styles.container}>
@@ -145,7 +176,7 @@ export default function App() {
             <Text style={styles.petName}>{currentPet?.name || 'Anima'}</Text>
             <Text style={styles.brainStatus}>
               {!isCoreInitialized
-                ? '💤 未初始化'
+                ? isLoading ? PHASE_TEXT[initPhase] : '⏳ 准备中...'
                 : brainReady
                   ? '🧠 已就绪'
                   : `⏳ ${systemStatus?.brain.isLoading ? '加载中...' : '未就绪'}`}
@@ -163,13 +194,17 @@ export default function App() {
             <Text style={styles.iconBtnText}>{showSystemPanel ? '✕' : '⚙'}</Text>
           </TouchableOpacity>
         </View>
-
-        {!isCoreInitialized && (
-          <TouchableOpacity style={styles.loadBtn} onPress={handleInit}>
-            <Text style={styles.loadBtnText}>启动系统</Text>
-          </TouchableOpacity>
-        )}
       </View>
+
+      {/* Loading Progress Bar */}
+      {isLoading && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${loadProgress}%` }]} />
+          </View>
+          <Text style={styles.progressText}>{PHASE_TEXT[initPhase]} {loadProgress}%</Text>
+        </View>
+      )}
 
       {/* Error */}
       {(initError || systemStatus?.brain.error) && (
@@ -177,6 +212,11 @@ export default function App() {
           <Text style={styles.statusErrorText}>
             ❌ {initError || systemStatus?.brain.error}
           </Text>
+          {initError && (
+            <TouchableOpacity style={styles.retryBtn} onPress={handleAutoInit}>
+              <Text style={styles.retryBtnText}>🔄 重试</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -230,14 +270,24 @@ export default function App() {
 
       {/* Messages */}
       <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
-        {!isCoreInitialized && currentPet && (
-          <TouchableOpacity style={styles.setupCard} onPress={() => handleInit()}>
-            <Text style={styles.setupTitle}>🚀 启动 Anima 核心</Text>
-            <Text style={styles.setupDesc}>点击初始化 AI 模型 + 记忆系统 + Embedding 引擎</Text>
-          </TouchableOpacity>
+        {isLoading && (
+          <View style={styles.loadingState}>
+            <Text style={styles.loadingEmoji}>{currentPet?.avatarEmoji}</Text>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingText}>{PHASE_TEXT[initPhase]}</Text>
+            <Text style={styles.loadingSubText}>首次启动需要从 App 包中提取 AI 模型 (~369MB)</Text>
+          </View>
         )}
 
-        {messages.length === 0 && isCoreInitialized && (
+        {!isLoading && !isCoreInitialized && !initError && (
+          <View style={styles.loadingState}>
+            <Text style={styles.loadingEmoji}>{currentPet?.avatarEmoji}</Text>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingText}>正在准备...</Text>
+          </View>
+        )}
+
+        {messages.length === 0 && isCoreInitialized && !isLoading && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>{currentPet?.avatarEmoji}</Text>
             <Text style={styles.emptyText}>和 {currentPet?.name} 聊天吧~</Text>
@@ -278,16 +328,16 @@ export default function App() {
           style={styles.input}
           value={inputText}
           onChangeText={setInputText}
-          placeholder={brainReady ? '说点什么...' : isCoreInitialized ? '模型未就绪...' : '请先启动系统'}
+          placeholder={brainReady ? '说点什么...' : isLoading ? '正在准备 AI 系统...' : isCoreInitialized ? '模型未就绪...' : '请稍候...'}
           placeholderTextColor="#9ca3af"
           multiline
           maxLength={500}
-          editable={brainReady}
+          editable={brainReady && !isLoading}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!inputText.trim() || !brainReady) && styles.sendBtnDisabled]}
+          style={[styles.sendBtn, (!inputText.trim() || !brainReady || isLoading) && styles.sendBtnDisabled]}
           onPress={handleSend}
-          disabled={!inputText.trim() || !brainReady}
+          disabled={!inputText.trim() || !brainReady || isLoading}
         >
           <Text style={styles.sendBtnText}>发送</Text>
         </TouchableOpacity>
@@ -357,27 +407,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  loadBtn: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 14,
+  progressContainer: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  loadBtnText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
   },
   statusBarError: {
     marginHorizontal: 16,
     marginTop: 8,
-    padding: 8,
+    padding: 12,
     backgroundColor: '#fef2f2',
     borderRadius: 8,
   },
   statusErrorText: {
     fontSize: 13,
     color: '#dc2626',
+    marginBottom: 8,
+  },
+  retryBtn: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   systemPanel: {
     margin: 16,
@@ -446,25 +522,24 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 24,
   },
-  setupCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+  loadingState: {
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-    borderStyle: 'dashed',
-    marginBottom: 20,
+    paddingVertical: 40,
+    gap: 12,
   },
-  setupTitle: {
-    fontSize: 18,
+  loadingEmoji: {
+    fontSize: 64,
+  },
+  loadingText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
-    marginBottom: 4,
+    color: '#374151',
   },
-  setupDesc: {
-    fontSize: 14,
-    color: '#6b7280',
+  loadingSubText: {
+    fontSize: 13,
+    color: '#9ca3af',
+    textAlign: 'center',
+    maxWidth: 280,
   },
   emptyState: {
     alignItems: 'center',

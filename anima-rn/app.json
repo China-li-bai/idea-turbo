@@ -37,7 +37,21 @@
       }
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-file-system",
+      [
+        "llama.rn",
+        {
+          "android": {
+            "allowInternet": true,
+            "useMmap": true
+          },
+          "ios": {
+            "allowInternet": true
+          }
+        }
+      ],
+      "expo-sqlite"
     ]
   }
 }
