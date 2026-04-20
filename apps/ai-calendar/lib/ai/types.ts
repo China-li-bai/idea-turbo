@@ -48,6 +48,8 @@ export interface ProviderConfig {
   apiKey: string;
   model: string;
   defaultModel?: string;
+  modelId?: string;
+  modelSource?: 'huggingface' | 'modelscope';
 }
 
 export interface AIConfig {

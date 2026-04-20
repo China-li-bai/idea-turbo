@@ -3,6 +3,14 @@ import type { AIConfig } from './types';
 
 const DEFAULT_CONFIG: AIConfig = {
   providers: {
+    local: {
+      baseURL: '',
+      apiKey: '',
+      model: 'MiniCPM4-0.5B-Instruct',
+      defaultModel: 'MiniCPM4-0.5B-Instruct',
+      modelId: 'damo/MiniCPM4-0.5B-Instruct-int4-onnx',
+      modelSource: 'modelscope',
+    },
     openai: {
       baseURL: 'https://api.openai.com/v1',
       apiKey: '',
@@ -28,7 +36,7 @@ const DEFAULT_CONFIG: AIConfig = {
       defaultModel: 'qwen-plus',
     },
   },
-  defaultProvider: 'glm',
+  defaultProvider: 'local',
 };
 
 export class AIConfigManager {

@@ -1,4 +1,5 @@
 import { OpenAICompatibleProvider } from './providers/openaiCompatible';
+import { LocalLLMProvider } from './providers/localLLM';
 import { aiConfigManager } from './config';
 import type {
   LLMProvider,
@@ -9,6 +10,7 @@ import type {
 
 export class AIService {
   private providers: Map<string, LLMProvider> = new Map();
+  private localProvider: LocalLLMProvider | null = null;
   private initialized = false;
 
   private async initialize(): Promise<void> {
@@ -19,7 +21,7 @@ export class AIService {
     const config = await aiConfigManager.getConfig();
 
     for (const [name, providerConfig] of Object.entries(config.providers)) {
-      if (providerConfig) {
+      if (providerConfig && name !== 'local') {
         this.providers.set(
           name,
           new OpenAICompatibleProvider(name, providerConfig)
@@ -27,7 +29,22 @@ export class AIService {
       }
     }
 
+    const localConfig = config.providers.local;
+    this.localProvider = new LocalLLMProvider({
+      modelId: localConfig?.modelId || 'damo/MiniCPM4-0.5B-Instruct-int4-onnx',
+      modelSource: localConfig?.modelSource || 'modelscope',
+      baseURL: localConfig?.baseURL || '',
+      apiKey: localConfig?.apiKey || '',
+      model: localConfig?.model || 'MiniCPM4-0.5B-Instruct',
+      preferWebGPU: true,
+    });
+    this.providers.set('local', this.localProvider);
+
     this.initialized = true;
+  }
+
+  getLocalProvider(): LocalLLMProvider | null {
+    return this.localProvider;
   }
 
   async getProvider(name?: string): Promise<LLMProvider> {
