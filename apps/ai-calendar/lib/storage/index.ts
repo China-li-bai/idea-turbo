@@ -28,6 +28,11 @@ export const db = {
     name: 'ai-calendar',
     storeName: 'memory-index',
   }),
+
+  chat: localforage.createInstance({
+    name: 'ai-calendar',
+    storeName: 'chat',
+  }),
 };
 
 export async function getAllFromStore<T>(store: LocalForage): Promise<T[]> {
@@ -48,6 +53,7 @@ export async function clearAllStores(): Promise<void> {
     db.oramasearch.clear(),
     db.memory.clear(),
     db.memoryIndex.clear(),
+    db.chat.clear(),
   ]);
 }
 

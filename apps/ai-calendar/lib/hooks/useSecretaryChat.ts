@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useUnifiedItems } from '@/lib/hooks/useUnifiedItems';
-import { useUnifiedStore } from '@/lib/stores/unifiedStore';
 import { smartScheduler } from '@/lib/services/smartScheduler';
+import { db } from '@/lib/storage';
 import {
   processQuery,
   type ProposalData,
@@ -16,7 +16,11 @@ export interface ChatMessage {
   proposal?: ProposalData;
   actions?: ProposalAction[];
   isStreaming?: boolean;
+  timestamp?: number;
 }
+
+const CHAT_KEY = 'secretary_messages';
+const MAX_MESSAGES = 200;
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -29,6 +33,29 @@ function generateUUID(): string {
   });
 }
 
+async function loadMessages(): Promise<ChatMessage[]> {
+  try {
+    const saved = await db.chat.getItem<ChatMessage[]>(CHAT_KEY);
+    if (saved && Array.isArray(saved)) {
+      return saved.filter(m => !m.isStreaming);
+    }
+  } catch (e) {
+    console.warn('[Chat] Failed to load messages:', e);
+  }
+  return [];
+}
+
+async function saveMessages(messages: ChatMessage[]): Promise<void> {
+  try {
+    const toSave = messages
+      .filter(m => !m.isStreaming)
+      .slice(-MAX_MESSAGES);
+    await db.chat.setItem(CHAT_KEY, toSave);
+  } catch (e) {
+    console.warn('[Chat] Failed to save messages:', e);
+  }
+}
+
 export function useSecretaryChat(
   locale: string,
   isAIConfigured: boolean | null
@@ -36,11 +63,25 @@ export function useSecretaryChat(
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { items: allItems, toEvent } = useUnifiedItems();
-  const addItem = useUnifiedStore((state) => state.addItem);
-  const updateItem = useUnifiedStore((state) => state.updateItem);
+  const { items: allItems, toEvent, createEvent, update } = useUnifiedItems();
+
+  useEffect(() => {
+    loadMessages().then(saved => {
+      if (saved.length > 0) {
+        setMessages(saved);
+      }
+      setIsLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded && messages.length > 0) {
+      saveMessages(messages);
+    }
+  }, [messages, isLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,24 +94,15 @@ export function useSecretaryChat(
       try {
         if (action.type === 'create') {
           const { startTime, endTime, priority, description } = action.params;
-          await addItem({
-            id: action.targetId,
-            type: 'event',
-            title: action.targetTitle,
-            content: (description as string) || action.targetTitle,
-            startTime: startTime as number | null,
-            endTime: endTime as number | null,
-            isAllDay: false,
-            embedding: [],
-            embeddingUpdatedAt: 0,
-            status: 'scheduled',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            metadata: {
+          await createEvent(
+            action.targetTitle,
+            startTime as number,
+            endTime as number,
+            {
               priority: priority as 'high' | 'medium' | 'low',
               description: description as string,
-            },
-          });
+            }
+          );
           return { success: true };
         }
 
@@ -89,12 +121,12 @@ export function useSecretaryChat(
             const newStartTime = new Date(newDate);
             newStartTime.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
             const newEndTime = new Date(newStartTime.getTime() + duration);
-            await updateItem(item.id, { startTime: newStartTime.getTime(), endTime: newEndTime.getTime() });
+            await update(item.id, { startTime: newStartTime.getTime(), endTime: newEndTime.getTime() });
             return { success: true };
           }
 
           case 'cancel': {
-            await updateItem(item.id, { status: 'cancelled' });
+            await update(item.id, { status: 'cancelled' });
             return { success: true };
           }
 
@@ -106,7 +138,7 @@ export function useSecretaryChat(
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
       }
     },
-    [allItems, updateItem, addItem, locale]
+    [allItems, update, createEvent, locale]
   );
 
   const sendMessage = useCallback(
@@ -118,6 +150,7 @@ export function useSecretaryChat(
         id: generateUUID(),
         role: 'user',
         content: inputValue.trim(),
+        timestamp: Date.now(),
       };
 
       setMessages(prev => [...prev, userMessage]);
@@ -129,6 +162,7 @@ export function useSecretaryChat(
         role: 'assistant',
         content: '',
         isStreaming: true,
+        timestamp: Date.now(),
       };
 
       setMessages(prev => [...prev, streamingMessage]);
@@ -224,13 +258,20 @@ export function useSecretaryChat(
     [messages, allItems, toEvent, executeAction, locale]
   );
 
+  const clearHistory = useCallback(async () => {
+    setMessages([]);
+    await db.chat.removeItem(CHAT_KEY);
+  }, []);
+
   return {
     messages,
     inputValue,
     isProcessing,
+    isLoaded,
     messagesEndRef,
     setInputValue,
     sendMessage,
     approveAction,
+    clearHistory,
   };
 }

@@ -1,5 +1,6 @@
 import { db } from '@/lib/storage';
-import type { AIConfig } from './types';
+import { encryptValue, decryptValue } from '@/lib/utils/crypto';
+import type { AIConfig, ProviderConfig } from './types';
 
 const DEFAULT_CONFIG: AIConfig = {
   providers: {
@@ -39,6 +40,30 @@ const DEFAULT_CONFIG: AIConfig = {
   defaultProvider: 'local',
 };
 
+async function encryptProviderKeys(providers: AIConfig['providers']): Promise<AIConfig['providers']> {
+  const encrypted: AIConfig['providers'] = {};
+  for (const [name, config] of Object.entries(providers)) {
+    if (!config) continue;
+    encrypted[name] = {
+      ...config,
+      apiKey: config.apiKey ? await encryptValue(config.apiKey) : '',
+    };
+  }
+  return encrypted;
+}
+
+async function decryptProviderKeys(providers: AIConfig['providers']): Promise<AIConfig['providers']> {
+  const decrypted: AIConfig['providers'] = {};
+  for (const [name, config] of Object.entries(providers)) {
+    if (!config) continue;
+    decrypted[name] = {
+      ...config,
+      apiKey: config.apiKey ? await decryptValue(config.apiKey) : '',
+    };
+  }
+  return decrypted;
+}
+
 export class AIConfigManager {
   private static instance: AIConfigManager;
   private config: AIConfig | null = null;
@@ -56,24 +81,29 @@ export class AIConfigManager {
     }
 
     const saved = await db.settings.getItem<AIConfig>('aiConfig');
-    
+
     if (saved) {
+      saved.providers = await decryptProviderKeys(saved.providers);
       this.config = saved;
     } else {
       this.config = DEFAULT_CONFIG;
     }
-    
+
     return this.config;
   }
 
   async saveConfig(config: AIConfig): Promise<void> {
     this.config = config;
-    await db.settings.setItem('aiConfig', config);
+    const toSave: AIConfig = {
+      ...config,
+      providers: await encryptProviderKeys(config.providers),
+    };
+    await db.settings.setItem('aiConfig', toSave);
   }
 
   async updateProvider(
     providerName: string,
-    config: Partial<AIConfig['providers'][string]>
+    config: Partial<ProviderConfig>
   ): Promise<void> {
     const currentConfig = await this.getConfig();
     const providerConfig = currentConfig.providers[providerName] || {

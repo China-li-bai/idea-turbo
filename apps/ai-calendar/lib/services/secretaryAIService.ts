@@ -1,4 +1,4 @@
-import { aiService } from '@/lib/ai';
+import { aiService, aiConfigManager } from '@/lib/ai';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
 import { smartScheduler } from '@/lib/services/smartScheduler';
 import { taskDecomposerService, type DecompositionResult, type DecompositionContext } from '@/lib/services/taskDecomposerService';
@@ -178,6 +178,23 @@ const SYSTEM_PROMPT = `你是一个智能日程助手。你必须只输出有效
 5. 对于涉及修改的操作，需要包含targetTitle来定位目标
 6. 当用户表达一个需要多个步骤才能完成的目标时，使用 decompose_goal 意图`;
 
+const LOCAL_MODEL_PROMPT = `你是日程助手。只输出JSON，不要其他文字。
+
+意图类型: search, reschedule, find_free_time, create_event, cancel_event, decompose_goal
+
+输出格式:
+{"intent":"意图","confidence":0.9,"actions":[{"type":"操作类型","targetTitle":"标题","params":{}}],"explanation":"说明"}
+
+示例:
+用户:把会议改到周五
+{"intent":"reschedule","confidence":0.9,"actions":[{"type":"reschedule","targetTitle":"会议","params":{"targetDate":"today","newDate":"friday"}}],"explanation":"把会议改到周五"}
+
+用户:下午有空吗
+{"intent":"find_free_time","confidence":0.9,"actions":[{"type":"find_free_time","params":{"targetDate":"today","timeRange":"afternoon"}}],"explanation":"查看下午空闲时间"}
+
+用户:明天加个站会
+{"intent":"create_event","confidence":0.9,"actions":[{"type":"create_event","targetTitle":"站会","params":{"targetDate":"tomorrow","duration":30}}],"explanation":"创建明天站会"}`;
+
 function resolveTimeRange(keyword: string): { start: number; end: number } {
   const lowerKeyword = keyword.toLowerCase();
   
@@ -209,39 +226,75 @@ export class SecretaryAIService {
     context: SecretaryContext
   ): Promise<ActionPlan> {
     const contextInfo = this.buildContextInfo(context);
-    
-    const messages: Message[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `${contextInfo}\n\n用户请求: ${userMessage}` }
-    ];
 
     try {
+      const config = await aiConfigManager.getConfig();
+      const useProvider = config.defaultProvider;
+      const isLocal = useProvider === 'local';
+
+      const systemPrompt = isLocal ? LOCAL_MODEL_PROMPT : SYSTEM_PROMPT;
+
+      const messages: Message[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: isLocal ? userMessage : `${contextInfo}\n\n用户请求: ${userMessage}` }
+      ];
+
       const response = await aiService.chat(messages, {
-        temperature: 0.3,
-        max_tokens: 500,
-        provider: 'glm',
-        response_format: { type: 'json_object' }
+        temperature: isLocal ? 0.1 : 0.3,
+        max_tokens: isLocal ? 300 : 500,
+        provider: useProvider,
+        response_format: isLocal ? undefined : { type: 'json_object' }
       });
 
       const content = response.choices[0]?.message?.content || '';
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      
-      if (!jsonMatch) {
-        return this.createFallbackPlan(userMessage);
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        type: parsed.intent || 'unknown',
-        confidence: parsed.confidence || 0.5,
-        actions: this.enrichActions(parsed.actions || [], context),
-        explanation: parsed.explanation || ''
-      };
+      return this.parseIntentResponse(content, userMessage);
     } catch (error) {
       console.error('Failed to classify intent:', error);
       return this.createFallbackPlan(userMessage);
     }
+  }
+
+  private parseIntentResponse(content: string, userMessage: string): ActionPlan {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      return this.createFallbackPlan(userMessage);
+    }
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      const intent = this.normalizeIntent(parsed.intent || parsed.type || 'unknown');
+      const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+
+      return {
+        type: intent,
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        actions: this.enrichActions(actions, { items: [], locale: 'zh', currentDate: new Date() }),
+        explanation: parsed.explanation || ''
+      };
+    } catch {
+      return this.createFallbackPlan(userMessage);
+    }
+  }
+
+  private normalizeIntent(raw: string): IntentType {
+    const normalized = raw.toLowerCase().trim().replace(/[-_\s]/g, '_');
+
+    const mapping: Record<string, IntentType> = {
+      'search': 'search',
+      'reschedule': 'reschedule',
+      'find_free_time': 'find_free_time',
+      'create_event': 'create_event',
+      'create': 'create_event',
+      'cancel_event': 'cancel_event',
+      'cancel': 'cancel_event',
+      'batch_actions': 'batch_actions',
+      'decompose_goal': 'decompose_goal',
+      'decompose': 'decompose_goal',
+    };
+
+    return mapping[normalized] || 'unknown';
   }
 
   private buildContextInfo(context: SecretaryContext): string {
@@ -613,6 +666,38 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}`;
     }).join('\n');
 
     return summary;
+  }
+
+  async generateChatResponse(
+    userMessage: string,
+    context: SecretaryContext
+  ): Promise<string> {
+    const isZh = context.locale.startsWith('zh');
+    const config = await aiConfigManager.getConfig();
+    const useProvider = config.defaultProvider;
+
+    const messages: Message[] = [
+      {
+        role: 'system',
+        content: isZh
+          ? '你是一个智能日程助手，友好且专业。请用自然语言回复用户的问候和问题。'
+          : 'You are an intelligent calendar assistant, friendly and professional. Please respond to user greetings and questions in natural language.'
+      },
+      { role: 'user', content: userMessage }
+    ];
+
+    try {
+      const response = await aiService.chat(messages, {
+        temperature: 0.7,
+        max_tokens: 300,
+        provider: useProvider
+      });
+
+      return response.choices[0]?.message?.content || (isZh ? '你好！有什么可以帮到你的？' : 'Hello! How can I help you?');
+    } catch (error) {
+      console.error('Failed to generate chat response:', error);
+      return isZh ? '你好！有什么可以帮到你的？' : 'Hello! How can I help you?';
+    }
   }
 }
 

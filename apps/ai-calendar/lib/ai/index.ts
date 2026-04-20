@@ -47,6 +47,16 @@ export class AIService {
     return this.localProvider;
   }
 
+  async reinitialize(): Promise<void> {
+    if (this.localProvider) {
+      await this.localProvider.dispose();
+    }
+    this.providers.clear();
+    this.localProvider = null;
+    this.initialized = false;
+    await this.initialize();
+  }
+
   async getProvider(name?: string): Promise<LLMProvider> {
     await this.initialize();
 

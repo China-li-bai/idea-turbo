@@ -77,7 +77,21 @@ export async function processQuery(
     return processWithAI(userMessage, context);
   }
 
-  return processSimpleQuery(userMessage, context);
+  const simpleResult = await processSimpleQuery(userMessage, context);
+  
+  const isZh = context.locale.startsWith('zh');
+  const isEmptyResponse = 
+    simpleResult.content === (isZh ? '未找到相关内容' : 'No results found') ||
+    simpleResult.content.includes(isZh ? '没有找到' : 'No results') ||
+    simpleResult.content.includes(isZh ? '未找到' : 'not found');
+
+  if (isEmptyResponse && context.isAIConfigured) {
+    const secretaryContext = { items: context.items, locale: context.locale, currentDate: new Date() };
+    const chatContent = await secretaryAIService.generateChatResponse(userMessage, secretaryContext);
+    return { content: chatContent };
+  }
+
+  return simpleResult;
 }
 
 async function processWithAI(
