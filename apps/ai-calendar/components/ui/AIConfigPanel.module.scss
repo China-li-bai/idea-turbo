@@ -160,13 +160,13 @@
   width: 100%;
   padding: 12px;
   background: var(--accent-color, #6366f1);
+  color: white;
   border: none;
   border-radius: 8px;
-  color: #fff;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s;
   
   &:hover:not(:disabled) {
     background: var(--accent-hover, #4f46e5);
@@ -176,4 +176,24 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+.localInfo {
+  padding: 16px;
+  background: var(--bg-tertiary, #16162a);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #2a2a4a);
+}
+
+.localDesc {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--text-primary, #fff);
+  line-height: 1.5;
+}
+
+.localHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, #888);
 }

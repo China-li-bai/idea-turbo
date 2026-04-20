@@ -9,8 +9,10 @@ import { secretaryAIService, type ActionPlan, type ScheduledAction } from '@/lib
 import { taskDecomposerService, type DecompositionResult } from '@/lib/services/taskDecomposerService';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import { aiConfigManager } from '@/lib/ai/config';
+import { aiService } from '@/lib/ai';
 import { parseTimeQuery, formatRelativeDate } from '@/lib/utils/nlpParserLegacy';
 import AIConfigPanel from './AIConfigPanel';
+import type { LocalLLMStatus } from '@/lib/ai/providers/localLLM';
 import styles from './SecretaryView.module.scss';
 
 interface I18nText {
@@ -84,6 +86,8 @@ export default function SecretaryView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [isAIConfigured, setIsAIConfigured] = useState<boolean | null>(null);
+  const [localStatus, setLocalStatus] = useState<LocalLLMStatus | null>(null);
+  const [usingLocalModel, setUsingLocalModel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { items: allItems, toEvent } = useUnifiedItems();
@@ -114,15 +118,48 @@ export default function SecretaryView() {
   
   const checkAIConfig = useCallback(async () => {
     const config = await aiConfigManager.getConfig();
+    const isLocal = config.defaultProvider === 'local';
+    setUsingLocalModel(isLocal);
+    
+    if (isLocal) {
+      // 本地模型不需要 API Key
+      setIsAIConfigured(true);
+      return;
+    }
+    
     const providerConfig = config.providers[config.defaultProvider];
     const apiKey = providerConfig?.apiKey || '';
     const hasApiKey = apiKey.trim().length > 0;
     setIsAIConfigured(hasApiKey);
   }, []);
   
+  const watchLocalStatus = useCallback(async () => {
+    await aiService.getProvider('local').catch(() => null);
+    
+    const localProvider = aiService.getLocalProvider();
+    if (localProvider) {
+      setLocalStatus(localProvider.status);
+      localProvider.setStatusCallback((status) => {
+        setLocalStatus({ ...status });
+      });
+    }
+  }, []);
+  
+  const handleLoadModel = useCallback(async () => {
+    const localProvider = aiService.getLocalProvider();
+    if (localProvider && !localProvider.status.isReady && !localProvider.status.isLoading) {
+      try {
+        await localProvider.initialize();
+      } catch (error) {
+        console.error('[SecretaryView] Model load failed:', error);
+      }
+    }
+  }, []);
+  
   useEffect(() => {
     checkAIConfig();
-  }, [checkAIConfig]);
+    watchLocalStatus();
+  }, [checkAIConfig, watchLocalStatus]);
 
   const executeAction = useCallback(async (
     action: ProposalAction
@@ -838,13 +875,47 @@ export default function SecretaryView() {
         </div>
         <div className={styles.capability}>
           <span className={styles.capabilityIcon}>
-            {isAIConfigured ? '✅' : '⚠️'}
+            {usingLocalModel
+              ? (localStatus?.isReady ? '✅' : localStatus?.isLoading ? '⏳' : '⚪')
+              : (isAIConfigured ? '✅' : '⚠️')
+            }
           </span>
           <span className={styles.capabilityText}>
-            {locale.startsWith('zh') ? '复杂指令理解' : locale === 'ja-JP' ? '複雑な命令理解' : 'Complex Commands'}
+            {usingLocalModel
+              ? (locale.startsWith('zh') ? '本地 AI 模型' : 'Local AI Model')
+              : (locale.startsWith('zh') ? '复杂指令理解' : 'Complex Commands')
+            }
           </span>
         </div>
-        {isAIConfigured === false && (
+        {usingLocalModel && localStatus && (
+          <div className={styles.localModelStatus}>
+            {localStatus.isReady ? (
+              <span className={`${styles.statusBadge} ${styles.ready}`}>
+                🟢 {localStatus.device.toUpperCase()} · {localStatus.modelSource === 'modelscope' ? 'MiniCPM4' : 'Qwen2.5'}
+              </span>
+            ) : localStatus.isLoading ? (
+              <span className={`${styles.statusBadge} ${styles.loading}`}>
+                ⏳ {localStatus.progress
+                  ? `${localStatus.progress.status} ${Math.round((localStatus.progress.current / localStatus.progress.total) * 100)}%`
+                  : locale.startsWith('zh') ? '正在加载...' : 'Loading...'
+                }
+              </span>
+            ) : (
+              <button
+                className={styles.loadModelBtn}
+                onClick={handleLoadModel}
+              >
+                {locale.startsWith('zh') ? '🚀 加载模型' : '🚀 Load Model'}
+              </button>
+            )}
+          </div>
+        )}
+        {usingLocalModel && localStatus?.error && !localStatus.isLoading && (
+          <div className={styles.errorHint}>
+            {locale.startsWith('zh') ? '⚠️ 加载失败，尝试备用模型...' : '⚠️ Load failed, trying fallback...'}
+          </div>
+        )}
+        {!usingLocalModel && isAIConfigured === false && (
           <button 
             className={styles.enhanceBtn}
             onClick={() => setShowConfigPanel(true)}
