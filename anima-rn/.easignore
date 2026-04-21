@@ -17,6 +17,11 @@ node_modules/
 .AppleDouble
 .LSOverride
 
+# Expo/EAS 本地开发
+.expo/
+.agents/
+.trae/
+
 # Expo/EAS 构建产物 (不需要上传)
 android/
 ios/
@@ -40,16 +45,8 @@ docs/
 *.md
 !README.md
 
-# 大型资源文件
-# GGUF 模型改为按需下载，不再 require() 打包，可以排除
-models/smollm-360m-instruct-add-basics-q8_0.gguf
-
-# Embedding 冗余文件 (只用 model_quantized.onnx + vocab.vocab)
-models/embedding/model.safetensors
-models/embedding/pytorch_model.bin
-models/embedding/onnx/model.onnx
-models/embedding/1_Pooling/
-models/embedding/README.md
+# 完整排除 models/ (所有模型都改为按需下载)
+models/
 
 # 杂项
 .env.local
