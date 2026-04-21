@@ -33,3 +33,8 @@ export type {
   EmotionEvent,
   EmotionStreamState,
 } from './AIEmotionEngine'
+export { PetHabitat } from './PetHabitat'
+export { BreathingPet } from './BreathingPet'
+export { ThinkingFlow } from './ThinkingFlow'
+export { MemoryFragment } from './MemoryFragment'
+export { CyberGlass, GlassCard, GlassButton } from './CyberGlass'
