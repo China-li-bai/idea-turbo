@@ -12,11 +12,9 @@ import { ensureDocumentDirectory, getDocumentDirectory, getFileInfo, readAsStrin
 import { Asset } from 'expo-asset'
 import * as FileSystem from 'expo-file-system/legacy'
 
-const BUNDLED_ONNX_MODEL = require('../../models/embedding/onnx/model_quantized.onnx')
-const BUNDLED_VOCAB = require('../../models/embedding/vocab.vocab')
-
 const EMBEDDING_MODEL_DIR = 'models/embedding/'
 const ONNX_SUBDIR = 'onnx/'
+const HF_BASE = 'https://hf-mirror.com/BAAI/bge-small-en-v1.5/'
 
 let _modelDir = ''
 let _onnxModelPath = ''
@@ -36,7 +34,7 @@ async function ensureEmbeddingModelExists(): Promise<string> {
     return _modelDir
   }
 
-  console.log('[OnnxEmbedding] 📦 Extracting embedding model from App Bundle...')
+  console.log('[OnnxEmbedding] � Downloading embedding model from HuggingFace...')
 
   try {
     await makeDirectoryAsync(_modelDir + ONNX_SUBDIR, { intermediates: true })
@@ -48,61 +46,36 @@ async function ensureEmbeddingModelExists(): Promise<string> {
 
   try {
     if (!modelInfo.exists) {
-      console.log('[OnnxEmbedding]   Extracting ONNX model...')
-      const onnxAsset = Asset.fromModule(BUNDLED_ONNX_MODEL)
-      await onnxAsset.downloadAsync()
-      const onnxUri = onnxAsset.localUri || onnxAsset.uri
-      if (!onnxUri) throw new Error('Failed to get ONNX asset URI')
-      await copyFile(onnxUri, _onnxModelPath)
-      console.log('[OnnxEmbedding]   ✅ ONNX model extracted')
+      console.log('[OnnxEmbedding]   Downloading ONNX model (127MB)...')
+      const dlResult = await FileSystem.downloadAsync(
+        HF_BASE + 'onnx/model.onnx',
+        _onnxModelPath
+      )
+      if (!dlResult) throw new Error('ONNX download returned null')
+      console.log('[OnnxEmbedding]   ✅ ONNX model downloaded')
     }
 
     if (!vocabInfo.exists) {
-      console.log('[OnnxEmbedding]   Extracting vocab...')
-      const vocabAsset = Asset.fromModule(BUNDLED_VOCAB)
-      await vocabAsset.downloadAsync()
-      const vocabUri = vocabAsset.localUri || vocabAsset.uri
-      if (!vocabUri) throw new Error('Failed to get vocab asset URI')
-      await copyFile(vocabUri, _vocabPath)
-      console.log('[OnnxEmbedding]   ✅ Vocab extracted')
+      console.log('[OnnxEmbedding]   Downloading vocab...')
+      const dlResult = await FileSystem.downloadAsync(
+        HF_BASE + 'vocab.txt',
+        _vocabPath
+      )
+      if (!dlResult) throw new Error('Vocab download returned null')
+      console.log('[OnnxEmbedding]   ✅ Vocab downloaded')
     }
 
     const verifyModel = await getFileInfo(_onnxModelPath)
     const verifyVocab = await getFileInfo(_vocabPath)
     if (!verifyModel.exists || !verifyVocab.exists) {
-      throw new Error('File verification failed after extraction')
+      throw new Error('File verification failed after download')
     }
 
-    console.log('[OnnxEmbedding] ✅ All embedding model files extracted')
+    console.log('[OnnxEmbedding] ✅ All embedding model files downloaded')
     return _modelDir
-  } catch (bundleErr: any) {
-    console.warn('[OnnxEmbedding] ⚠️ Bundle extraction failed:', bundleErr.message)
-    console.log('[OnnxEmbedding] 📥 Attempting download from HuggingFace...')
-
-    try {
-      const HF_BASE = 'https://huggingface.co/BAAI/bge-micro-v2/resolve/main/'
-      if (!modelInfo.exists) {
-        console.log('[OnnxEmbedding]   Downloading ONNX model...')
-        const dlResult = await FileSystem.downloadAsync(
-          HF_BASE + 'onnx/model_quantized.onnx',
-          _onnxModelPath
-        )
-        if (!dlResult) throw new Error('ONNX download returned null')
-      }
-      if (!vocabInfo.exists) {
-        console.log('[OnnxEmbedding]   Downloading vocab...')
-        const dlResult = await FileSystem.downloadAsync(
-          HF_BASE + 'vocab.txt',
-          _vocabPath
-        )
-        if (!dlResult) throw new Error('Vocab download returned null')
-      }
-      console.log('[OnnxEmbedding] ✅ Embedding model downloaded')
-      return _modelDir
-    } catch (dlErr: any) {
-      console.error('[OnnxEmbedding] ❌ Download failed:', dlErr.message)
-      throw new Error(`Embedding model load failed: bundle(${bundleErr.message}) + download(${dlErr.message})`)
-    }
+  } catch (dlErr: any) {
+    console.error('[OnnxEmbedding] ❌ Download failed:', dlErr.message)
+    throw new Error(`Embedding model download failed: ${dlErr.message}`)
   }
 }
 
