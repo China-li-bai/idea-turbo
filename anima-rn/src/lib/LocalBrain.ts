@@ -284,6 +284,35 @@ async function runCompletion(
   return result.text?.trim() || ''
 }
 
+async function runStreamingCompletion(
+  messages: Array<{ role: string; content: string }>,
+  onToken: (token: string) => void,
+  options?: { n_predict?: number; temperature?: number }
+): Promise<string> {
+  if (!llamaContext) throw new Error('Model not loaded')
+
+  const result: NativeCompletionResult = await llamaContext.completion(
+    {
+      messages,
+      n_predict: options?.n_predict || 256,
+      temperature: options?.temperature ?? 0.3,
+      top_k: 30,
+      top_p: 0.9,
+      min_p: 0.05,
+      stop: STOP_TOKENS as any,
+      penalty_repeat: 1.15,
+      penalty_last_n: 64,
+    },
+    (data) => {
+      if (data.token) {
+        onToken(data.token)
+      }
+    }
+  )
+
+  return result.text?.trim() || ''
+}
+
 export async function generatePetReply(
   pet: Pet,
   userMessage: string,
@@ -351,6 +380,92 @@ export async function generatePetReply(
     return { reply, thinkingSteps, newMemories: { episodic: newEpiCount, semantic: newSemCount } }
   } catch (e: any) {
     console.error('[LocalBrain] Reply error:', e.message)
+    return {
+      reply: getFallbackReply(userMessage, pet),
+      thinkingSteps,
+    }
+  }
+}
+
+export async function generatePetReplyStream(
+  pet: Pet,
+  userMessage: string,
+  streamId: string,
+  conversationId: string = 'default'
+): Promise<{ reply: string; thinkingSteps: string[]; newMemories?: { episodic: number; semantic: number } }> {
+  const thinkingSteps: string[] = []
+  thinkingSteps.push(`${petEmoji(pet.species)}正在竖起耳朵听...`)
+
+  addToWorkingMemory(conversationId, 'user', userMessage)
+  addToWorkingMemory(conversationId, 'pet', '')
+
+  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner')
+  if (memoryContext) {
+    thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
+  }
+  thinkingSteps.push(`${petEmoji(pet.species)}正在思考...`)
+
+  try {
+    const systemPrompt = buildSystemPrompt(pet, 'chat', memoryContext)
+    const recentHistory = getRecentContext(conversationId, 10)
+
+    const fullMessages = [
+      { role: 'system', content: systemPrompt },
+      ...recentHistory,
+      { role: 'user', content: userMessage },
+    ]
+
+    const { streamEventBus } = await import('../components/FluidChat/StreamEventBus')
+
+    const rawReply = await runStreamingCompletion(
+      fullMessages,
+      (token: string) => {
+        streamEventBus.emit(`token-${streamId}`, token)
+      },
+      {
+        n_predict: 200,
+        temperature: 0.65,
+      }
+    )
+
+    streamEventBus.emit(`done-${streamId}`)
+
+    let reply = rawReply
+
+    const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0])
+        reply = parsed.reply || parsed.response || parsed.text || rawReply
+      } catch {}
+    }
+
+    reply = reply.replace(/^["']|["']$/g, '').trim()
+    if (!reply) reply = `${petSound(pet.species)}！嗯...让我想想怎么说...`
+
+    addToWorkingMemory(conversationId, 'pet', reply)
+
+    let newEpiCount = 0
+    let newSemCount = 0
+    try {
+      const extracted = extractAndClassify(userMessage, pet.id)
+      for (const epi of extracted.episodic) {
+        await addEpisodicMemory({ petId: pet.id, ...epi, importance: 0.7, timestamp: new Date().toISOString() })
+        newEpiCount++
+      }
+      for (const sem of extracted.semantic) {
+        await addSemanticFact({ petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 })
+        newSemCount++
+      }
+    } catch (memErr: any) {
+      console.error('[LocalBrain] Memory write error:', memErr.message)
+    }
+
+    return { reply, thinkingSteps, newMemories: { episodic: newEpiCount, semantic: newSemCount } }
+  } catch (e: any) {
+    console.error('[LocalBrain] Stream reply error:', e.message)
+    const { streamEventBus } = await import('../components/FluidChat/StreamEventBus')
+    streamEventBus.emit(`done-${streamId}`)
     return {
       reply: getFallbackReply(userMessage, pet),
       thinkingSteps,

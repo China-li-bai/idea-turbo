@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, StatusBar } from 'react-native'
+import React, { useEffect, useState, useCallback } from 'react'
+import { View, Text, StyleSheet, StatusBar } from 'react-native'
 import { useAppStore } from '../store'
 import { animaCore } from '../lib/AnimaCore'
-import { ChatBubble, ThinkingIndicator, ProgressLoader, InputBar, PetAvatar } from '../components'
+import { PetFluidChat } from '../components/FluidChat'
+import { ProgressLoader, InputBar, PetAvatar } from '../components'
 import { theme, petTheme } from '../theme'
-import type { Pet } from '../types'
+import * as Haptics from 'expo-haptics'
 
 type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
 
@@ -22,13 +23,14 @@ export function ChatScreen() {
     isCoreInitialized,
     setCoreInitialized,
     setLoading,
+    activeStreamId,
+    setActiveStreamId,
   } = useAppStore()
 
   const [inputText, setInputText] = useState('')
   const [initError, setInitError] = useState<string | null>(null)
   const [initPhase, setInitPhase] = useState<InitPhase>('idle')
   const [loadProgress, setLoadProgress] = useState(0)
-  const scrollViewRef = useRef<ScrollView>(null)
 
   const petColors = currentPet ? (petTheme[currentPet.species] || petTheme.cat) : petTheme.cat
 
@@ -53,10 +55,6 @@ export function ChatScreen() {
       handleAutoInit()
     }
   }, [currentPet])
-
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true })
-  }, [messages, isPetThinking])
 
   const handleAutoInit = useCallback(async () => {
     setInitError(null)
@@ -85,11 +83,25 @@ export function ChatScreen() {
     }
   }, [currentPet])
 
+  const handleStreamComplete = useCallback((messageId: string, fullText: string) => {
+    addMessage({
+      id: messageId,
+      conversationId: 'test-conv',
+      role: 'pet',
+      content: fullText,
+      createdAt: new Date().toISOString(),
+    })
+    setActiveStreamId(null)
+    setThinking(false)
+  }, [addMessage, setActiveStreamId, setThinking])
+
   async function handleSend() {
     if (!inputText.trim() || !currentPet || !isCoreInitialized) return
 
     const userMsg = inputText.trim()
     setInputText('')
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     addMessage({
       id: `msg-${Date.now()}`,
@@ -99,10 +111,12 @@ export function ChatScreen() {
       createdAt: new Date().toISOString(),
     })
 
+    const streamId = `pet-${Date.now()}`
+    setActiveStreamId(streamId)
     setThinking(true, ['👂 接收消息...'])
 
     try {
-      const result = await animaCore.chat(currentPet, userMsg, 'test-conv', 'owner')
+      const result = await animaCore.chatStream(currentPet, userMsg, streamId, 'test-conv', 'owner')
 
       if (result.piBlocked) {
         addMessage({
@@ -120,15 +134,16 @@ export function ChatScreen() {
         setSystemStatus(updatedStatus)
       }
 
-      addMessage({
-        id: `msg-${Date.now() + 1}`,
-        conversationId: 'test-conv',
-        role: 'pet',
-        content: result.reply,
-        createdAt: new Date().toISOString(),
-      })
+      if (activeStreamId === streamId) {
+        setActiveStreamId(null)
+        setThinking(false)
+      }
     } catch (e: any) {
       console.error('[ChatScreen] Send error:', e)
+      if (activeStreamId === streamId) {
+        setActiveStreamId(null)
+        setThinking(false)
+      }
       addMessage({
         id: `msg-${Date.now() + 1}`,
         conversationId: 'test-conv',
@@ -137,12 +152,70 @@ export function ChatScreen() {
         createdAt: new Date().toISOString(),
       })
     }
-
-    setThinking(false)
   }
 
   const brainReady = isCoreInitialized && systemStatus?.brain.isLoaded
   const isLoading = initPhase !== 'idle' && initPhase !== 'ready' && initPhase !== 'error'
+
+  const listHeader = (() => {
+    if (isLoading) {
+      return (
+        <ProgressLoader
+          phase={initPhase}
+          progress={loadProgress}
+          petEmoji={currentPet?.avatarEmoji}
+          species={currentPet?.species}
+        />
+      )
+    }
+
+    if (initPhase === 'error') {
+      return (
+        <ProgressLoader
+          phase="error"
+          progress={0}
+          petEmoji={currentPet?.avatarEmoji}
+          species={currentPet?.species}
+          errorMessage={initError || '初始化失败，请检查网络后重试'}
+          onRetry={handleAutoInit}
+        />
+      )
+    }
+
+    if (!isCoreInitialized && !initError) {
+      return (
+        <View style={styles.loadingState}>
+          <View style={[styles.loadingEmojiBg, { backgroundColor: petColors.bg }]}>
+            <Text style={styles.loadingEmoji}>{currentPet?.avatarEmoji}</Text>
+          </View>
+          <Text style={styles.loadingText}>正在唤醒宠物...</Text>
+        </View>
+      )
+    }
+
+    if (messages.length === 0 && !activeStreamId) {
+      return (
+        <View style={styles.emptyState}>
+          <View style={[styles.emptyEmojiBg, { backgroundColor: petColors.bg }]}>
+            <Text style={styles.emptyEmoji}>{currentPet?.avatarEmoji}</Text>
+          </View>
+          <Text style={[styles.emptyTitle, { color: petColors.primaryDark }]}>
+            和 {currentPet?.name} 聊天吧
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            你的 AI 宠物伙伴正在等你~
+          </Text>
+          <View style={[styles.emptyHint, { backgroundColor: petColors.bg, borderColor: petColors.primary + '20' }]}>
+            <Text style={[styles.emptyHintText, { color: petColors.primaryDark }]}>
+              💡 试着说："今天好累" 或 "我喜欢看电影"
+            </Text>
+          </View>
+        </View>
+      )
+    }
+
+    return null
+  })()
 
   return (
     <View style={styles.container}>
@@ -195,76 +268,21 @@ export function ChatScreen() {
         </View>
       </View>
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messages}
-        contentContainerStyle={styles.messagesContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {isLoading && (
-          <ProgressLoader
-            phase={initPhase}
-            progress={loadProgress}
-            petEmoji={currentPet?.avatarEmoji}
-            species={currentPet?.species}
-          />
-        )}
-
-        {!isLoading && !isCoreInitialized && !initError && (
-          <View style={styles.loadingState}>
-            <View style={[styles.loadingEmojiBg, { backgroundColor: petColors.bg }]}>
-              <Text style={styles.loadingEmoji}>{currentPet?.avatarEmoji}</Text>
-            </View>
-            <Text style={styles.loadingText}>正在唤醒宠物...</Text>
-          </View>
-        )}
-
-        {messages.length === 0 && isCoreInitialized && !isLoading && (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyEmojiBg, { backgroundColor: petColors.bg }]}>
-              <Text style={styles.emptyEmoji}>{currentPet?.avatarEmoji}</Text>
-            </View>
-            <Text style={[styles.emptyTitle, { color: petColors.primaryDark }]}>
-              和 {currentPet?.name} 聊天吧
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              你的 AI 宠物伙伴正在等你~
-            </Text>
-            <View style={[styles.emptyHint, { backgroundColor: petColors.bg, borderColor: petColors.primary + '20' }]}>
-              <Text style={[styles.emptyHintText, { color: petColors.primaryDark }]}>
-                💡 试着说："今天好累" 或 "我喜欢看电影"
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {messages.map((msg, index) => (
-          <ChatBubble
-            key={msg.id}
-            content={msg.content}
-            role={msg.role}
-            petEmoji={currentPet?.avatarEmoji}
-            species={currentPet?.species}
-            index={index}
-          />
-        ))}
-
-        {isPetThinking && (
-          <ThinkingIndicator
-            petEmoji={currentPet?.avatarEmoji}
-            species={currentPet?.species}
-            steps={thinkingSteps}
-          />
-        )}
-      </ScrollView>
+      <PetFluidChat
+        messages={messages}
+        activeStreamId={activeStreamId}
+        petEmoji={currentPet?.avatarEmoji}
+        species={currentPet?.species}
+        onStreamComplete={handleStreamComplete}
+        ListHeaderComponent={listHeader}
+      />
 
       <InputBar
         value={inputText}
         onChangeText={setInputText}
         onSend={handleSend}
         placeholder={brainReady ? '说点什么...' : isLoading ? '正在准备 AI 系统...' : '请稍候...'}
-        editable={brainReady && !isLoading}
+        editable={brainReady && !isLoading && !activeStreamId}
         species={currentPet?.species}
       />
     </View>
@@ -328,13 +346,6 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: theme.typography.sizes.xs,
     fontWeight: theme.typography.weights.bold,
-  },
-  messages: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
   },
   loadingState: {
     alignItems: 'center',

@@ -4,6 +4,9 @@ import { Asset } from 'expo-asset'
 export type ModelQuality = 'lite' | 'standard' | 'full'
 export type ModelLanguage = 'zh' | 'en' | 'zh_en'
 
+const DOWNLOAD_TIMEOUT_MS = 300000
+const MAX_RETRIES_PER_URL = 3
+
 export interface ModelInfo {
   id: string
   name: string
@@ -13,6 +16,7 @@ export interface ModelInfo {
   sizeMB: number
   bundled: boolean
   downloadUrl: string
+  mirrorUrl?: string
   bundledAsset: any
   architecture: string
   description: string
@@ -29,13 +33,14 @@ export interface InstalledModel {
 const MODEL_REGISTRY: ModelInfo[] = [
   {
     id: 'smollm-360m-q8',
-    name: 'SmolLM-360M',
-    filename: 'smollm-360m-instruct-add-basics-q8_0.gguf',
+    name: 'SmolLM2-360M',
+    filename: 'smollm2-360m-instruct-q8_0.gguf',
     quality: 'lite',
     language: 'en',
-    sizeMB: 200,
+    sizeMB: 386,
     bundled: false,
-    downloadUrl: 'https://huggingface.co/monospace-org/smollm-360m-instruct-GGUF/resolve/main/smollm-360m-instruct-add-basics-q8_0.gguf',
+    downloadUrl: 'https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
+    mirrorUrl: 'https://hf-mirror.com/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
     bundledAsset: null,
     architecture: 'llama',
     description: '英文基础模型，WiFi下载，首次启动即可用',
@@ -48,7 +53,8 @@ const MODEL_REGISTRY: ModelInfo[] = [
     language: 'zh_en',
     sizeMB: 639,
     bundled: false,
-    downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen3-0.6B-GGUF/resolve/master/Qwen3-0.6B-Q8_0.gguf',
+    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+    mirrorUrl: 'https://modelscope.cn/models/Qwen/Qwen3-0.6B-GGUF/resolve/master/Qwen3-0.6B-Q8_0.gguf',
     bundledAsset: null,
     architecture: 'qwen2',
     description: '中文模型，WiFi下载，回复质量好',
@@ -179,27 +185,63 @@ export async function downloadModel(
 
   try {
     const callback = _downloadCallbacks.get(modelId)
-    const result = await FileSystem.downloadAsync(model.downloadUrl, path)
 
-    if (!result) throw new Error('Download returned null')
+    const urlsToTry = [model.mirrorUrl, model.downloadUrl].filter(Boolean) as string[]
+    let lastError: Error | null = null
 
-    const verifyInfo = await FileSystem.getInfoAsync(path) as any
-    if (!verifyInfo.exists || !verifyInfo.size) {
-      throw new Error('下载后验证失败')
+    for (const url of urlsToTry) {
+      for (let attempt = 1; attempt <= MAX_RETRIES_PER_URL; attempt++) {
+        try {
+          console.log(`[ModelManager] 🔗 下载源: ${url.substring(0, 50)}... (尝试 ${attempt}/${MAX_RETRIES_PER_URL})`)
+
+          const downloadPromise = FileSystem.downloadAsync(url, path)
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('下载超时')), DOWNLOAD_TIMEOUT_MS)
+          })
+
+          const result = await Promise.race([downloadPromise, timeoutPromise])
+
+          if (!result) throw new Error('Download returned null')
+
+          const verifyInfo = await FileSystem.getInfoAsync(path) as any
+          if (!verifyInfo.exists || !verifyInfo.size) {
+            throw new Error('下载后验证失败：文件不存在或大小为 0')
+          }
+
+          const sizeMB = Math.round(verifyInfo.size / 1024 / 1024)
+          const expectedMinMB = model.sizeMB * 0.5
+          if (sizeMB < expectedMinMB) {
+            throw new Error(`下载后验证失败：文件大小异常 (${sizeMB}MB < 预期 ${model.sizeMB}MB)，可能下载源返回了错误页面`)
+          }
+
+          console.log(`[ModelManager] ✅ 模型下载完成: ${model.name} (${sizeMB}MB)`)
+
+          _installedModels.set(modelId, {
+            id: modelId,
+            path,
+            sizeMB,
+            quality: model.quality,
+            language: model.language,
+          })
+
+          return path
+        } catch (e: any) {
+          const isLastAttempt = attempt === MAX_RETRIES_PER_URL
+          const isTimeout = e.message?.includes('超时') || e.message?.includes('timed out')
+          const warnMsg = isLastAttempt
+            ? `[ModelManager] ⚠️ 下载源失败 (最终尝试): ${url.substring(0, 50)}... - ${e.message}`
+            : `[ModelManager] ⚠️ 下载失败 (${attempt}/${MAX_RETRIES_PER_URL}), 1秒后重试: ${e.message}`
+          console.warn(warnMsg)
+          lastError = e
+          await FileSystem.deleteAsync(path, { idempotent: true })
+          if (!isLastAttempt && (isTimeout || e.message?.includes('返回了错误页面'))) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
+      }
     }
 
-    const sizeMB = Math.round(verifyInfo.size / 1024 / 1024)
-    console.log(`[ModelManager] ✅ 模型下载完成: ${model.name} (${sizeMB}MB)`)
-
-    _installedModels.set(modelId, {
-      id: modelId,
-      path,
-      sizeMB,
-      quality: model.quality,
-      language: model.language,
-    })
-
-    return path
+    throw lastError || new Error('所有下载源均失败')
   } finally {
     _downloadCallbacks.delete(modelId)
   }

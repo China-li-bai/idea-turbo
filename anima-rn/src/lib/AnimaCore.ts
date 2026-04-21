@@ -3,6 +3,7 @@ import {
   unloadLocalBrain,
   getBrainState,
   generatePetReply,
+  generatePetReplyStream,
   generateVisitorReply,
   subscribeToBrainState,
   getFallbackReply,
@@ -143,17 +144,27 @@ export class AnimaCore {
     try {
       console.log('[AnimaCore] │ Step 1/3: 加载端侧 AI 模型 (llama.rn)...')
       onProgress?.(0.1, 'extracting')
-      const brainLoaded = await loadLocalBrain(modelPath, (p) => {
-        onProgress?.(0.1 + p * 0.7, 'model')
-      })
+      let brainLoaded = false
+      try {
+        brainLoaded = await loadLocalBrain(modelPath, (p) => {
+          onProgress?.(0.1 + p * 0.7, 'model')
+        })
+      } catch (brainErr: any) {
+        console.warn('[AnimaCore] ⚠️ AI 模型加载失败，将使用快速回复模式:', brainErr.message)
+      }
+
       if (!brainLoaded) {
-        throw new Error('AI 模型加载失败')
+        console.warn('[AnimaCore] ⚠️ 无可用模型，系统将使用规则回复模式')
       }
 
       console.log('[AnimaCore] │ Step 2/3: 初始化记忆系统 (SQLite + Embedding)...')
       onProgress?.(0.85, 'memory')
       if (!isMemoryReady()) {
-        await initMemorySystem()
+        try {
+          await initMemorySystem()
+        } catch (memErr: any) {
+          console.warn('[AnimaCore] ⚠️ 记忆系统初始化失败:', memErr.message)
+        }
       }
 
       console.log('[AnimaCore] │ Step 3/3: 注册状态监听...')
@@ -212,8 +223,12 @@ export class AnimaCore {
     addToWorkingMemory(conversationId, 'user', userMessage)
     this.trackConversation(conversationId)
 
-    if (!shouldUseLocalModel()) {
-      thinkingSteps.push(`🔋 电量低,使用快速回复模式`)
+    if (!shouldUseLocalModel() || !getBrainState().isLoaded) {
+      if (!getBrainState().isLoaded) {
+        thinkingSteps.push(`🔋 模型未加载，使用快速回复模式`)
+      } else {
+        thinkingSteps.push(`🔋 电量低,使用快速回复模式`)
+      }
       const fallback = getFallbackReply(userMessage, pet)
       addToWorkingMemory(conversationId, 'pet', fallback)
       return {
@@ -245,6 +260,84 @@ export class AnimaCore {
       }
     } catch (e: any) {
       console.error('[AnimaCore] ❌ Chat error:', e.message)
+      return {
+        reply: `${pet.avatarEmoji}（歪头）嗯...让我想想怎么说...`,
+        thinkingSteps,
+        piBlocked: false,
+      }
+    }
+  }
+
+  async chatStream(
+    pet: Pet,
+    userMessage: string,
+    streamId: string,
+    conversationId: string = 'default',
+    mode: ChatMode = 'owner'
+  ): Promise<ChatResult> {
+    if (!this._initialized) {
+      throw new Error('AnimaCore 未初始化，请先调用 init()')
+    }
+
+    const thinkingSteps: string[] = []
+    thinkingSteps.push(`${pet.avatarEmoji}👂 接收消息...`)
+
+    const piResult = this.runPrivacyCheck(userMessage, mode)
+    if (piResult.riskLevel === 'dangerous') {
+      this._piBlockCount++
+      this._lastPiCheck = new Date().toISOString()
+      return {
+        reply: this.getSafetyReply(pet),
+        thinkingSteps: ['🛡️ 安全检测拦截'],
+        piBlocked: true,
+        piWarning: piResult.warning || '检测到可疑输入',
+      }
+    }
+
+    if (piResult.riskLevel === 'suspicious') {
+      thinkingSteps.push(`🛡️ 检测到异常模式，已加强过滤`)
+    }
+
+    addToWorkingMemory(conversationId, 'user', userMessage)
+    this.trackConversation(conversationId)
+
+    if (!shouldUseLocalModel() || !getBrainState().isLoaded) {
+      if (!getBrainState().isLoaded) {
+        thinkingSteps.push(`🔋 模型未加载，使用快速回复模式`)
+      } else {
+        thinkingSteps.push(`🔋 电量低,使用快速回复模式`)
+      }
+      const fallback = getFallbackReply(userMessage, pet)
+      addToWorkingMemory(conversationId, 'pet', fallback)
+      return {
+        reply: fallback,
+        thinkingSteps,
+        piBlocked: false,
+      }
+    }
+
+    thinkingSteps.push(`${pet.avatarEmoji}🧠 正在回忆...`)
+
+    try {
+      const result = await generatePetReplyStream(pet, userMessage, streamId, conversationId)
+
+      thinkingSteps.push(...result.thinkingSteps)
+
+      const archiveDecision = this.shouldArchive(conversationId, userMessage)
+      if (archiveDecision && result.newMemories) {
+        thinkingSteps.push(`📝 归档决策: ✅ 存储新记忆 (+${result.newMemories.episodic}事件, +${result.newMemories.semantic}事实)`)
+      } else if (!archiveDecision) {
+        thinkingSteps.push(`📝 归档决策: ⏸️ 工作记忆中累积...`)
+      }
+
+      return {
+        reply: result.reply,
+        thinkingSteps,
+        newMemories: result.newMemories,
+        piBlocked: false,
+      }
+    } catch (e: any) {
+      console.error('[AnimaCore] ❌ ChatStream error:', e.message)
       return {
         reply: `${pet.avatarEmoji}（歪头）嗯...让我想想怎么说...`,
         thinkingSteps,

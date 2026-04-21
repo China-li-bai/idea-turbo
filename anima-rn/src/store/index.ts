@@ -33,6 +33,9 @@ interface AppState {
   setThinking: (thinking: boolean, steps?: string[]) => void
   setLoading: (loading: boolean) => void
 
+  activeStreamId: string | null
+  setActiveStreamId: (id: string | null) => void
+
   currentView: 'home' | 'chat' | 'setup' | 'memories' | 'share' | 'visitor' | 'system'
   setView: (view: AppState['currentView']) => void
 
@@ -72,6 +75,9 @@ export const useAppStore = create<AppState>((set) => ({
   isLoading: false,
   setThinking: (thinking, steps = []) => set({ isPetThinking: thinking, thinkingSteps: steps }),
   setLoading: (loading) => set({ isLoading: loading }),
+
+  activeStreamId: null,
+  setActiveStreamId: (id) => set({ activeStreamId: id }),
 
   currentView: 'home',
   setView: (view) => set({ currentView: view }),
