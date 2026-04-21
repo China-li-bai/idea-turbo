@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAIStatus } from '@/lib/hooks/useUnifiedItems';
 import { useLocalModel } from '@/lib/hooks/useLocalModel';
-import { useSecretaryChat, type ChatMessage } from '@/lib/hooks/useSecretaryChat';
+import { useSecretaryChat, type ChatMessage, type TimeSlot } from '@/lib/hooks/useSecretaryChat';
 import { useLocale } from '@/lib/contexts/ClientProviders';
 import AIConfigPanel from './AIConfigPanel';
 import styles from './SecretaryView.module.scss';
@@ -12,14 +12,12 @@ export default function SecretaryView() {
   const [showConfigPanel, setShowConfigPanel] = useState(false);
 
   const { localStatus, isAIConfigured, usingLocalModel, loadModel, refreshConfig } = useLocalModel();
-  const { messages, inputValue, isProcessing, messagesEndRef, setInputValue, sendMessage, approveAction } = useSecretaryChat(
+  const { messages, inputValue, isProcessing, messagesEndRef, setInputValue, sendMessage, approveAction, selectTimeSlot } = useSecretaryChat(
     useLocale().locale,
     isAIConfigured
   );
   const aiStatus = useAIStatus();
   const { t, locale } = useLocale();
-
-  const isZh = locale.startsWith('zh');
 
   return (
     <div className={styles.container}>
@@ -64,6 +62,7 @@ export default function SecretaryView() {
               locale={locale}
               t={t}
               onApprove={approveAction}
+              onSelectTimeSlot={selectTimeSlot}
             />
           ))
         )}
@@ -207,19 +206,71 @@ function WelcomeScreen({
   );
 }
 
+function TypingIndicator() {
+  return (
+    <div className={`${styles.messageWrapper} ${styles.assistantMessage}`}>
+      <div className={styles.assistantBubble}>
+        <div className={styles.typingIndicator}>
+          <span className={styles.dot} />
+          <span className={styles.dot} />
+          <span className={styles.dot} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimeSlotPicker({
+  slots,
+  messageId,
+  onSelect,
+  locale,
+}: {
+  slots: TimeSlot[];
+  messageId: string;
+  onSelect: (messageId: string, slotIndex: number) => void;
+  locale: string;
+}) {
+  const [selected, setSelected] = useState(slots.findIndex(s => s.isRecommended) || 0);
+  const isZh = locale.startsWith('zh');
+
+  return (
+    <div className={styles.timeSlotList}>
+      {slots.map((slot, i) => (
+        <button
+          key={i}
+          className={`${styles.timeSlotOption} ${slot.isRecommended ? styles.recommended : ''} ${selected === i ? styles.selected : ''}`}
+          onClick={() => {
+            setSelected(i);
+            onSelect(messageId, i);
+          }}
+        >
+          <div className={styles.slotTimeInfo}>
+            <span className={styles.slotTimeRange}>{slot.label}</span>
+            <span className={styles.slotMeta}>{isZh ? '点击选择此时间段' : 'Click to select this slot'}</span>
+          </div>
+          {slot.isRecommended && (
+            <span className={styles.slotBadge}>{isZh ? '推荐' : 'Best'}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   locale,
   t,
   onApprove,
+  onSelectTimeSlot,
 }: {
   message: ChatMessage;
   locale: string;
   t: (key: string) => string;
   onApprove: (messageId: string) => void;
+  onSelectTimeSlot?: (messageId: string, slotIndex: number) => void;
 }) {
-  const isZh = locale.startsWith('zh');
-
   if (message.role === 'user') {
     return (
       <div className={`${styles.messageWrapper} ${styles.userMessage}`}>
@@ -228,6 +279,10 @@ function MessageBubble({
         </div>
       </div>
     );
+  }
+
+  if (message.isStreaming && !message.content) {
+    return <TypingIndicator />;
   }
 
   return (
@@ -242,12 +297,22 @@ function MessageBubble({
             onApprove={() => onApprove(message.id)}
           />
         ) : message.actions && message.actions.length > 0 ? (
-          <ActionCard
-            content={message.content}
-            locale={locale}
-            t={t}
-            onApprove={() => onApprove(message.id)}
-          />
+          <>
+            <ActionCard
+              content={message.content}
+              locale={locale}
+              t={t}
+              onApprove={() => onApprove(message.id)}
+            />
+            {message.timeSlots && message.timeSlots.length > 1 && onSelectTimeSlot && (
+              <TimeSlotPicker
+                slots={message.timeSlots}
+                messageId={message.id}
+                onSelect={onSelectTimeSlot}
+                locale={locale}
+              />
+            )}
+          </>
         ) : (
           <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
         )}

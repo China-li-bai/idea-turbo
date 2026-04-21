@@ -79,3 +79,87 @@
 "你好" → isComplexQuery=false → processSimpleQuery → "No results found"
   → 检测空结果 + isAIConfigured=true → generateChatResponse() → 本地模型自然回复 ✅
 ```
+
+---
+
+## 2026-04-20 | UI/UX 优化: 输入框固定 + Typing 指示器 + 智能时间推荐
+
+### 用户反馈的问题
+1. 模型生成回答前没有合适的交互反馈（空白等待）
+2. 输入框没有固定（消息多时滚走）
+3. 时间安排没有搜索本地日程数据，直接硬编码时间给出弹框
+4. ActionCard 只显示单一固定时间，无法选择
+
+### 修复内容
+
+#### 1. UI 层面 — SecretaryView.tsx + SCSS
+| 变更 | 说明 |
+|------|------|
+| `.container` 加 `overflow: hidden` | flex 布局正确分配空间，输入框始终在底部 |
+| `TypingIndicator` 组件 | 三点跳动动画 (`typingBounce` keyframe)，streaming 状态时显示 |
+| `TimeSlotPicker` 组件 | 多个可选时间段卡片，支持点击切换选中状态 |
+| `MessageBubble` 增强 | streaming 且无 content 时渲染 TypingIndicator；actions 带 timeSlots 时渲染 TimeSlotPicker |
+
+#### 2. 逻辑层面 — secretaryQueryProcessor.ts
+| 变更 | 说明 |
+|------|------|
+| `handleCreateEvent()` 重写 | 移除硬编码 9:00 时间，改用 `smartScheduler.findBestTimeSlot()` |
+| 新增 `getAvailableTimeRanges()` 调用 | 查询目标日期本地日程的空闲时段（9:00-18:00, 过滤周末） |
+| 返回 `timeSlots[]` | QueryResult 新增字段，携带最多 4 个推荐时间段 |
+| 首个 slot 标记 `isRecommended` | smartScheduler 推荐的最佳时段高亮显示 |
+
+#### 3. 数据流层面 — useSecretaryChat.ts
+| 变更 | 说明 |
+|------|------|
+| `ChatMessage.timeSlots` 字段 | 扩展消息类型支持时间槽数组 |
+| `selectTimeSlot()` 方法 | 点击时间段后更新 actions.params 的时间 + 刷新显示 |
+| 结果处理传递 timeSlots | processQuery 返回值中的 timeSlots 映射到 ChatMessage |
+
+### 修改文件清单
+| 文件 | 变更类型 | 关键改动 |
+|------|---------|---------|
+| `components/ui/SecretaryView.tsx` | 重写 | +TypingIndicator, +TimeSlotPicker, MessageBubble 增强 |
+| `components/ui/SecretaryView.module.scss` | 修改 | +typingIndicator 动画, +timeSlotList/Option 样式, container overflow:hidden |
+| `lib/services/secretaryQueryProcessor.ts` | 修改 | handleCreateEvent 用 smartScheduler, +TimeSlot 接口, QueryResult+timeSlots |
+| `lib/hooks/useSecretaryChat.ts` | 修改 | +TimeSlot 接口, ChatMessage+timeSlots, +selectTimeSlot() |
+
+### TypeScript 类型检查
+- 所有修改文件零类型错误 ✅
+
+---
+
+## 2026-04-20 | 数据流统一: 本地模型与远程模型对齐
+
+### 问题
+本地模型没有使用项目规定的数据结构和数据流逻辑，与远程大模型路径存在 5 处关键差异
+
+### 差异对比与修复
+
+| # | 差异 | 远程模型 | 本地模型(修复前) | 修复后 |
+|---|------|---------|----------------|--------|
+| 1 | 上下文注入 | `${contextInfo}\n\n用户请求` | 仅 `userMessage` | ✅ 同远程模型 |
+| 2 | Prompt 完整性 | SYSTEM_PROMPT (详细) | LOCAL_MODEL_PROMPT (缺失 batch_actions/cancel_event/newTime) | ✅ 补全所有意图+参数说明 |
+| 3 | enrichActions context | 传入真实 context | 硬编码 `{items:[], locale:'zh'}` | ✅ 传入真实 context |
+| 4 | generateChatResponse | 无上下文 | 无上下文 | ✅ 注入 contextInfo + 区分本地/远程参数 |
+| 5 | newTime 参数 | 支持 | 被移除 | ✅ 恢复支持，用户指定时间时直接使用 |
+| 6 | timeSlots 时间 | N/A | 所有 slot 显示相同时间 (suggestion) | ✅ 每个 slot 用自己的 start/end |
+| 7 | max_tokens | 500 | 300 (过小) | ✅ 400 |
+
+### 修改文件
+| 文件 | 关键改动 |
+|------|---------|
+| `lib/services/secretaryAIService.ts` | LOCAL_MODEL_PROMPT 增强, classifyIntent 注入上下文, parseIntentResponse 传入 context, generateChatResponse 注入上下文 |
+| `lib/services/secretaryQueryProcessor.ts` | handleCreateEvent timeSlots bug 修复, newTime 参数恢复 |
+
+### 统一后的数据流
+```
+用户输入 → processQuery()
+  → classifyIntent(userMessage, context)
+    → buildContextInfo(context)        ← 本地/远程统一注入
+    → aiService.chat(messages, opts)   ← 本地/远程走同一 LLMProvider 接口
+    → parseIntentResponse(content, userMessage, context)  ← 传入真实 context
+    → enrichActions(actions, context)  ← 日期解析使用真实 context
+  → handleCreateEvent / handleReschedule / ...
+    → smartScheduler.findBestTimeSlot()  ← 查询本地日程数据
+    → 返回 QueryResult { content, actions, timeSlots }
+```

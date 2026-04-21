@@ -9,6 +9,13 @@ import {
   type QueryResult,
 } from '@/lib/services/secretaryQueryProcessor';
 
+export interface TimeSlot {
+  startTime: number;
+  endTime: number;
+  label: string;
+  isRecommended?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -17,6 +24,7 @@ export interface ChatMessage {
   actions?: ProposalAction[];
   isStreaming?: boolean;
   timestamp?: number;
+  timeSlots?: TimeSlot[];
 }
 
 const CHAT_KEY = 'secretary_messages';
@@ -177,7 +185,7 @@ export function useSecretaryChat(
         setMessages(prev =>
           prev.map(msg =>
             msg.id === streamingMessage.id
-              ? { ...msg, content: result.content, proposal: result.proposal, actions: result.actions, isStreaming: false }
+              ? { ...msg, content: result.content, proposal: result.proposal, actions: result.actions, timeSlots: result.timeSlots, isStreaming: false }
               : msg
           )
         );
@@ -263,6 +271,50 @@ export function useSecretaryChat(
     await db.chat.removeItem(CHAT_KEY);
   }, []);
 
+  const selectTimeSlot = useCallback(
+    async (messageId: string, slotIndex: number) => {
+      const message = messages.find(m => m.id === messageId);
+      if (!message?.timeSlots || !message.actions) return;
+
+      const slot = message.timeSlots[slotIndex];
+      if (!slot) return;
+
+      const updatedActions = message.actions.map(action => ({
+        ...action,
+        params: {
+          ...action.params,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        },
+        afterPreview: new Date(slot.startTime).toLocaleString(locale, {
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }));
+
+      const isZh = locale.startsWith('zh');
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              actions: updatedActions,
+              content: msg.content.replace(
+                /Time:.*/g,
+                `${isZh ? '时间' : 'Time'}: ${new Date(slot.startTime).toLocaleString(locale, { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+              ),
+              timeSlots: msg.timeSlots?.map((s, i) => ({ ...s, isRecommended: i === slotIndex })),
+            };
+          }
+          return msg;
+        })
+      );
+    },
+    [messages, locale]
+  );
+
   return {
     messages,
     inputValue,
@@ -273,5 +325,6 @@ export function useSecretaryChat(
     sendMessage,
     approveAction,
     clearHistory,
+    selectTimeSlot,
   };
 }

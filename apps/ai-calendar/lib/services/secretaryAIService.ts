@@ -180,10 +180,22 @@ const SYSTEM_PROMPT = `你是一个智能日程助手。你必须只输出有效
 
 const LOCAL_MODEL_PROMPT = `你是日程助手。只输出JSON，不要其他文字。
 
-意图类型: search, reschedule, find_free_time, create_event, cancel_event, decompose_goal
+意图: search, reschedule, find_free_time, create_event, cancel_event, decompose_goal, batch_actions
 
-输出格式:
+格式:
 {"intent":"意图","confidence":0.9,"actions":[{"type":"操作类型","targetTitle":"标题","params":{}}],"explanation":"说明"}
+
+params字段说明:
+- search: {"query":"关键词"}
+- reschedule: {"targetDate":"日期","newDate":"新日期"}
+- find_free_time: {"targetDate":"日期","timeRange":"morning/afternoon/evening"}
+- create_event: {"targetDate":"日期","newTime":"HH:MM","duration":分钟数}
+- cancel_event: {"targetDate":"日期"}
+- decompose_goal: {"goalDescription":"目标描述"}
+- batch_actions: 多个action组合
+
+日期关键词: today, tomorrow, monday-sunday, next week
+时间关键词: morning=9-12, afternoon=14-18, evening=18-21
 
 示例:
 用户:把会议改到周五
@@ -193,7 +205,13 @@ const LOCAL_MODEL_PROMPT = `你是日程助手。只输出JSON，不要其他文
 {"intent":"find_free_time","confidence":0.9,"actions":[{"type":"find_free_time","params":{"targetDate":"today","timeRange":"afternoon"}}],"explanation":"查看下午空闲时间"}
 
 用户:明天加个站会
-{"intent":"create_event","confidence":0.9,"actions":[{"type":"create_event","targetTitle":"站会","params":{"targetDate":"tomorrow","duration":30}}],"explanation":"创建明天站会"}`;
+{"intent":"create_event","confidence":0.9,"actions":[{"type":"create_event","targetTitle":"站会","params":{"targetDate":"tomorrow","newTime":"09:00","duration":30}}],"explanation":"创建明天站会"}
+
+用户:取消明天的会议
+{"intent":"cancel_event","confidence":0.9,"actions":[{"type":"cancel_event","targetTitle":"会议","params":{"targetDate":"tomorrow"}}],"explanation":"取消明天会议"}
+
+用户:把会议改到周五，顺便看看下午有空吗
+{"intent":"batch_actions","confidence":0.9,"actions":[{"type":"reschedule","targetTitle":"会议","params":{"targetDate":"today","newDate":"friday"}},{"type":"find_free_time","params":{"targetDate":"friday","timeRange":"afternoon"}}],"explanation":"改会议到周五并查看空闲"}`;
 
 function resolveTimeRange(keyword: string): { start: number; end: number } {
   const lowerKeyword = keyword.toLowerCase();
@@ -233,28 +251,31 @@ export class SecretaryAIService {
       const isLocal = useProvider === 'local';
 
       const systemPrompt = isLocal ? LOCAL_MODEL_PROMPT : SYSTEM_PROMPT;
+      const userContent = isLocal
+        ? `${contextInfo}\n\n用户请求: ${userMessage}`
+        : `${contextInfo}\n\n用户请求: ${userMessage}`;
 
       const messages: Message[] = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: isLocal ? userMessage : `${contextInfo}\n\n用户请求: ${userMessage}` }
+        { role: 'user', content: userContent }
       ];
 
       const response = await aiService.chat(messages, {
         temperature: isLocal ? 0.1 : 0.3,
-        max_tokens: isLocal ? 300 : 500,
+        max_tokens: isLocal ? 400 : 500,
         provider: useProvider,
         response_format: isLocal ? undefined : { type: 'json_object' }
       });
 
       const content = response.choices[0]?.message?.content || '';
-      return this.parseIntentResponse(content, userMessage);
+      return this.parseIntentResponse(content, userMessage, context);
     } catch (error) {
       console.error('Failed to classify intent:', error);
       return this.createFallbackPlan(userMessage);
     }
   }
 
-  private parseIntentResponse(content: string, userMessage: string): ActionPlan {
+  private parseIntentResponse(content: string, userMessage: string, context: SecretaryContext): ActionPlan {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
@@ -270,7 +291,7 @@ export class SecretaryAIService {
       return {
         type: intent,
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
-        actions: this.enrichActions(actions, { items: [], locale: 'zh', currentDate: new Date() }),
+        actions: this.enrichActions(actions, context),
         explanation: parsed.explanation || ''
       };
     } catch {
@@ -675,21 +696,22 @@ ${upcomingEvents.length > 0 ? upcomingEvents.join('\n') : '- 暂无日程'}`;
     const isZh = context.locale.startsWith('zh');
     const config = await aiConfigManager.getConfig();
     const useProvider = config.defaultProvider;
+    const isLocal = useProvider === 'local';
+
+    const contextInfo = this.buildContextInfo(context);
+    const systemPrompt = isZh
+      ? '你是一个智能日程助手，友好且专业。请用自然语言回复用户的问候和问题。如果用户的问题与日程相关，请参考上下文中的日程信息给出建议。'
+      : 'You are an intelligent calendar assistant, friendly and professional. Please respond to user greetings and questions in natural language. If the question relates to scheduling, reference the context for informed advice.';
 
     const messages: Message[] = [
-      {
-        role: 'system',
-        content: isZh
-          ? '你是一个智能日程助手，友好且专业。请用自然语言回复用户的问候和问题。'
-          : 'You are an intelligent calendar assistant, friendly and professional. Please respond to user greetings and questions in natural language.'
-      },
-      { role: 'user', content: userMessage }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `${contextInfo}\n\n${userMessage}` }
     ];
 
     try {
       const response = await aiService.chat(messages, {
-        temperature: 0.7,
-        max_tokens: 300,
+        temperature: isLocal ? 0.5 : 0.7,
+        max_tokens: isLocal ? 200 : 300,
         provider: useProvider
       });
 

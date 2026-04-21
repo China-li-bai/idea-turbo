@@ -21,10 +21,18 @@ export interface ProposalAction {
   afterPreview?: string;
 }
 
+export interface TimeSlot {
+  startTime: number;
+  endTime: number;
+  label: string;
+  isRecommended?: boolean;
+}
+
 export interface QueryResult {
   content: string;
   proposal?: ProposalData;
   actions?: ProposalAction[];
+  timeSlots?: TimeSlot[];
 }
 
 export interface QueryContext {
@@ -112,7 +120,7 @@ async function processWithAI(
   }
 
   if (plan.type === 'create_event') {
-    return handleCreateEvent(plan, userMessage, locale);
+    return handleCreateEvent(plan, userMessage, items, locale);
   }
 
   if (plan.type === 'reschedule' || plan.type === 'batch_actions') {
@@ -181,6 +189,7 @@ async function handleFindFreeTime(
 async function handleCreateEvent(
   plan: { actions: Array<{ type: string; targetTitle?: string; params: Record<string, unknown> }>; explanation: string },
   userMessage: string,
+  items: UnifiedCalendarItem[],
   locale: string
 ): Promise<QueryResult> {
   const createAction = plan.actions.find(a => a.type === 'create_event');
@@ -188,22 +197,78 @@ async function handleCreateEvent(
 
   const { newDate, newTime, duration, goalDescription } = createAction.params;
   const title = createAction.targetTitle || (goalDescription as string) || userMessage;
+  const eventDuration = (duration as number) || 60;
+  const isZh = locale.startsWith('zh');
 
-  let eventDate: Date;
-  if (newDate) {
-    eventDate = new Date(newDate as string);
-  } else {
-    eventDate = new Date();
-    eventDate.setDate(eventDate.getDate() + 1);
-  }
+  const targetDate = newDate ? new Date(newDate as string) : (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  })();
 
   if (newTime) {
     const [hours, minutes] = (newTime as string).split(':').map(Number);
-    eventDate.setHours(hours || 9, minutes || 0, 0, 0);
+    targetDate.setHours(hours || 9, minutes || 0, 0, 0);
+    const endDate = new Date(targetDate.getTime() + eventDuration * 60000);
+
+    const actions: ProposalAction[] = [{
+      type: 'create',
+      targetId: generateUUID(),
+      targetTitle: title as string,
+      params: {
+        startTime: targetDate.getTime(),
+        endTime: endDate.getTime(),
+        duration: eventDuration,
+      },
+      afterPreview: targetDate.toLocaleString(locale, {
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    }];
+
+    let content = plan.explanation + '\n\n';
+    content += `📅 **${title}**\n`;
+    content += `${isZh ? '时间' : 'Time'}: ${actions[0].afterPreview}\n`;
+    content += `${isZh ? '时长' : 'Duration'}: ${eventDuration} ${isZh ? '分钟' : ' min'}\n\n`;
+    content += isZh ? '请点击下方按钮确认创建' : 'Click the button below to confirm';
+
+    return { content, actions };
   }
 
-  const eventDuration = (duration as number) || 60;
-  const endDate = new Date(eventDate.getTime() + eventDuration * 60000);
+  const suggestion = smartScheduler.findBestTimeSlot(
+    eventDuration,
+    {
+      preferredDate: targetDate,
+      avoidWeekends: true,
+    },
+    items
+  );
+
+  const slots = smartScheduler.getAvailableTimeRanges(targetDate, items)
+    .filter(slot => {
+      const slotMinutes = (slot.end.getTime() - slot.start.getTime()) / 60000;
+      return slotMinutes >= eventDuration && slot.start.getHours() >= 9 && slot.start.getHours() < 18;
+    })
+    .slice(0, 4);
+
+  const timeSlots: TimeSlot[] = slots.length > 0
+    ? slots.map((slot, i) => {
+        const slotEnd = new Date(slot.start.getTime() + eventDuration * 60000);
+        return {
+          startTime: slot.start.getTime(),
+          endTime: slotEnd.getTime(),
+          label: `${slot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} - ${slotEnd.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`,
+          isRecommended: i === 0,
+        };
+      })
+    : [{
+        startTime: suggestion.suggestedStart.getTime(),
+        endTime: suggestion.suggestedEnd.getTime(),
+        label: `${suggestion.suggestedStart.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} - ${suggestion.suggestedEnd.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`,
+        isRecommended: true,
+      }];
 
   const actions: ProposalAction[] = [
     {
@@ -211,11 +276,11 @@ async function handleCreateEvent(
       targetId: generateUUID(),
       targetTitle: title as string,
       params: {
-        startTime: eventDate.getTime(),
-        endTime: endDate.getTime(),
+        startTime: timeSlots[0].startTime,
+        endTime: timeSlots[0].endTime,
         duration: eventDuration,
       },
-      afterPreview: eventDate.toLocaleString(locale, {
+      afterPreview: new Date(timeSlots[0].startTime).toLocaleString(locale, {
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
@@ -224,14 +289,21 @@ async function handleCreateEvent(
     },
   ];
 
-  const isZh = locale.startsWith('zh');
   let content = plan.explanation + '\n\n';
   content += `📅 **${title}**\n`;
-  content += `${isZh ? '时间' : 'Time'}: ${actions[0].afterPreview}\n`;
-  content += `${isZh ? '时长' : 'Duration'}: ${eventDuration} ${isZh ? '分钟' : ' min'}\n\n`;
-  content += isZh ? '请点击下方按钮确认创建' : 'Click the button below to confirm';
+  content += `${isZh ? '推荐时间' : 'Suggested'}: ${actions[0].afterPreview}\n`;
+  content += `${isZh ? '时长' : 'Duration'}: ${eventDuration} ${isZh ? '分钟' : ' min'}\n`;
 
-  return { content, actions };
+  if (slots.length > 1) {
+    content += `\n${isZh ? '📋 可选时间段（基于您的日程）' : '📋 Available slots (from your schedule)'}:\n`;
+    slots.slice(1, 4).forEach((slot, i) => {
+      content += `  ${i + 2}. ${slot.start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} - ${slot.end.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}\n`;
+    });
+  }
+
+  content += `\n${isZh ? '请选择时间段后确认创建' : 'Select a time slot to confirm'}`;
+
+  return { content, actions, timeSlots };
 }
 
 async function handleReschedule(
