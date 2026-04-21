@@ -1,23 +1,39 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated'
-import { theme } from '../theme'
-import type { MessageRole } from '../types'
+import Animated, { FadeInUp, FadeInDown, withSpring, useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
+import { theme, petTheme } from '../theme'
+import type { MessageRole, PetSpecies } from '../types'
 
 interface ChatBubbleProps {
   content: string
   role: MessageRole
   petEmoji?: string
+  species?: PetSpecies
   index?: number
+  showTail?: boolean
 }
 
-export function ChatBubble({ content, role, petEmoji = '🐱', index = 0 }: ChatBubbleProps) {
+export function ChatBubble({
+  content,
+  role,
+  petEmoji = '🐱',
+  species = 'cat',
+  index = 0,
+  showTail = true,
+}: ChatBubbleProps) {
+  const petColors = petTheme[species] || petTheme.cat
+
   if (role === 'system') {
     return (
-      <Animated.View entering={FadeInUp.duration(300).delay(index * 50)} style={styles.systemWrapper}>
-        <View style={styles.systemBubble}>
-          <Text style={styles.systemIcon}>🛡️</Text>
-          <Text style={styles.systemText}>{content}</Text>
+      <Animated.View
+        entering={FadeInUp.duration(300).delay(index * 50)}
+        style={styles.systemWrapper}
+      >
+        <View style={[styles.systemBubble, { borderColor: petColors.primary + '25' }]}>
+          <Text style={styles.systemIcon}>✨</Text>
+          <Text style={[styles.systemText, { color: petColors.primaryDark }]}>
+            {content}
+          </Text>
         </View>
       </Animated.View>
     )
@@ -27,22 +43,39 @@ export function ChatBubble({ content, role, petEmoji = '🐱', index = 0 }: Chat
 
   return (
     <Animated.View
-      entering={isUser ? FadeInDown.duration(300).delay(index * 50) : FadeInUp.duration(300).delay(index * 50)}
+      entering={isUser
+        ? FadeInDown.duration(350).delay(index * 40).springify()
+        : FadeInUp.duration(350).delay(index * 40).springify()
+      }
       style={[styles.bubbleRow, isUser ? styles.userRow : styles.petRow]}
     >
       {!isUser && (
-        <View style={styles.avatarContainer}>
+        <View style={[styles.avatarContainer, { backgroundColor: petColors.bg }]}>
           <Text style={styles.avatarEmoji}>{petEmoji}</Text>
         </View>
       )}
-      <View style={[
-        styles.bubble,
-        isUser ? styles.userBubble : styles.petBubble,
-        isUser ? { borderBottomRightRadius: theme.radius.sm } : { borderBottomLeftRadius: theme.radius.sm },
-      ]}>
-        <Text style={[styles.bubbleText, isUser ? styles.userText : styles.petText]}>
-          {content}
-        </Text>
+      <View style={styles.bubbleWrapper}>
+        <View
+          style={[
+            styles.bubble,
+            isUser
+              ? [styles.userBubble, { backgroundColor: petColors.primary }]
+              : [styles.petBubble, { borderColor: petColors.primary + '20' }],
+            isUser
+              ? { borderBottomRightRadius: theme.radius.sm }
+              : { borderBottomLeftRadius: theme.radius.sm },
+          ]}
+        >
+          <Text style={[
+            styles.bubbleText,
+            isUser ? styles.userText : [styles.petText, { color: petColors.primaryDark }],
+          ]}>
+            {content}
+          </Text>
+        </View>
+        {showTail && !isUser && (
+          <View style={[styles.tail, { borderTopColor: petColors.primary + '20' }]} />
+        )}
       </View>
     </Animated.View>
   )
@@ -53,7 +86,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     marginBottom: theme.spacing.md,
-    maxWidth: '85%',
+    maxWidth: '88%',
   },
   userRow: {
     alignSelf: 'flex-end',
@@ -62,16 +95,20 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   avatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.neutral[50],
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.sm,
+    borderWidth: 1.5,
+    borderColor: theme.colors.neutral[200],
   },
   avatarEmoji: {
-    fontSize: 16,
+    fontSize: 18,
+  },
+  bubbleWrapper: {
+    position: 'relative',
   },
   bubble: {
     paddingHorizontal: theme.spacing.lg,
@@ -80,12 +117,12 @@ const styles = StyleSheet.create({
     ...theme.shadows.sm,
   },
   userBubble: {
-    backgroundColor: theme.colors.primary[500],
+    borderBottomRightRadius: theme.radius.sm,
   },
   petBubble: {
     backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderColor: theme.colors.neutral[200],
+    borderWidth: 1.5,
+    borderBottomLeftRadius: theme.radius.sm,
   },
   bubbleText: {
     fontSize: theme.typography.sizes.md,
@@ -96,30 +133,40 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.medium,
   },
   petText: {
-    color: theme.colors.neutral[900],
+    fontWeight: theme.typography.weights.medium,
+  },
+  tail: {
+    position: 'absolute',
+    bottom: 0,
+    left: -6,
+    width: 0,
+    height: 0,
+    borderTopWidth: 8,
+    borderRightWidth: 8,
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
   },
   systemWrapper: {
     alignSelf: 'center',
     marginVertical: theme.spacing.sm,
-    maxWidth: '90%',
+    maxWidth: '92%',
   },
   systemBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.warm[50],
-    borderWidth: 1,
-    borderColor: theme.colors.warm[200],
-    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.white,
+    borderWidth: 1.5,
+    borderRadius: theme.radius.xl,
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     gap: theme.spacing.sm,
+    ...theme.shadows.sm,
   },
   systemIcon: {
     fontSize: 14,
   },
   systemText: {
     fontSize: theme.typography.sizes.sm,
-    color: theme.colors.warm[500],
     fontWeight: theme.typography.weights.medium,
     flex: 1,
   },
