@@ -64,8 +64,8 @@
 
 | 模块 | 文件 | 行数 | 职责 |
 |------|------|------|------|
-| AnimaCore | src/lib/AnimaCore.ts | 409 | 三步初始化链 / Chat流水线 / 归档决策 / 对话追踪 |
-| LocalBrain | src/lib/LocalBrain.ts | ~560+ | llama.rn 推理 / 宠物回复生成 / 访客模式 / 回退模板系统 |
+| AnimaCore | src/lib/AnimaCore.ts | 490+ | 三步初始化链 / Chat+ChatStream流水线 / 归档决策 / 对话追踪 |
+| LocalBrain | src/lib/LocalBrain.ts | ~600+ | llama.rn 推理 / 宠物回复生成(同步+流式) / 访客模式 / 回退模板系统 |
 | MemorySystem | src/lib/MemorySystem.ts | 563 | 工作记忆 / 情节记忆 / 语义记忆 / 提取分类 / 向量检索 / 整理GC |
 | LocalDB | src/lib/LocalDB.ts | 347 | SQLite Schema / CRUD / 索引 / 隐私过滤 / 配置KV |
 | EmbeddingEngine | src/lib/EmbeddingEngine.ts | 227 | Keyword(128d) + ONNX(BGE-Micro) 双引擎 / 相似度检索 |
@@ -75,7 +75,8 @@
 | BatteryManager | src/lib/BatteryManager.ts | — | 三级电源模式(full/saver/critical)/电池监听 |
 | UI | App.tsx | 563 | 聊天界面 / 系统状态面板 / 思维步骤条 / 输入区 |
 | Types | src/types/index.ts | 182 | 15+ 接口 / 枚举 / 配置常量 (Pet/Message/Memory/Privacy) |
-| Store | src/store/index.ts | 83 | Zustand 全局状态 / View路由 / Thinking状态 |
+| Store | src/store/index.ts | 87 | Zustand 全局状态 / View路由 / Thinking状态 / 流式StreamId |
+| FluidChat | src/components/FluidChat/ | ~350 | 流式聊天组件 / 事件总线 / 弹性动画气泡 / 倒序FlatList |
 
 ### 测试文件
 
@@ -92,7 +93,7 @@
 
 ## 四、功能完成度
 
-### 已完成 (15项)
+### 已完成 (16项)
 
 | # | 功能 | 实现位置 | 状态 |
 |---|------|----------|------|
@@ -111,6 +112,7 @@
 | 13 | Zustand 全局状态 (完整类型安全) | store/index.ts | 完整 |
 | 14 | Chat MVP UI (思维链/系统面板/消息气泡) | App.tsx | 可用 |
 | 15 | Jest 测试套件 (55 cases, 4 suites) | __tests__/ | 全绿 |
+| 16 | FluidChat 流式聊天组件 (事件总线+弹性动画+倒序FlatList) | components/FluidChat/ | 生产级 |
 
 ### 进行中 / 部分完成 (4项)
 
@@ -145,6 +147,7 @@
 | 2026-04-20 | ONNX Runtime Android 崩溃 `Cannot read property 'install' of null` | onnxruntime-react-native 的 OnnxruntimePackage() 未被 Expo autolink 到 MainApplication.kt | app.json plugins 添加 `onnxruntime-react-native` | Android ONNX 引擎从完全不可用→正常工作 |
 | 2026-04-20 | HuggingFace Qwen3-0.6B GGUF 404 | 官方仓库只有 Q8_0 版本，Q4_K_M/Q2_K 不存在 | ModelManager.ts 改用 ModelScope Q8_0 URL | 下载地址从 404→HTTP 200 |
 | 2026-04-20 | EAS 上传包体 727MB | GGUF 模型 369MB + 冗余 embedding 文件 132MB 全部打包 | 改为混合方案：GGUF 按需下载 + .easignore 排除冗余 | 上传包体从 727MB→~27MB |
+| 2026-04-21 | react-native-gifted-chat 流式输出卡顿/列表跳动 | 传统聊天组件全量重渲染 + ScrollView 无法隔离流式更新 | 新建 FluidChat 组件架构：事件总线 + 局部状态 + Reanimated 弹性动画 | 流式输出从卡顿→丝滑逐字动画 |
 
 ---
 
