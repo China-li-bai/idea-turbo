@@ -38,3 +38,23 @@ export { BreathingPet } from './BreathingPet'
 export { ThinkingFlow } from './ThinkingFlow'
 export { MemoryFragment } from './MemoryFragment'
 export { CyberGlass, GlassCard, GlassButton } from './CyberGlass'
+export { PetTransitionProvider, usePetTransition, SharedPet } from './PetTransitionContext'
+export type { PetPositionMode } from './PetTransitionContext'
+export { AmbientBubble, AmbientBubbleManager } from './AmbientBubble'
+export { ImmersionVeil, ImmersionPortal } from './ImmersionVeil'
+export { ImmersionChat } from './ImmersionChat'
+export { MemoryAnchor, MemoryAnchorDetail, MemoryAnchorSidebar } from './MemoryAnchor'
+export type { MemoryAnchorData } from './MemoryAnchor'
+export { tokenSpeedTracker } from './TokenSpeedTracker'
+export type { TokenSpeedLevel, TokenSpeedMetrics, BreathPhysicsParams } from './TokenSpeedTracker'
+export {
+  getBreathCurve,
+  getBreathPhysicsForCurve,
+  getStreamingCursorAnimation,
+  getBubblePulseAnimation,
+  computeBreathState,
+} from './BreathCurve'
+export type { BreathCurveConfig, BreathState } from './BreathCurve'
+export { DevourAnimation, useDevourAnimation } from './DevourAnimation'
+export { SubconsciousMap, generateSubconsciousNodes } from './SubconsciousMap'
+export type { SubconsciousNode, SubconsciousEdge } from './SubconsciousMap'

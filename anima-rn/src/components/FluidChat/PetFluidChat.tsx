@@ -5,6 +5,7 @@ import { StaticBubble } from './StaticBubble'
 import { streamEventBus } from './StreamEventBus'
 import { theme } from '../../theme'
 import type { Message, PetSpecies } from '../../types'
+import type { TokenSpeedLevel } from '../LivingUI/TokenSpeedTracker'
 
 const STREAM_ITEM_ID = '__active_stream__'
 
@@ -19,6 +20,7 @@ interface PetFluidChatProps {
   activeStreamId: string | null
   petEmoji?: string
   species?: PetSpecies
+  speedLevel?: TokenSpeedLevel
   onStreamComplete: (messageId: string, fullText: string) => void
   ListHeaderComponent?: React.ReactElement | null
   ListFooterComponent?: React.ReactElement | null
@@ -29,6 +31,7 @@ export function PetFluidChat({
   activeStreamId,
   petEmoji = '🐱',
   species = 'cat',
+  speedLevel = 'normal',
   onStreamComplete,
   ListHeaderComponent,
   ListFooterComponent,
@@ -57,6 +60,7 @@ export function PetFluidChat({
             messageId={activeStreamId}
             petEmoji={petEmoji}
             species={species}
+            speedLevel={speedLevel}
             onComplete={(fullText) => onStreamComplete(activeStreamId, fullText)}
           />
         )
@@ -77,7 +81,7 @@ export function PetFluidChat({
 
       return null
     },
-    [activeStreamId, petEmoji, species, onStreamComplete],
+    [activeStreamId, petEmoji, species, speedLevel, onStreamComplete],
   )
 
   const keyExtractor = useCallback((item: FluidChatItem) => item.id, [])
