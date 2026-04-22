@@ -1,6 +1,6 @@
 import type { SupportedLocale } from './i18n'
 
-export type AIModelType = 'zh-specific' | 'multilingual' | 'english'
+export type AIModelType = 'multilingual'
 
 export type EmbeddingTask = 'query' | 'passage'
 
@@ -12,6 +12,7 @@ export interface AIModelConfig {
   dimensions: number
   supportedLocales: SupportedLocale[]
   type: AIModelType
+  preferredDtype: string
   prefixConfig?: {
     query: string
     passage: string
@@ -19,48 +20,29 @@ export interface AIModelConfig {
 }
 
 export const AI_MODELS: Record<AIModelType, AIModelConfig> = {
-  'zh-specific': {
-    id: 'zh-specific',
-    name: '中文优化模型',
-    description: '针对中文优化的 BGE 模型，中文语义理解最佳',
-    modelName: 'Xenova/bge-small-zh-v1.5',
-    dimensions: 512,
-    supportedLocales: ['zh-CN', 'zh-TW'],
-    type: 'zh-specific'
-  },
   'multilingual': {
     id: 'multilingual',
-    name: '多语言模型',
-    description: '支持 100+ 语言的 E5 模型，适合国际化场景',
-    modelName: 'Xenova/multilingual-e5-small',
-    dimensions: 384,
+    name: 'BGE-M3 多语言模型',
+    description: '2026年SOTA多语言Embedding模型，支持100+语言，中英文语义理解最佳',
+    modelName: 'Xenova/bge-m3',
+    dimensions: 1024,
     supportedLocales: ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'ko-KR'],
     type: 'multilingual',
-    prefixConfig: {
-      query: 'query: ',
-      passage: 'passage: '
-    }
-  },
-  'english': {
-    id: 'english',
-    name: '英文优化模型',
-    description: '针对英文优化的 MiniLM 模型，英文语义理解最佳',
-    modelName: 'Xenova/all-MiniLM-L6-v2',
-    dimensions: 384,
-    supportedLocales: ['en-US'],
-    type: 'english'
+    preferredDtype: 'q8',
   }
 }
 
-export const DEFAULT_AI_MODEL: AIModelType = 'zh-specific'
+export const DEFAULT_AI_MODEL: AIModelType = 'multilingual'
 
-export function getRecommendedModel(locale: SupportedLocale): AIModelType {
-  if (locale === 'zh-CN' || locale === 'zh-TW') {
-    return 'zh-specific'
-  }
-  if (locale === 'en-US') {
-    return 'english'
-  }
+export const LEGACY_MODEL_TYPES = ['zh-specific', 'english'] as const
+
+export function migrateModelType(saved: string | null): AIModelType {
+  if (!saved) return DEFAULT_AI_MODEL
+  if (saved in AI_MODELS) return saved as AIModelType
+  return DEFAULT_AI_MODEL
+}
+
+export function getRecommendedModel(_locale: SupportedLocale): AIModelType {
   return 'multilingual'
 }
 
@@ -69,22 +51,21 @@ export function getModelConfig(modelType: AIModelType): AIModelConfig {
 }
 
 export function isModelCompatibleWithLocale(
-  modelType: AIModelType, 
-  locale: SupportedLocale
+  _modelType: AIModelType,
+  _locale: SupportedLocale
 ): boolean {
-  const config = AI_MODELS[modelType]
-  return config.supportedLocales.includes(locale)
+  return true
 }
 
 export function formatTextForEmbedding(
-  text: string, 
-  task: EmbeddingTask,
+  text: string,
+  _task: EmbeddingTask,
   config: AIModelConfig
 ): string {
   if (!config.prefixConfig) {
     return text
   }
-  
-  const prefix = config.prefixConfig[task]
+
+  const prefix = config.prefixConfig[_task]
   return `${prefix}${text}`
 }

@@ -50,7 +50,7 @@ export const useUIStore = create<UIState>((set) => ({
     language: 'zh-CN',
     vectorSearchEnabled: true,
     autoSyncEmbeddings: true,
-    embeddingModel: 'Xenova/multilingual-e5-small',
+    embeddingModel: 'Xenova/bge-m3',
     aiMode: 'hybrid',
     autoBackup: false,
     backupFrequency: 'weekly',

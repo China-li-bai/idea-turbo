@@ -31,7 +31,7 @@ export const MEMORY_CONSTANTS = {
   MIN_IMPORTANCE: 'low' as const,
   MAX_IMPORTANCE: 'high' as const,
   
-  DEFAULT_EMBEDDING_MODEL: 'Xenova/multilingual-e5-small',
+  DEFAULT_EMBEDDING_MODEL: 'Xenova/bge-m3',
   
   STORAGE_KEY_PREFIX: 'ai-calendar-memory-',
   STORAGE_VERSION: 1,

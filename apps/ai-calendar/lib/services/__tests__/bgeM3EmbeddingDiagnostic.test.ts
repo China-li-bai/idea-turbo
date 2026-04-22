@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { pipeline } from '@huggingface/transformers';
 import { formatTextForEmbedding, AI_MODELS, AIModelConfig } from '@/lib/utils/aiModels';
 
-describe('E5 模型 Embedding 诊断测试', () => {
+describe('BGE-M3 Embedding 诊断测试', () => {
   let extractor: any;
   const modelConfig = AI_MODELS['multilingual'];
 
@@ -10,7 +10,7 @@ describe('E5 模型 Embedding 诊断测试', () => {
     console.log('Loading model:', modelConfig.modelName);
     extractor = await pipeline('feature-extraction', modelConfig.modelName);
     console.log('Model loaded');
-  }, 60000);
+  }, 120000);
 
   const getEmbedding = async (text: string, task: 'query' | 'passage'): Promise<number[]> => {
     const formattedText = formatTextForEmbedding(text, task, modelConfig);
@@ -31,29 +31,29 @@ describe('E5 模型 Embedding 诊断测试', () => {
     return dotProduct / (magA * magB);
   };
 
-  describe('E5 模型 prefix 测试', () => {
-    it('应该正确格式化 query 文本', () => {
+  describe('BGE-M3 模型格式化测试', () => {
+    it('BGE-M3 不应该添加前缀', () => {
       const formatted = formatTextForEmbedding('Think and Grow Rich', 'query', modelConfig);
-      expect(formatted).toBe('query: Think and Grow Rich');
+      expect(formatted).toBe('Think and Grow Rich');
     });
 
-    it('应该正确格式化 passage 文本', () => {
+    it('passage 格式化也不应该添加前缀', () => {
       const formatted = formatTextForEmbedding('Think and Grow Rich', 'passage', modelConfig);
-      expect(formatted).toBe('passage: Think and Grow Rich');
+      expect(formatted).toBe('Think and Grow Rich');
     });
   });
 
   describe('语义相似度测试', () => {
-    it('相同文本的 query 和 passage 应该有高相似度', async () => {
+    it('相同文本应该有极高的相似度', async () => {
       const text = 'Think and Grow Rich';
       
-      const queryEmbedding = await getEmbedding(text, 'query');
-      const passageEmbedding = await getEmbedding(text, 'passage');
+      const embedding1 = await getEmbedding(text, 'query');
+      const embedding2 = await getEmbedding(text, 'passage');
       
-      const similarity = cosineSimilarity(queryEmbedding, passageEmbedding);
+      const similarity = cosineSimilarity(embedding1, embedding2);
       console.log('相同文本 query vs passage 相似度:', similarity);
       
-      expect(similarity).toBeGreaterThan(0.9);
+      expect(similarity).toBeGreaterThan(0.95);
     });
 
     it('语义相似的文本应该有高相似度', async () => {
@@ -143,7 +143,12 @@ describe('E5 模型 Embedding 诊断测试', () => {
   });
 
   describe('向量维度验证', () => {
-    it('应该生成正确维度的向量', async () => {
+    it('应该生成 1024 维的向量', async () => {
+      const embedding = await getEmbedding('测试文本', 'passage');
+      expect(embedding.length).toBe(1024);
+    });
+
+    it('应该与模型配置的维度一致', async () => {
       const embedding = await getEmbedding('测试文本', 'passage');
       expect(embedding.length).toBe(modelConfig.dimensions);
     });

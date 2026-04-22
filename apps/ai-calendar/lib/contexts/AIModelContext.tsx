@@ -7,7 +7,8 @@ import {
   AI_MODELS, 
   DEFAULT_AI_MODEL,
   getRecommendedModel,
-  isModelCompatibleWithLocale 
+  isModelCompatibleWithLocale,
+  migrateModelType
 } from '@/lib/utils/aiModels';
 import { SupportedLocale } from '@/lib/utils/i18n';
 import { oramaSearchService } from '@/lib/services/oramaSearchService';
@@ -43,12 +44,13 @@ export function AIModelProvider({
   useEffect(() => {
     setMounted(true);
     
-    const savedModel = localStorage.getItem(STORAGE_KEY) as AIModelType | null;
-    if (savedModel && Object.keys(AI_MODELS).includes(savedModel)) {
-      setCurrentModel(savedModel);
-    } else if (initialLocale) {
-      setCurrentModel(getRecommendedModel(initialLocale));
+    const savedModel = localStorage.getItem(STORAGE_KEY);
+    const migratedModel = migrateModelType(savedModel);
+    if (migratedModel !== savedModel && savedModel) {
+      localStorage.setItem(STORAGE_KEY, migratedModel);
+      console.log(`[AIModelContext] Migrated model: ${savedModel} → ${migratedModel}`);
     }
+    setCurrentModel(migratedModel);
   }, [initialLocale]);
 
   useEffect(() => {

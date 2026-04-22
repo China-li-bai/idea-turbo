@@ -11,7 +11,7 @@ const createTestItem = (
   startTime?: number,
   endTime?: number,
   metadata?: UnifiedCalendarItem['metadata'],
-  dimensions: number = 512
+  dimensions: number = 1024
 ): UnifiedCalendarItem => ({
   id,
   type,
@@ -332,7 +332,7 @@ describe('OramaSearchService', () => {
     });
   });
 
-  describe('模型切换', () => {
+  describe('模型配置', () => {
     it('应该返回当前模型配置', () => {
       const modelId = searchService.modelId;
       expect(modelId).toBeDefined();
@@ -341,8 +341,7 @@ describe('OramaSearchService', () => {
 
     it('应该返回正确的模型维度', () => {
       const dimensions = searchService.dimensions;
-      expect(dimensions).toBeGreaterThan(0);
-      expect([384, 512]).toContain(dimensions);
+      expect(dimensions).toBe(1024);
     });
 
     it('应该返回模型名称', () => {
@@ -351,23 +350,11 @@ describe('OramaSearchService', () => {
       expect(typeof modelName).toBe('string');
     });
 
-    it('默认模型应该是中文优化模型', () => {
+    it('默认模型应该是多语言模型', () => {
       const newService = new OramaSearchService();
       expect(newService.modelId).toBe(DEFAULT_AI_MODEL);
+      expect(newService.modelId).toBe('multilingual');
     });
-
-    it('切换模型应该更新模型配置', async () => {
-      const newService = new OramaSearchService();
-      
-      const initialModel = newService.modelId;
-      const targetModel: AIModelType = initialModel === 'zh-specific' ? 'multilingual' : 'zh-specific';
-      
-      const initialDimensions = newService.dimensions;
-      
-      expect(initialModel).toBeDefined();
-      expect(initialDimensions).toBeGreaterThan(0);
-      expect(targetModel).toBeDefined();
-    }, 10000);
 
     it('切换到相同模型应该跳过重新初始化', async () => {
       const currentModel = searchService.modelId;
@@ -377,26 +364,21 @@ describe('OramaSearchService', () => {
       expect(searchService.modelId).toBe(currentModel);
     });
 
-    it('不同模型应该有不同的维度', () => {
-      const zhDimensions = AI_MODELS['zh-specific'].dimensions;
-      const multiDimensions = AI_MODELS['multilingual'].dimensions;
+    it('BGE-M3 模型不应该有前缀配置', () => {
+      const config = AI_MODELS['multilingual'];
       
-      expect(zhDimensions).toBe(512);
-      expect(multiDimensions).toBe(384);
+      expect(config.prefixConfig).toBeUndefined();
     });
 
-    it('E5 模型应该有前缀配置', () => {
-      const multiConfig = AI_MODELS['multilingual'];
-      
-      expect(multiConfig.prefixConfig).toBeDefined();
-      expect(multiConfig.prefixConfig?.query).toBe('query: ');
-      expect(multiConfig.prefixConfig?.passage).toBe('passage: ');
+    it('BGE-M3 模型维度应该是 1024', () => {
+      const config = AI_MODELS['multilingual'];
+      expect(config.dimensions).toBe(1024);
     });
 
-    it('BGE 模型不应该有前缀配置', () => {
-      const zhConfig = AI_MODELS['zh-specific'];
-      
-      expect(zhConfig.prefixConfig).toBeUndefined();
+    it('BGE-M3 模型应该配置 preferredDtype', () => {
+      const config = AI_MODELS['multilingual'];
+      expect(config.preferredDtype).toBeDefined();
+      expect(config.preferredDtype).toBe('q8');
     });
   });
 });

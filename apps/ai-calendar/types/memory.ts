@@ -232,7 +232,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   maxLongTermMemories: 1000,
   consolidationInterval: 24 * 60 * 60 * 1000,
   minConfidenceThreshold: 0.5,
-  embeddingModel: 'Xenova/multilingual-e5-small',
+  embeddingModel: 'Xenova/bge-m3',
   encryptionEnabled: true,
   debugMode: false,
 };

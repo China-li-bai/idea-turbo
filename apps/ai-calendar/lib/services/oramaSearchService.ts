@@ -64,7 +64,8 @@ if (typeof window !== 'undefined') {
 async function loadPipelineWithRetry(
   model: string,
   maxRetries: number = 3,
-  preferWebGPU: boolean = true
+  preferWebGPU: boolean = true,
+  preferredDtype: string = 'q8'
 ): Promise<{ extractor: any; device: 'webgpu' | 'wasm' }> {
   let lastError: Error | null = null;
   let useWebGPU = preferWebGPU;
@@ -82,11 +83,12 @@ async function loadPipelineWithRetry(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const device = useWebGPU ? 'webgpu' : 'wasm';
-      console.log(`[Transformers.js v4] Loading model ${model} with ${device.toUpperCase()}, attempt ${attempt}/${maxRetries}`);
+      const dtype = useWebGPU ? 'fp16' : preferredDtype;
+      console.log(`[Transformers.js v4] Loading model ${model} with ${device.toUpperCase()} (${dtype}), attempt ${attempt}/${maxRetries}`);
       
       const result = await pipeline("feature-extraction", model, {
         device: device,
-        dtype: 'fp16',
+        dtype: dtype,
         progress_callback: (progress: any) => {
           if (progress && progress.status === 'progress') {
             const percent = Math.round((progress.loaded / progress.total) * 100);
@@ -95,7 +97,7 @@ async function loadPipelineWithRetry(
         }
       });
       
-      console.log(`[Transformers.js v4] Model ${model} loaded successfully with ${device.toUpperCase()}`);
+      console.log(`[Transformers.js v4] Model ${model} loaded successfully with ${device.toUpperCase()} (${dtype})`);
       return { extractor: result, device };
     } catch (error) {
       lastError = error as Error;
@@ -128,7 +130,7 @@ async function loadPipelineWithRetry(
 
 type EntityType = ItemType;
 
-const EMBEDDING_SCHEMA_VERSION = 2;
+const EMBEDDING_SCHEMA_VERSION = 3;
 
 interface SearchOptions {
   k?: number;
@@ -403,7 +405,12 @@ export class OramaSearchService {
 
       if (progressCallback) progressCallback(1, 4, `正在初始化模型 ${this.modelConfig.modelName}...`);
 
-      const { extractor, device } = await loadPipelineWithRetry(this.modelConfig.modelName);
+      const { extractor, device } = await loadPipelineWithRetry(
+        this.modelConfig.modelName,
+        3,
+        true,
+        this.modelConfig.preferredDtype
+      );
       this.extractor = extractor;
       this.currentDevice = device;
       
@@ -953,7 +960,7 @@ export class OramaSearchService {
   }
 
   static async clearAllModelData(): Promise<void> {
-    const modelTypes: AIModelType[] = ['zh-specific', 'multilingual', 'english'];
+    const modelTypes: AIModelType[] = ['multilingual'];
     
     for (const modelType of modelTypes) {
       const prefix = `OramaSearchDB_${modelType}`;
@@ -962,6 +969,16 @@ export class OramaSearchService {
       await localforage.removeItem(`${prefix}_ai-calendar-vectors`);
       await localforage.removeItem(`${prefix}_ai-calendar-vectors_version`);
       console.log(`[OramaSearchService] Cleared localforage data for: ${prefix}`);
+    }
+
+    const legacyModelTypes = ['zh-specific', 'english'];
+    for (const modelType of legacyModelTypes) {
+      const prefix = `OramaSearchDB_${modelType}`;
+      await localforage.removeItem(`${prefix}_data`);
+      await localforage.removeItem(`${prefix}_version`);
+      await localforage.removeItem(`${prefix}_ai-calendar-vectors`);
+      await localforage.removeItem(`${prefix}_ai-calendar-vectors_version`);
+      console.log(`[OramaSearchService] Cleared legacy localforage data for: ${prefix}`);
     }
   }
 }

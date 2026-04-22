@@ -7,10 +7,10 @@ const DEFAULT_CONFIG: AIConfig = {
     local: {
       baseURL: '',
       apiKey: '',
-      model: 'MiniCPM4-0.5B-Instruct',
-      defaultModel: 'MiniCPM4-0.5B-Instruct',
-      modelId: 'damo/MiniCPM4-0.5B-Instruct-int4-onnx',
-      modelSource: 'modelscope',
+      model: 'Qwen3.5-0.8B',
+      defaultModel: 'Qwen3.5-0.8B',
+      modelId: 'onnx-community/Qwen3.5-0.8B',
+      modelSource: 'huggingface',
     },
     openai: {
       baseURL: 'https://api.openai.com/v1',

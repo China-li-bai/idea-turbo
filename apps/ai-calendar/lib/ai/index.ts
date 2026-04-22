@@ -31,11 +31,11 @@ export class AIService {
 
     const localConfig = config.providers.local;
     this.localProvider = new LocalLLMProvider({
-      modelId: localConfig?.modelId || 'damo/MiniCPM4-0.5B-Instruct-int4-onnx',
-      modelSource: localConfig?.modelSource || 'modelscope',
+      modelId: localConfig?.modelId || 'onnx-community/Qwen3.5-0.8B',
+      modelSource: localConfig?.modelSource || 'huggingface',
       baseURL: localConfig?.baseURL || '',
       apiKey: localConfig?.apiKey || '',
-      model: localConfig?.model || 'MiniCPM4-0.5B-Instruct',
+      model: localConfig?.model || 'Qwen3.5-0.8B',
       preferWebGPU: true,
     });
     this.providers.set('local', this.localProvider);

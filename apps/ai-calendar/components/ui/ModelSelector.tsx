@@ -56,9 +56,7 @@ export default function ModelSelector({ currentLocale, compact = false }: ModelS
 
   const getModelIcon = (model: AIModelConfig): string => {
     const iconMap: Record<string, string> = {
-      'zh-specific': '🇨🇳',
       'multilingual': '🌐',
-      'english': '🇺🇸',
     };
     return iconMap[model.type] || '🤖';
   };
