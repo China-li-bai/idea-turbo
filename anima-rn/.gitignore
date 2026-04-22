@@ -40,6 +40,9 @@ yarn-error.*
 /ios
 /android
 
+# Local Android SDK
+android-sdk/
+
 # Large model files (downloaded on-demand, not committed)
 *.gguf
 models/

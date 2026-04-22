@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字灵魂观测舱</title>
+    <style>
+        /* 1. 环境层：深邃的赛博暗黑空间 */
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #050505;
+            display: flex; justify-content: center; align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+            user-select: none;
+        }
+
+        /* 动态流体背景特效 */
+        .ambient-bg {
+            position: absolute; width: 200%; height: 200%;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 204, 0.1), transparent 40%),
+                        radial-gradient(circle at 80% 20%, rgba(153, 0, 255, 0.08), transparent 50%);
+            animation: breatheBg 15s ease-in-out infinite alternate;
+            z-index: 0;
+            filter: blur(40px);
+        }
+
+        /* 2. 生命周期容器（培养皿） */
+        .petri-dish {
+            position: relative; width: 360px; height: 750px;
+            background: rgba(20, 20, 20, 0.4);
+            border-radius: 40px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05),
+                        0 20px 50px rgba(0,0,0,0.5),
+                        inset 0 0 40px rgba(0, 255, 204, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1;
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            overflow: hidden;
+        }
+
+        /* 顶部状态：微小的脑电波提示 */
+        .status-bar {
+            margin-top: 40px; font-size: 12px; color: rgba(255,255,255,0.5);
+            letter-spacing: 2px; text-transform: uppercase;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .pulse-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: #00FFCC;
+            box-shadow: 0 0 10px #00FFCC;
+            animation: pulse 2s infinite;
+        }
+
+        /* 3. 核心生命体（数字灵魂） */
+        .soul-container {
+            position: relative;
+            flex-grow: 1; display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+        }
+
+        .soul-blob {
+            width: 140px; height: 140px;
+            background: linear-gradient(135deg, #00FFCC 0%, #0088FF 100%);
+            border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+            box-shadow: inset 10px 0 40px rgba(255,255,255,0.5),
+                        inset -10px 0 20px rgba(0,0,0,0.5),
+                        0 0 50px rgba(0, 255, 204, 0.4);
+            animation: morph 8s ease-in-out infinite, float 6s ease-in-out infinite;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .soul-blob.happy {
+            background: linear-gradient(135deg, #FF00CC 0%, #FF8800 100%);
+            box-shadow: inset 10px 0 40px rgba(255,255,255,0.5),
+                        0 0 80px rgba(255, 0, 204, 0.6);
+            border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+            transform: scale(1.1);
+            animation: bounce 1s infinite alternate;
+        }
+
+        /* 宠物眼睛 */
+        .eye {
+            width: 24px; height: 8px; background: rgba(0,0,0,0.6); border-radius: 10px;
+            animation: blink 4s infinite;
+            transition: all 0.3s;
+        }
+        .soul-blob.happy .eye {
+            height: 12px; border-radius: 50%; background: #FFF;
+        }
+
+        /* 漂浮的思想流（内化记忆） */
+        .thought-stream {
+            position: absolute; width: 100%; text-align: center;
+            bottom: 20%; font-size: 13px; color: rgba(255,255,255,0.6);
+            opacity: 0; transform: translateY(10px);
+            transition: all 0.8s ease;
+        }
+        .thought-stream.visible {
+            opacity: 1; transform: translateY(0);
+        }
+
+        /* 4. 底部引流区：无按钮交互 */
+        .gesture-area {
+            margin-bottom: 30px; display: flex; flex-direction: column; align-items: center;
+        }
+        .swipe-line {
+            width: 40px; height: 4px; background: rgba(255,255,255,0.2);
+            border-radius: 2px; margin-bottom: 10px;
+        }
+        .gesture-hint {
+            font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 1px;
+        }
+
+        /* 关键帧动画 */
+        @keyframes morph {
+            0%, 100% { border-radius: 40% 60% 70% 30% / 40% 40% 60% 50%; }
+            34% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; }
+            67% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+        @keyframes bounce {
+            0% { transform: scale(1.1) translateY(0); }
+            100% { transform: scale(1.1) translateY(-15px); }
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 204, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 204, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 204, 0); }
+        }
+        @keyframes blink {
+            0%, 96%, 98% { transform: scaleY(1); }
+            97%, 99% { transform: scaleY(0.1); }
+        }
+        @keyframes breatheBg {
+            0% { transform: scale(1) translate(0, 0); }
+            100% { transform: scale(1.1) translate(-2%, 2%); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-bg"></div>
+
+    <div class="petri-dish">
+        <!-- 顶部状态 -->
+        <div class="status-bar">
+            <div class="pulse-dot"></div>
+            <span id="status-text">LOCAL_BRAIN: IDLE</span>
+        </div>
+
+        <!-- 培养皿中心：数字灵魂 -->
+        <div class="soul-container" id="soul-interaction">
+            <div class="soul-blob" id="blob">
+                <div class="eye"></div>
+            </div>
+            
+            <div class="thought-stream" id="thought">
+                正在后台碎片化主人的“失眠”记忆...
+            </div>
+        </div>
+
+        <!-- 底部交互暗示 -->
+        <div class="gesture-area">
+            <div class="swipe-line"></div>
+            <div class="gesture-hint">上滑唤醒流式聊天 / 双指捏合进入地图</div>
+        </div>
+    </div>
+
+    <script>
+        // 极简交互逻辑：模拟触摸生命体产生反应
+        const blob = document.getElementById('blob');
+        const thought = document.getElementById('thought');
+        const statusText = document.getElementById('status-text');
+        
+        let idleTimer;
+
+        // 模拟后台模型在静默思考
+        const thoughts = [
+            "提取标签：[喜爱科幻]...",
+            "优化本地性格图谱中...",
+            "主人今天的心情似乎是 40% 的蓝色...",
+            "记忆向量数据库压缩完成..."
+        ];
+
+        function showRandomThought() {
+            if(blob.classList.contains('happy')) return;
+            thought.innerText = thoughts[Math.floor(Math.random() * thoughts.length)];
+            thought.classList.add('visible');
+            setTimeout(() => {
+                thought.classList.remove('visible');
+            }, 3000);
+        }
+
+        // 每隔 8 秒展示一次它的“大脑心流”
+        setInterval(showRandomThought, 8000);
+
+        // 触摸交互：当用户“摸”它时
+        blob.addEventListener('mousedown', () => {
+            // 物理形态变化
+            blob.classList.add('happy');
+            
+            // 状态栏更新
+            statusText.innerText = "SENSORY: TOUCH_DETECTED";
+            statusText.style.color = "#FF00CC";
+            document.querySelector('.pulse-dot').style.background = "#FF00CC";
+            
+            // 隐藏思考流
+            thought.classList.remove('visible');
+            setTimeout(() => {
+                thought.innerText = "喵~ 感觉到你的温度了！";
+                thought.classList.add('visible');
+            }, 300);
+
+            clearTimeout(idleTimer);
+        });
+
+        // 松手后恢复原状
+        window.addEventListener('mouseup', () => {
+            if(!blob.classList.contains('happy')) return;
+            
+            idleTimer = setTimeout(() => {
+                blob.classList.remove('happy');
+                statusText.innerText = "LOCAL_BRAIN: IDLE";
+                statusText.style.color = "rgba(255,255,255,0.5)";
+                document.querySelector('.pulse-dot').style.background = "#00FFCC";
+                thought.classList.remove('visible');
+            }, 2000); // 留存2秒的开心状态
+        });
+
+    </script>
+</body>
+</html>
