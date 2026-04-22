@@ -33,6 +33,11 @@ export const db = {
     name: 'ai-calendar',
     storeName: 'chat',
   }),
+
+  calendarItems: localforage.createInstance({
+    name: 'ai-calendar',
+    storeName: 'calendar-items',
+  }),
 };
 
 export async function getAllFromStore<T>(store: LocalForage): Promise<T[]> {
@@ -54,6 +59,7 @@ export async function clearAllStores(): Promise<void> {
     db.memory.clear(),
     db.memoryIndex.clear(),
     db.chat.clear(),
+    db.calendarItems.clear(),
   ]);
 }
 

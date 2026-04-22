@@ -35,10 +35,10 @@ const DEFAULT_PATH_TEMPLATE = '{model}/resolve/{revision}/';
 
 const FALLBACK_MODELS: Record<ModelSource, { modelId: string; source: ModelSource }[]> = {
   modelscope: [
-    { modelId: 'damo/MiniCPM4-0.5B-Instruct-int4-onnx', source: 'modelscope' },
+    { modelId: 'Qwen/Qwen2.5-0.5B-Instruct', source: 'modelscope' },
   ],
   huggingface: [
-    { modelId: 'onnx-community/Qwen3.5-0.8B', source: 'huggingface' },
+    { modelId: 'onnx-community/Qwen2.5-0.5B-Instruct', source: 'huggingface' },
   ],
 };
 

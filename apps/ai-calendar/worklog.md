@@ -54,6 +54,93 @@
 
 ---
 
+## 2026-04-22 | 架构重构: Storage-First 数据流 + EventBus 接入 + 记忆双写修复
+
+### 任务目标
+修复现有架构的核心问题：双写问题、业务数据在 State 中持久化、EventBus 空置
+
+### 发现的架构问题
+
+| # | 问题 | 严重度 | 影响 |
+|---|------|--------|------|
+| 1 | **记忆双写** — `memories` 同时在 `memoryService` 和 `unifiedStore persist` 写入 | P0 | 数据不一致风险 |
+| 2 | **日历项无独立存储** — `items` 仅存在 Zustand persist，无 Storage 层真相源 | P0 | 无法脱离 Store 访问数据 |
+| 3 | **EventBus 定义但未使用** — 所有写操作不发布事件通知 | P1 | 跨组件无法感知变更 |
+| 4 | **initialize 不加载存储数据** — 直接用 persist 数据跳过 Storage | P1 | 迁移后数据断裂 |
+
+### 执行计划与完成状态
+
+#### Phase 1: 存储层基础设施
+- [x] `lib/storage/index.ts` — 新增 `calendarItems` localforage 实例
+- [x] `lib/storage/calendarItemStorage.ts` — 新建完整 CRUD 存储层（save/get/update/delete/getAll/saveBatch/deleteBatch/count/clear）
+
+#### Phase 2: unifiedStore 核心改造
+- [x] 导入 calendarItemStorage + eventBus
+- [x] `initialize()` 从 calendarItemStorage.getAll() 加载 + 旧 persist 自动迁移
+- [x] `addItem()` — 同步写 Storage → Orama → EventBus
+- [x] `updateItem()` — 同步写 Storage → Orama → EventBus
+- [x] `deleteItem()` — 同步写 Storage → Orama → EventBus
+- [x] `addBatchItems()` / `updateBatchItems()` / `deleteBatchItems()` — 批量操作同步
+- [x] `convertToEvent()` / `convertToIdea()` — 类型转换同步
+- [x] `undoReschedule()` — 撤销重排同步
+- [x] `applyHealingResult()` — 自愈调度结果同步 Storage + EventBus
+- [x] `applyLiquidScheduleResult()` — 液态调度结果同步 Storage + EventBus
+
+#### Phase 3: 记忆系统修复
+- [x] `addMemory()` / `updateMemory()` / `deleteMemory()` — 增加 EventBus 发布
+- [x] persist version 升至 3
+- [x] `partialize` 移除 `memories`
+- [x] migrate 函数清理旧版 memories
+
+#### Phase 4: 文档更新
+- [x] `docs/DATA_FLOW_ARCHITECTURE.md` — 完整重写为 v3 Storage-First 架构
+- [x] `UNIFIED_DATA_ARCHITECTURE.md` — 更新存储层、数据流、记忆系统章节
+- [x] `docs/UNIFIED_DATA_ARCHITECTURE.md` — 精简为快速参考副本
+
+### 修改文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|---------|------|
+| `lib/storage/index.ts` | 修改 | +calendarItems 实例 + clearAllStores 适配 |
+| `lib/storage/calendarItemStorage.ts` | **新增** | 日历项 IndexedDB 存储层 (93行) |
+| `lib/stores/unifiedStore.ts` | **核心改造** | 全部写操作+Storage+EventBus; initialize 重写; v3 migrate |
+| `lib/utils/eventBus.ts` | 修改 | +calendarItem / memory 实体类型 |
+| `docs/DATA_FLOW_ARCHITECTURE.md` | **重写** | v3 Storage-First 完整架构文档 |
+| `UNIFIED_DATA_ARCHITECTURE.md` | **重写** | 更新存储层/数据流/记忆系统/实施状态 |
+| `docs/UNIFIED_DATA_ARCHITECTURE.md` | **重写** | 精简为快速参考 |
+
+### TypeScript 类型检查
+- 所有新增/修改文件零类型错误 ✅
+- 预存错误（taskDecomposerService.test.ts / oramaSearchService dtype / secretaryQueryProcessor locale）均为历史遗留
+
+### 新数据流架构
+
+```
+写入: UI → Store Action → IndexedDB/Storage (真相源) → Orama (搜索) → EventBus (通知)
+读取: Storage → Zustand Store (缓存) → Hooks → Components
+初始化: Storage.getAll() → Store.items (首次自动从旧 persist 迁移)
+```
+
+### 分层记忆系统回顾
+
+当前已实现的三层结构（对齐 MemOS 核心概念）：
+
+| 层级 | 类型 | 存储 | 生命周期 | 扩展方向 |
+|------|------|------|---------|---------|
+| 工作记忆 | working | memoryService | 会话内 | — |
+| 短期记忆 | short-term | memoryService | 可配置过期 | → Sensory Memory (输入缓冲) |
+| 长期记忆 | long-term | memoryService | 持久化+压缩 | → Core Memory (人格身份) / Episodic Memory (事件序列) |
+
+未来可扩展：
+- **Sensory Memory**: 原始输入预处理缓冲（语音 ASR / 文本原始）
+- **Core Memory**: 固定人格/身份记忆，不可遗忘
+- **Episodic Memory**: 事件序列记忆（"上次开会讨论了什么"）
+- **向量语义检索**: 接入 Orama 实现跨记忆类型的语义搜索
+
+### 状态: 全部完成 ✅
+
+---
+
 ## 2026-04-20 | Bug Fix: Secretary "No results found" for greetings
 
 ### 问题现象

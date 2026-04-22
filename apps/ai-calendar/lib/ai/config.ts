@@ -7,9 +7,9 @@ const DEFAULT_CONFIG: AIConfig = {
     local: {
       baseURL: '',
       apiKey: '',
-      model: 'Qwen3.5-0.8B',
-      defaultModel: 'Qwen3.5-0.8B',
-      modelId: 'onnx-community/Qwen3.5-0.8B',
+      model: 'Qwen2.5-0.5B-Instruct',
+      defaultModel: 'Qwen2.5-0.5B-Instruct',
+      modelId: 'onnx-community/Qwen2.5-0.5B-Instruct',
       modelSource: 'huggingface',
     },
     openai: {

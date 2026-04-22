@@ -1,371 +1,336 @@
-# 统一数据架构设计
+# 统一数据架构设计 v3
 
-## 📋 概述
+> 最后更新: 2026-04-22 | 架构版本: Storage-First
 
-本项目采用**统一数据源 + 单向数据流**的架构设计，确保数据一致性和可维护性。
+## 核心原则
 
----
+**从第一性原理出发**：
+> "一个灵感，本质上只是一个还没来得及分配时间戳的日程；而一个日程，本质上只是一个被锚定在时间轴上的灵感。"
 
-## 🏗️ 架构分层
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        UI 组件层                              │
-│  (CalendarView, ShiftManager, CalendarShiftPage, 等)      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ 使用 Hooks
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   自定义 Hooks 层                            │
-│  (useEvents, useTasks, useInspirations, useSchedules, 等) │
-│         - 订阅数据变化                                        │
-│         - 自动刷新数据                                        │
-│         - 提供 loading 状态                                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ 订阅 EventBus
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   事件总线 (EventBus)                        │
-│         - 发布/订阅模式                                        │
-│         - 数据变更通知                                        │
-│         - 跨组件通信                                          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ 调用 Service
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    数据服务层 (Services)                       │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │ UnifiedDataService (统一数据服务)                      │    │
-│  │ - 所有数据的 CRUD 操作                                  │    │
-│  │ - 自动更新向量索引                                      │    │
-│  │ - 发布数据变更事件                                      │    │
-│  └──────────────────────────────────────────────────────┘    │
-│  ┌──────────────────┐  ┌──────────────────┐                  │
-│  │ EventService     │  │ ShiftService     │                  │
-│  │ (委托给统一服务)  │  │ (排班专用逻辑)   │                  │
-│  └──────────────────┘  └──────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ 读写 Storage
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   存储层 (Storage)                           │
-│         - LocalForage (IndexedDB)                           │
-│         - 统一的存储实例                                      │
-└─────────────────────────────────────────────────────────────┘
-```
+**Storage-First 数据流**：
+> Storage 为真相源，Zustand 为响应式缓存，EventBus 为变更通知总线。
 
 ---
 
-## 📊 核心数据结构
+## 一、统一的数据结构
 
-### 1. **CalendarEvent** - 日历通用事件
+### 1.1 UnifiedCalendarItem
+
 ```typescript
-interface CalendarEvent {
+interface UnifiedCalendarItem {
   id: string;
+  type: 'idea' | 'event';
   title: string;
-  description?: string;
-  startTime: Date;
-  endTime: Date;
+  content: string;
+
+  startTime: number | null;
+  endTime: number | null;
   isAllDay: boolean;
-  
-  eventType: 'regular' | 'shift' | 'meeting' | 'personal';
-  
-  shiftMetadata?: {  // 仅当 eventType = 'shift' 时
-    scheduleId: string;
-    shiftId: string;
-    employeeId: string;
-    employeeName: string;
-    shiftTypeId: string;
-    shiftTypeName: string;
+
+  embedding?: number[];              // BGE-M3 1024维向量
+  embeddingUpdatedAt: number;
+
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled';
+  createdAt: number;
+  updatedAt: number;
+
+  metadata: {
+    location?: string; tags?: string[];
+    priority?: 'high' | 'medium' | 'low'; color?: string;
+    reminders?: number[]; repeatRule?: RepeatRule;
+    eventType?: 'regular' | 'shift' | 'meeting' | 'personal';
+    shiftMetadata?: ShiftMetadata;
+    extractedDate?: number; extractedTime?: string;
+    extractedLocation?: string; extractedPeople?: string[];
+    source?: 'keyboard' | 'voice' | 'clipboard' | 'other';
+    previousType?: 'idea' | 'event';
+    convertedAt?: number; conversionNotes?: string;
+    liquidSchedule?: LiquidScheduleMetadata;
   };
 }
 ```
 
-### 2. **ShiftSchedule** - 排班专用数据
+### 1.2 MemoryItem（分层记忆）
+
 ```typescript
-interface ShiftSchedule {
+interface MemoryItem {
   id: string;
-  name: string;
-  employees: Employee[];
-  shiftTypes: ShiftType[];
-  shifts: Shift[];
-  rules: ScheduleRule[];
+  type: 'short-term' | 'long-term' | 'working';
+  category: 'query' | 'result' | 'feedback' | 'preference' | 'pattern' | 'context';
+  content: string;
+  embedding?: number[];
+
+  metadata: {
+    timestamp: number;
+    sessionId?: string;
+    source: 'user' | 'system' | 'consolidated';
+    confidence: number;
+    accessCount: number;
+    lastAccessedAt: number;
+    tags?: string[];
+    relatedItemIds?: string[];
+    importance: 'low' | 'medium' | 'high';
+    expiresAt?: number;
+    consolidatedFrom?: string[];
+  };
 }
 ```
 
----
+### 1.3 Schema 对比：分离式 vs 统一式
 
-## 🔄 单向数据流
-
-### 数据流向
-
-```
-用户操作
-    ↓
-UI 组件调用 Store 方法
-    ↓
-Store 委托给 UnifiedDataService
-    ↓
-UnifiedDataService 写入 Storage
-    ↓
-UnifiedDataService 更新向量索引
-    ↓
-UnifiedDataService 发布事件到 EventBus
-    ↓
-订阅该事件的 Hooks 收到通知
-    ↓
-Hooks 重新加载数据
-    ↓
-UI 组件自动更新
-```
+| 维度 | 分离式（已废弃） | 统一架构 |
+|------|----------------|----------|
+| 数据源 | events[] + inspirations[] | items: UnifiedCalendarItem[] |
+| 类型 | CalendarEvent + Inspiration | type 字段区分 |
+| 转换 | 创建新对象+删除旧对象 | 修改字段值 |
+| AI 检索 | 查询两个索引 | 一次查询完整上下文 |
 
 ---
 
-## 🛠️ 核心模块
+## 二、存储层架构（v3 核心）
 
-### 1. **UnifiedDataService** (`lib/services/unifiedDataService.ts`)
+### 2.1 三层存储职责
 
-统一数据服务，提供所有数据的 CRUD 操作，并自动更新向量索引。
-
-**主要方法：**
-
-#### 事件相关
-- `getAllEvents(options?)` - 获取所有日历事件（支持过滤）
-- `getEventById(id)` - 获取单个事件
-- `addEvent(event)` - 添加事件（自动更新向量索引）
-- `addEvents(events)` - 批量添加事件
-- `updateEvent(id, updates)` - 更新事件
-- `deleteEvent(id)` - 删除事件
-
-#### 任务相关
-- `getAllTasks(options?)` - 获取所有任务（支持过滤）
-- `getTaskById(id)` - 获取单个任务
-- `addTask(task)` - 添加任务（自动更新向量索引）
-- `updateTask(id, updates)` - 更新任务
-- `deleteTask(id)` - 删除任务
-
-#### 灵感相关
-- `getAllInspirations(options?)` - 获取所有灵感
-- `getInspirationById(id)` - 获取单个灵感
-- `addInspiration(inspiration)` - 添加灵感
-- `updateInspiration(id, updates)` - 更新灵感
-- `deleteInspiration(id)` - 删除灵感
-
-#### 排班相关
-- `getAllSchedules()` - 获取所有排班计划
-- `getScheduleById(id)` - 获取单个排班计划
-- `addSchedule(schedule)` - 添加排班计划
-- `updateSchedule(id, updates)` - 更新排班计划
-- `deleteSchedule(id)` - 删除排班计划
-
-#### 设置相关
-- `getSettings()` - 获取用户设置
-- `saveSettings(settings)` - 保存用户设置
-- `getAIConfig()` - 获取AI配置
-- `saveAIConfig(config)` - 保存AI配置
-
-#### 搜索历史
-- `getAllSearchHistory()` - 获取搜索历史
-- `addSearchHistory(history)` - 添加搜索历史
-- `deleteSearchHistory(id)` - 删除搜索历史
-- `clearAllSearchHistory()` - 清空搜索历史
-
-### 2. **自定义 Hooks** (`lib/hooks/useUnifiedData.ts`)
-
-提供响应式数据访问，自动订阅数据变化。
-
-**可用 Hooks：**
-- `useEvents()` - 获取日历事件
-- `useTasks()` - 获取任务
-- `useInspirations()` - 获取灵感
-- `useSchedules()` - 获取排班计划
-- `useScheduleById(id)` - 获取单个排班计划
-- `useSettings()` - 获取用户设置
-- `useSearchHistory()` - 获取搜索历史
-
-**使用示例：**
-```tsx
-import { useEvents } from '@/lib/hooks';
-
-function MyComponent() {
-  const { events, loading, refresh } = useEvents();
-  
-  if (loading) return <div>加载中...</div>;
-  
-  return (
-    <div>
-      {events.map(event => (
-        <div key={event.id}>{event.title}</div>
-      ))}
-    </div>
-  );
-}
+```
+┌─────────────────────────────────────────┐
+│           IndexedDB (localforage)        │
+│                                         │
+│  ┌──────────────┐  ┌────────────────┐   │
+│  │ calendarItems │  │ memory         │   │
+│  │ storeName:    │  │ storeName:     │   │
+│  │ calendar-items│  │ memory         │   │
+│  ├──────────────┤  ├────────────────┤   │
+│  │ 真相源       │  │ 真相源          │   │
+│  │ 日历项 CRUD  │  │ 记忆 CRUD      │   │
+│  └──────┬───────┘  └───────┬────────┘   │
+│         │                  │             │
+│  ┌──────▼───────┐  ┌──────▼────────┐    │
+│  │ settings     │  │ oramaIndex    │    │
+│  │ storeName:   │  │ storeName:    │    │
+│  │ settings     │  │ oramasearch   │    │
+│  ├──────────────┤  ├────────────────┤    │
+│  │ Zustand persist│ │ 向量索引 blob  │    │
+│  │ 管理          │ │ Orama 内部格式  │    │
+│  └──────────────┘  └────────────────┘    │
+└─────────────────────────────────────────┘
 ```
 
-### 3. **EventBus** (`lib/utils/eventBus.ts`)
+### 2.2 calendarItemStorage API
 
-事件总线，用于数据变更通知和跨组件通信。
+| 方法 | 说明 |
+|------|------|
+| `save(item)` | 写入/覆盖单个日历项 |
+| `get(id)` | 按 ID 读取 |
+| `update(id, updates)` | 部分更新（深合并 metadata） |
+| `delete(id)` | 删除单个项 |
+| `getAll()` | 获取全部日历项 |
+| `saveBatch(items)` | 批量写入 |
+| `deleteBatch(ids)` | 批量删除 |
+| `count()` | 总数统计 |
+| `clear()` | 清空存储 |
 
-**使用示例：**
+### 2.3 memoryService — 记忆独立管理
+
+记忆系统完全由 `memoryService` 管理：
+- **存储**: `db.memory` (IndexedDB)
+- **CRUD**: addMemory / getMemory / updateMemory / deleteMemory
+- **搜索**: searchMemories (支持类型/分类/时间/标签过滤)
+- **合并**: consolidate (短期→长期记忆压缩)
+- **Zustand 缓存**: unifiedStore.memories 仅作响应式视图，不参与持久化
+
+### 2.4 Zustand Persist 配置
+
 ```typescript
-import { eventBus } from '@/lib/utils/eventBus';
-
-// 订阅事件
-const unsubscribe = eventBus.subscribe((event) => {
-  console.log('收到事件:', event);
-});
-
-// 取消订阅
-unsubscribe();
+persist(store, {
+  name: 'unified-calendar-state',
+  version: 3,
+  partialize: (state) => ({
+    items: state.items,       // 过渡期保留（旧数据迁移）
+    settings: state.settings,
+  }),
+  migrate: (state, version) => {
+    if (version < 3) delete (state as any).memories;
+    return state;
+  }
+})
 ```
 
 ---
 
-## 🔗 排班与日历的统一
+## 三、数据流架构
 
-### 数据转换
+### 3.1 写入路径
 
-`ShiftService` 提供 `convertShiftToEvent` 方法，将排班数据转换为日历事件：
-
-```typescript
-convertShiftToEvent(
-  shift: Shift,
-  schedule: ShiftSchedule
-): CalendarEvent | null
+```
+UI 操作 → Store Action → set() 更新缓存
+                      → calendarItemStorage.write() ← 真相源
+                      → oramaSearchService.index/update/delete()
+                      → eventBus.publish({ type, entityType, entityId })
 ```
 
-### 同步机制
+### 3.2 读取路径
 
-- **自动同步**：每次排班数据变更时，自动同步到日历事件
-- **手动同步**：`shiftService.syncAllShiftsToCalendar()` 全量同步
-
----
-
-## 📁 统一导出入口
-
-### 从 `lib/index.ts` 导入
-```typescript
-// 所有服务和Hooks
-import { 
-  unifiedDataService, 
-  useEvents, 
-  useTasks,
-  shiftService 
-} from '@/lib';
+```
+calendarItemStorage.getAll() → set({ items }) → Zustand selector → Hooks → Components
+memoryService.searchMemories() → set({ memories }) → useMemories hook
 ```
 
-### 从 `lib/services/index.ts` 导入
-```typescript
-// 所有服务
-import { 
-  unifiedDataService, 
-  eventService, 
-  taskService,
-  shiftService 
-} from '@/lib/services';
-```
+### 3.3 初始化路径
 
-### 从 `lib/hooks/index.ts` 导入
-```typescript
-// 所有Hooks
-import { 
-  useEvents, 
-  useTasks, 
-  useSchedules 
-} from '@/lib/hooks';
+```
+initialize():
+  ① oramaSearchService.initialize()
+  ② calendarItemStorage.initialize()
+  ③ memoryService.initialize()
+  ④ items = await calendarItemStorage.getAll()
+  ⑤ if empty && persistedItems > 0 → 迁移旧数据到 Storage
+  ⑥ memories = await memoryService.searchMemories({ limit: 10000 })
+  ⑦ 数据一致性检查 + 自动修复索引
 ```
 
 ---
 
-## ✅ 最佳实践
+## 四、EventBus 事件总线
 
-### 1. **使用 Hooks 获取数据**
+### 4.1 支持的事件
+
 ```typescript
-// ✅ 推荐
-const { events } = useEvents();
-
-// ❌ 不推荐（旧方式）
-const { events } = useCalendarStore();
+type DataChangeEvent = {
+  type: 'created' | 'updated' | 'deleted';
+  entityType: 'calendarItem' | 'memory' | 'event' | ...;
+  entityId: string;
+  data?: any;
+  metadata?: Record<string, any>;
+};
 ```
 
-### 2. **通过 Store 方法修改数据**
-```typescript
-// ✅ 推荐
-const { addEvent } = useCalendarStore();
-await addEvent(newEvent);
+### 4.2 发布点清单
 
-// ❌ 不推荐（直接调用服务）
-await unifiedDataService.addEvent(newEvent);
-```
-
-### 3. **处理 Loading 状态**
-```tsx
-const { events, loading } = useEvents();
-
-if (loading) {
-  return <Spinner />;
-}
-
-return <EventList events={events} />;
-```
-
-### 4. **使用过滤选项**
-```typescript
-// 获取特定日期范围的事件
-const { events } = useEvents();
-const filteredEvents = events.filter(e => 
-  e.startTime >= startDate && e.endTime <= endDate
-);
-
-// 或使用服务的过滤功能
-const events = await unifiedDataService.getAllEvents({
-  dateRange: { start: startDate, end: endDate },
-  eventType: 'shift'
-});
-```
+所有写操作后自动发布事件，包括：
+- addItem / updateItem / deleteItem / addBatchItems / updateBatchItems / deleteBatchItems
+- convertToEvent / convertToIdea / undoReschedule
+- addMemory / updateMemory / deleteMemory
+- applyHealingResult (自愈重排)
+- applyLiquidScheduleResult (液态调度)
 
 ---
 
-## 📁 文件结构
+## 五、状态机设计
+
+### 5.1 状态转换图
+
+```
+                    ┌─────────┐
+                    │  IDEA   │
+                    │ pending │
+                    │ 无时间戳 │
+                    └────┬────┘
+                         │
+            ┌────────────┼────────────┐
+            │ 用户确认    │ AI 建议    │ 取消
+            ↓            ↓            ↓
+      ┌──────────┐ ┌──────────┐ ┌──────────┐
+      │  EVENT   │ │  EVENT   │ │CANCELLED │
+      │ scheduled│ │ scheduled│ │ cancelled│
+      └────┬─────┘ └────┬─────┘ └──────────┘
+           │ 完成完成    │ 重安排
+           ↓            ↓
+      ┌──────────┐ ┌──────────┐
+      │COMPLETED │ │RESCHEDULE│
+      └──────────┘ └──────────┘
+```
+
+### 5.2 Idea ↔ Event 转换
+
+转换只修改字段值，不创建/删除对象：
+- `transformToEvent(idea, startTime, endTime)`: type→'event', status→'scheduled', 记录 previousType
+- `transformToIdea(event)`: type→'idea', startTime/endTime→null, status→'pending'
+
+---
+
+## 六、分层记忆系统
+
+### 6.1 当前实现
+
+项目已有完整的分层记忆基础设施：
+
+| 层级 | 类型 | 存储位置 | 生命周期 |
+|------|------|---------|---------|
+| 工作记忆 | working | memoryService | 会话内有效 |
+| 短期记忆 | short-term | memoryService | 可配置过期 |
+| 长期记忆 | long-term | memoryService | 持久化 + 合并压缩 |
+
+### 6.2 记忆类别
+
+| category | 用途 | 示例 |
+|----------|------|------|
+| query | 用户查询记录 | "查一下明天的日程" |
+| result | 查询结果反馈 | 返回了 3 个事件 |
+| feedback | 用户正负反馈 | "这个推荐不错" |
+| preference | 用户偏好学习 | 偏好下午开会 |
+| pattern | 行为模式识别 | 每周五固定例会 |
+| context | 任务/会话上下文 | 当前正在做的项目 |
+
+### 6.3 合并机制
+
+`memoryService.consolidate()` 将短期记忆压缩为长期记忆：
+- 基于访问频率和置信度筛选
+- 提取 PatternMemory 作为行为模式
+- 低价值记忆归档或删除
+
+### 6.4 与 Mnemosyne/MemOS 的关系
+
+当前实现的 `short-term` / `long-term` / `working` 三层结构已经对齐 MemOS 的核心概念。未来可扩展方向：
+
+| 方向 | 当前状态 | 扩展路径 |
+|------|---------|---------|
+| Sensory Memory | 未实现 | 输入预处理缓冲（语音/文本原始输入） |
+| Core Memory | 部分（preference） | 固定人格/身份记忆，不可遗忘 |
+| 向量检索增强 | memoryService 有 embedding | 接入 Orama 实现语义记忆搜索 |
+| Recall 机制 | accessCount 计时 | 加权衰减算法（Recency × Frequency × Relevance） |
+| Episodic Memory | 未实现 | 事件序列记忆（"上次开会讨论了什么"） |
+
+---
+
+## 七、文件结构
 
 ```
 lib/
-├── index.ts                      # 统一导出入口
-├── services/
-│   ├── index.ts                  # 服务导出入口
-│   ├── unifiedDataService.ts     # 统一数据服务 ⭐
-│   ├── eventService.ts           # 事件服务（委托）
-│   ├── taskService.ts            # 任务服务（委托）
-│   ├── inspirationService.ts     # 灵感服务（委托）
-│   ├── shiftService.ts           # 排班专用服务
-│   └── vectorService.ts          # 向量索引服务
-├── hooks/
-│   ├── index.ts                  # Hooks导出入口
-│   ├── useUnifiedData.ts         # 统一数据Hooks ⭐
-│   ├── useEvents.ts              # 事件Hook（旧）
-│   ├── useTasks.ts               # 任务Hook（旧）
-│   └── useShiftSchedules.ts      # 排班Hook
 ├── stores/
-│   ├── index.ts                  # Store导出入口
-│   └── calendarStore.ts          # Zustand Store
+│   └── unifiedStore.ts          ⭐ Zustand + Storage 同步 + EventBus
 ├── storage/
-│   └── index.ts                  # Storage配置
-└── utils/
-    └── eventBus.ts               # 事件总线
+│   ├── index.ts                 localforage 实例定义
+│   ├── calendarItemStorage.ts   ⭐ 新增 - 日历项专用存储
+│   ├── memoryStorage.ts         记忆存储底层
+│   └── secureMemoryStorage.ts   加密记忆存储
+├── services/
+│   ├── oramaSearchService.ts    Orama + BGE-M3 向量搜索
+│   ├── memoryService.ts         记忆 CRUD + 合并
+│   ├── unifiedItemService.ts    值对象工厂 + 类型转换
+│   ├── selfHealingScheduler.ts  自愈调度器
+│   └── liquidSchedulerService.ts 液态调度器
+├── hooks/
+│   └── useUnifiedItems.ts       响应式数据 Hook
+├── utils/
+│   └── eventBus.ts              ⭐ 事件总线
+└── types/
+    ├── unified.ts               UnifiedCalendarItem 定义
+    └── memory.ts                MemoryItem + 分层类型定义
 ```
 
 ---
 
-## 🎯 优势
+## 八、实施状态
 
-1. **单一数据源** - 所有数据通过 `unifiedDataService` 访问
-2. **自动向量索引** - 数据变更时自动更新向量索引
-3. **自动响应式更新** - Hooks 自动订阅 EventBus
-4. **类型安全** - 完整的 TypeScript 类型定义
-5. **易于维护** - 清晰的分层架构和统一入口
-6. **易于扩展** - 添加新数据类型只需扩展服务
-7. **向后兼容** - 旧的服务和Hooks仍然可用
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| 类型定义 | UnifiedCalendarItem + MemoryItem | ✅ 完成 |
+| 值对象工厂 | unifiedItemService | ✅ 完成 |
+| 向量搜索 | Orama + BGE-M3 | ✅ 完成 |
+| Storage-First 重构 | calendarItemStorage + EventBus | ✅ 完成 (2026-04-22) |
+| 记忆双写修复 | memories 从 persist 移除 | ✅ 完成 (2026-04-22) |
+| UI 层适配 | BossView / SecretaryView | ✅ 完成 |
+| 数据迁移 | version 3 migrate | ✅ 完成 |
+| Sensory Memory | 输入缓冲层 | 📋 待规划 |
+| Core Memory | 人格/身份记忆 | 📋 待规划 |
+| Episodic Memory | 事件序列记忆 | 📋 待规划 |

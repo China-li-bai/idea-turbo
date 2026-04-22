@@ -1,4 +1,6 @@
 export type EntityType = 
+  | 'calendarItem'
+  | 'memory'
   | 'event' 
   | 'task' 
   | 'inspiration' 

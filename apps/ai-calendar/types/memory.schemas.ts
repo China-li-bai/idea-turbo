@@ -69,7 +69,7 @@ export const FeedbackMemorySchema = MemoryItemSchema.extend({
   metadata: MemoryMetadataSchema.extend({
     targetMemoryId: z.string().uuid(),
     feedbackType: z.enum(['positive', 'negative', 'neutral']),
-    feedbackDetail: z.string().max(1000).optional(),
+    feedbackDetail: z.string().max(5000).optional(),
     rating: z.number().int().min(1).max(5).optional(),
   }),
 });
@@ -88,7 +88,7 @@ export const PatternMemorySchema = MemoryItemSchema.extend({
   category: z.literal('pattern'),
   metadata: MemoryMetadataSchema.extend({
     patternType: z.enum(['temporal', 'behavioral', 'contextual']),
-    pattern: z.string().max(1000),
+    pattern: z.string().max(5000),
     frequency: z.number().int().nonnegative(),
     lastOccurrence: z.number().positive(),
     examples: z.array(z.string().max(500)).max(20),
@@ -114,7 +114,7 @@ export const SpecificMemorySchema = z.discriminatedUnion('category', [
 ]);
 
 export const MemorySearchOptionsSchema = z.object({
-  query: z.string().max(1000).optional(),
+  query: z.string().max(5000).optional(),
   types: z.array(MemoryTypeSchema).max(3).optional(),
   categories: z.array(MemoryCategorySchema).max(6).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
@@ -124,7 +124,7 @@ export const MemorySearchOptionsSchema = z.object({
   }).refine(data => data.start < data.end, {
     message: "Start time must be before end time",
   }).optional(),
-  limit: z.number().int().min(1).max(1000).optional(),
+  limit: z.number().int().min(1).max(5000).optional(),
   minConfidence: z.number().min(0).max(1).optional(),
   includeEmbeddings: z.boolean().optional(),
 });

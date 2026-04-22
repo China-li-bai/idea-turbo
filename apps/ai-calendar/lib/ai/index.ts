@@ -31,11 +31,11 @@ export class AIService {
 
     const localConfig = config.providers.local;
     this.localProvider = new LocalLLMProvider({
-      modelId: localConfig?.modelId || 'onnx-community/Qwen3.5-0.8B',
+      modelId: localConfig?.modelId || 'onnx-community/Qwen2.5-0.5B-Instruct',
       modelSource: localConfig?.modelSource || 'huggingface',
       baseURL: localConfig?.baseURL || '',
       apiKey: localConfig?.apiKey || '',
-      model: localConfig?.model || 'Qwen3.5-0.8B',
+      model: localConfig?.model || 'Qwen2.5-0.5B-Instruct',
       preferWebGPU: true,
     });
     this.providers.set('local', this.localProvider);

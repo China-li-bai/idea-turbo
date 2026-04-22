@@ -9,6 +9,8 @@ import { selfHealingScheduler } from '@/lib/services/selfHealingScheduler';
 import { liquidScheduler } from '@/lib/services/liquidSchedulerService';
 import { notifyRescheduled, notifyScheduleFailed, notifyConflictDetected } from '@/lib/stores/notificationStore';
 import { localforage } from '@/lib/storage';
+import { calendarItemStorage } from '@/lib/storage/calendarItemStorage';
+import { eventBus } from '@/lib/utils/eventBus';
 
 const STATE_KEY = 'unified-calendar-state';
 
@@ -83,8 +85,20 @@ function applyHealingResult(
   }));
 
   for (const reschedule of rescheduledUpdates) {
+    calendarItemStorage.save(reschedule.updates).catch(error => {
+      console.error(`Failed to save rescheduled item ${reschedule.id} to storage:`, error);
+    });
+
     oramaSearchService.updateDocument(reschedule.id, reschedule.updates).catch(error => {
       console.error(`Failed to update rescheduled item ${reschedule.id}:`, error);
+    });
+
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'calendarItem',
+      entityId: reschedule.id,
+      data: reschedule.updates,
+      metadata: { action: 'self-healing-reschedule' },
     });
 
     notifyRescheduled(
@@ -121,7 +135,7 @@ function applyLiquidScheduleResult(
   set(() => ({ items: updatedItems }));
 
   for (const scheduled of scheduleResult.scheduled) {
-    oramaSearchService.indexItem({
+    const scheduledItem = {
       ...scheduled.item,
       startTime: scheduled.slot.start,
       endTime: scheduled.slot.end,
@@ -135,8 +149,22 @@ function applyLiquidScheduleResult(
           lastScheduledAt: Date.now(),
         }
       }
-    }).catch(error => {
+    };
+
+    calendarItemStorage.save(scheduledItem).catch(error => {
+      console.error(`Failed to save scheduled liquid item to storage:`, error);
+    });
+
+    oramaSearchService.indexItem(scheduledItem).catch(error => {
       console.error(`Failed to index scheduled liquid item:`, error);
+    });
+
+    eventBus.publish({
+      type: 'updated',
+      entityType: 'calendarItem',
+      entityId: scheduled.item.id,
+      data: scheduledItem,
+      metadata: { action: 'liquid-schedule' },
     });
   }
 }
@@ -185,8 +213,28 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         try {
           await oramaSearchService.initialize();
+          await calendarItemStorage.initialize();
+          await memoryService.initialize();
 
-          const items = get().items;
+          let items = await calendarItemStorage.getAll();
+
+          if (items.length === 0) {
+            const persistedItems = get().items;
+            if (persistedItems.length > 0) {
+              console.log(`[UnifiedStore] Migrating ${persistedItems.length} items from persist to calendarItemStorage...`);
+              await calendarItemStorage.saveBatch(persistedItems);
+              items = persistedItems;
+            }
+          }
+
+          set({ items });
+
+          const memoryResult = await memoryService.searchMemories({
+            limit: 5000,
+            includeEmbeddings: false,
+          });
+          set({ memories: memoryResult.memories });
+
           const stats = oramaSearchService.getStats();
           
           if (items.length > 0 && stats.totalDocuments !== items.length) {
@@ -205,13 +253,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
                 try {
                   const { embedding, embeddingUpdatedAt } = await oramaSearchService.indexItem(item);
                   
+                  const updatedItem = { ...item, embedding, embeddingUpdatedAt };
                   set((state) => ({
                     items: state.items.map((i) =>
-                      i.id === item.id
-                        ? { ...i, embedding, embeddingUpdatedAt }
-                        : i
+                      i.id === item.id ? updatedItem : i
                     )
                   }));
+                  calendarItemStorage.save(updatedItem).catch(e => {
+                    console.error(`[UnifiedStore] Failed to save reindexed item ${item.id}:`, e);
+                  });
                 } catch (error) {
                   console.error(`[UnifiedStore] Failed to reindex item ${item.id}:`, error);
                 }
@@ -226,6 +276,8 @@ export const useUnifiedStore = create<UnifiedStore>()(
               }
             }
           }
+
+          await get().refreshMemoryStats();
 
           set({
             _initialized: true,
@@ -253,19 +305,32 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: [...state.items, item]
         }));
 
+        calendarItemStorage.save(item).catch(error => {
+          console.error('Failed to save item to storage:', error);
+        });
+
         try {
           const { embedding, embeddingUpdatedAt } = await oramaSearchService.indexItem(item);
+          const updatedItem = { ...item, embedding, embeddingUpdatedAt };
           
           set((state) => ({
             items: state.items.map((i) =>
-              i.id === item.id
-                ? { ...i, embedding, embeddingUpdatedAt }
-                : i
+              i.id === item.id ? updatedItem : i
             )
           }));
+          calendarItemStorage.save(updatedItem).catch(error => {
+            console.error('Failed to save indexed item to storage:', error);
+          });
         } catch (error) {
           console.error('Failed to index item:', error);
         }
+
+        eventBus.publish({
+          type: 'created',
+          entityType: 'calendarItem',
+          entityId: item.id,
+          data: item,
+        });
 
         if (item.type === 'event' && item.startTime && item.endTime && item.status === 'scheduled') {
           const allItems = get().items;
@@ -292,21 +357,38 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: state.items.map((i) => i.id === id ? updatedItem : i)
         }));
 
+        calendarItemStorage.save(updatedItem).catch(error => {
+          console.error('Failed to save updated item to storage:', error);
+        });
+
         try {
           const result = await oramaSearchService.updateDocument(id, updates);
           
           if (result.embedding && result.embeddingUpdatedAt) {
+            const embeddedItem = {
+              ...updatedItem,
+              embedding: result.embedding,
+              embeddingUpdatedAt: result.embeddingUpdatedAt,
+            };
             set((state) => ({
               items: state.items.map((i) =>
-                i.id === id
-                  ? { ...i, embedding: result.embedding!, embeddingUpdatedAt: result.embeddingUpdatedAt! }
-                  : i
+                i.id === id ? embeddedItem : i
               )
             }));
+            calendarItemStorage.save(embeddedItem).catch(error => {
+              console.error('Failed to save embedded item to storage:', error);
+            });
           }
         } catch (error) {
           console.error('Failed to update item in index:', error);
         }
+
+        eventBus.publish({
+          type: 'updated',
+          entityType: 'calendarItem',
+          entityId: id,
+          data: updatedItem,
+        });
 
         if (timeChanged && item.type === 'event' && updatedItem.startTime && updatedItem.endTime && !get()._isHealing) {
           set({ _isHealing: true });
@@ -332,6 +414,17 @@ export const useUnifiedStore = create<UnifiedStore>()(
           )
         }));
 
+        const item = get().items.find((i) => i.id === update.id);
+        if (item) {
+          calendarItemStorage.save({
+            ...item,
+            embedding: update.embedding,
+            embeddingUpdatedAt: update.embeddingUpdatedAt,
+          }).catch(error => {
+            console.error('Failed to save embedding update to storage:', error);
+          });
+        }
+
         oramaSearchService.updateDocument(update.id, {
           embedding: update.embedding,
           embeddingUpdatedAt: update.embeddingUpdatedAt
@@ -347,11 +440,22 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: state.items.filter((item) => item.id !== id)
         }));
 
+        calendarItemStorage.delete(id).catch(error => {
+          console.error('Failed to delete item from storage:', error);
+        });
+
         try {
           await oramaSearchService.deleteFromIndex(id);
         } catch (error) {
           console.error('Failed to delete item from index:', error);
         }
+
+        eventBus.publish({
+          type: 'deleted',
+          entityType: 'calendarItem',
+          entityId: id,
+          data: deletedItem,
+        });
 
         if (deletedItem && deletedItem.type === 'event' && deletedItem.startTime && deletedItem.endTime) {
           const allItems = get().items;
@@ -392,6 +496,10 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: [...state.items, ...newItems]
         }));
 
+        calendarItemStorage.saveBatch(newItems).catch(error => {
+          console.error('Failed to save batch items to storage:', error);
+        });
+
         const results = await Promise.allSettled(
           newItems.map(item => oramaSearchService.indexItem(item))
         );
@@ -401,6 +509,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
             console.error(`Failed to index item ${newItems[index].id}:`, result.reason);
           }
         });
+
+        for (const item of newItems) {
+          eventBus.publish({
+            type: 'created',
+            entityType: 'calendarItem',
+            entityId: item.id,
+            data: item,
+          });
+        }
       },
 
       updateBatchItems: async (updates) => {
@@ -415,6 +532,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         set({ items: updatedItems });
 
+        for (const update of updates) {
+          const updatedItem = updatedItems.find(i => i.id === update.id);
+          if (updatedItem) {
+            calendarItemStorage.save(updatedItem).catch(error => {
+              console.error(`Failed to save updated batch item ${update.id}:`, error);
+            });
+          }
+        }
+
         const results = await Promise.allSettled(
           updates.map(updateItem => 
             oramaSearchService.updateDocument(updateItem.id, updateItem.updates)
@@ -426,12 +552,28 @@ export const useUnifiedStore = create<UnifiedStore>()(
             console.error(`Failed to update item ${updates[index].id}:`, result.reason);
           }
         });
+
+        for (const update of updates) {
+          const updatedItem = updatedItems.find(i => i.id === update.id);
+          eventBus.publish({
+            type: 'updated',
+            entityType: 'calendarItem',
+            entityId: update.id,
+            data: updatedItem,
+          });
+        }
       },
 
       deleteBatchItems: async (ids) => {
+        const deletedItems = get().items.filter((item) => ids.includes(item.id));
+
         set((state) => ({
           items: state.items.filter((item) => !ids.includes(item.id))
         }));
+
+        calendarItemStorage.deleteBatch(ids).catch(error => {
+          console.error('Failed to delete batch items from storage:', error);
+        });
 
         const results = await Promise.allSettled(
           ids.map(id => oramaSearchService.deleteFromIndex(id))
@@ -442,6 +584,15 @@ export const useUnifiedStore = create<UnifiedStore>()(
             console.error(`Failed to delete item ${ids[index]}:`, result.reason);
           }
         });
+
+        for (const item of deletedItems) {
+          eventBus.publish({
+            type: 'deleted',
+            entityType: 'calendarItem',
+            entityId: item.id,
+            data: item,
+          });
+        }
       },
 
       convertToEvent: async (id, startTime, endTime, metadata) => {
@@ -463,11 +614,23 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: state.items.map((i) => i.id === id ? updatedItem : i)
         }));
 
+        calendarItemStorage.save(updatedItem).catch(error => {
+          console.error('Failed to save converted item to storage:', error);
+        });
+
         try {
           await oramaSearchService.updateDocument(id, updatedItem);
         } catch (error) {
           console.error('Failed to update converted item in index:', error);
         }
+
+        eventBus.publish({
+          type: 'updated',
+          entityType: 'calendarItem',
+          entityId: id,
+          data: updatedItem,
+          metadata: { conversion: 'idea-to-event' },
+        });
 
         if (item.metadata.liquidSchedule?.liquidGroupId) {
           const scheduleResult = liquidScheduler.schedulePendingItems(get().items);
@@ -485,11 +648,23 @@ export const useUnifiedStore = create<UnifiedStore>()(
           items: state.items.map((i) => i.id === id ? updatedItem : i)
         }));
 
+        calendarItemStorage.save(updatedItem).catch(error => {
+          console.error('Failed to save converted item to storage:', error);
+        });
+
         try {
           await oramaSearchService.updateDocument(id, updatedItem);
         } catch (error) {
           console.error('Failed to update converted item in index:', error);
         }
+
+        eventBus.publish({
+          type: 'updated',
+          entityType: 'calendarItem',
+          entityId: id,
+          data: updatedItem,
+          metadata: { conversion: 'event-to-idea' },
+        });
       },
 
       getItems: (type, status) => {
@@ -516,25 +691,30 @@ export const useUnifiedStore = create<UnifiedStore>()(
 
         const { originalSlot, originalState } = undoAction;
 
+        const restoredItem = {
+          ...get().items.find((item) => item.id === itemId)!,
+          startTime: originalSlot.start,
+          endTime: originalSlot.end,
+          status: originalState as UnifiedCalendarItem['status'],
+          updatedAt: Date.now(),
+          metadata: {
+            ...get().items.find((item) => item.id === itemId)!.metadata,
+            liquidSchedule: {
+              ...get().items.find((item) => item.id === itemId)!.metadata.liquidSchedule,
+              stabilityScore: Math.max(0, (get().items.find((item) => item.id === itemId)!.metadata.liquidSchedule?.stabilityScore ?? 0) - 1),
+            },
+          },
+        };
+
         set((state) => ({
-          items: state.items.map((item) => {
-            if (item.id !== itemId) return item;
-            return {
-              ...item,
-              startTime: originalSlot.start,
-              endTime: originalSlot.end,
-              status: originalState as UnifiedCalendarItem['status'],
-              updatedAt: Date.now(),
-              metadata: {
-                ...item.metadata,
-                liquidSchedule: {
-                  ...item.metadata.liquidSchedule,
-                  stabilityScore: Math.max(0, (item.metadata.liquidSchedule?.stabilityScore ?? 0) - 1),
-                },
-              },
-            };
-          })
+          items: state.items.map((item) =>
+            item.id === itemId ? restoredItem : item
+          )
         }));
+
+        calendarItemStorage.save(restoredItem).catch(error => {
+          console.error(`Failed to save undo-reschedule item ${itemId}:`, error);
+        });
 
         oramaSearchService.updateDocument(itemId, {
           startTime: originalSlot.start,
@@ -542,6 +722,14 @@ export const useUnifiedStore = create<UnifiedStore>()(
           status: originalState as UnifiedCalendarItem['status'],
         }).catch(error => {
           console.error(`Failed to undo reschedule for item ${itemId}:`, error);
+        });
+
+        eventBus.publish({
+          type: 'updated',
+          entityType: 'calendarItem',
+          entityId: itemId,
+          data: restoredItem,
+          metadata: { action: 'undo-reschedule' },
         });
 
         return true;
@@ -561,6 +749,13 @@ export const useUnifiedStore = create<UnifiedStore>()(
         }));
         
         await get().refreshMemoryStats();
+
+        eventBus.publish({
+          type: 'created',
+          entityType: 'memory',
+          entityId: newMemory.id,
+          data: newMemory,
+        });
         
         return newMemory;
       },
@@ -574,6 +769,13 @@ export const useUnifiedStore = create<UnifiedStore>()(
               m.id === id ? updated : m
             ),
           }));
+
+          eventBus.publish({
+            type: 'updated',
+            entityType: 'memory',
+            entityId: id,
+            data: updated,
+          });
         }
       },
 
@@ -585,6 +787,12 @@ export const useUnifiedStore = create<UnifiedStore>()(
         }));
         
         await get().refreshMemoryStats();
+
+        eventBus.publish({
+          type: 'deleted',
+          entityType: 'memory',
+          entityId: id,
+        });
       },
 
       searchMemories: async (options) => {
@@ -600,11 +808,10 @@ export const useUnifiedStore = create<UnifiedStore>()(
     {
       name: STATE_KEY,
       storage: localforageStorage,
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         items: state.items,
         settings: state.settings,
-        memories: state.memories,
       }),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UnifiedStore>;
@@ -628,6 +835,11 @@ export const useUnifiedStore = create<UnifiedStore>()(
               embeddingUpdatedAt: item.embeddingUpdatedAt || 0
             }));
           }
+        }
+
+        if (version < 3) {
+          console.log('[UnifiedStore] Migrating from version < 3: memories moved to memoryService');
+          delete (state as any).memories;
         }
         
         return state;
