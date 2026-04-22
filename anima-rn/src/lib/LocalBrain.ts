@@ -416,11 +416,16 @@ export async function generatePetReplyStream(
     ]
 
     const { streamEventBus } = await import('../components/FluidChat/StreamEventBus')
+    const { tokenSpeedTracker } = await import('../components/LivingUI/TokenSpeedTracker')
+
+    tokenSpeedTracker.reset()
 
     const rawReply = await runStreamingCompletion(
       fullMessages,
       (token: string) => {
         streamEventBus.emit(`token-${streamId}`, token)
+        const metrics = tokenSpeedTracker.recordToken()
+        streamEventBus.emit(`speed-${streamId}`, metrics.level)
       },
       {
         n_predict: 200,
@@ -429,6 +434,7 @@ export async function generatePetReplyStream(
     )
 
     streamEventBus.emit(`done-${streamId}`)
+    tokenSpeedTracker.reset()
 
     let reply = rawReply
 
