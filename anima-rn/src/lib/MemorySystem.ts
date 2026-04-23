@@ -6,6 +6,8 @@ import type {
   PrivacyLevel,
   ChatMode,
   MemoryExtractResult,
+  EncodingContext,
+  EvolutionPattern,
 } from '../types'
 import { classifyPrivacyFromContent } from './PrivacyGuard'
 import {
@@ -22,10 +24,18 @@ import {
   getConfigValue as dbGetConfig,
   setConfigValue as dbSetConfig,
   getDBStats as dbStats,
+  searchEpisodicByKeywords as dbSearchKeywords,
   type EpisodicRow,
   type SemanticRow,
 } from './LocalDB'
 import { getEmbeddingEngine, findMostSimilar, initEmbeddingEngine } from './EmbeddingEngine'
+import {
+  captureEncodingContext,
+  calculateEmotionGatedImportance,
+  cognitiveExtract,
+  extractKeywordsWithFallback,
+  segmentForFTS,
+} from './CognitiveMemoryExtractor'
 
 const WORKING_MEMORY_MAX = 20
 const EPISODIC_DECAY_RATE = 0.95
@@ -120,25 +130,8 @@ function updateTopicSummary(wm: WorkingMemory): void {
   const userMsgs = recent.filter((e) => e.role === 'user').map((e) => e.content)
   if (userMsgs.length === 0) return
 
-  const keywords = extractKeywords(userMsgs.join(' '))
+  const keywords = extractKeywordsWithFallback(userMsgs.join(' '))
   wm.topicSummary = keywords.slice(0, 5).join('、') || '日常聊天'
-}
-
-function extractKeywords(text: string): string[] {
-  const stopWords = new Set(['的', '了', '是', '我', '你', '他', '她', '它', '这', '那', '有', '在', '不', '都', '也', '就', '会', '能', '要', '什么', '怎么', '为什么', '吗', '吧', '啊', '呢', '哦', '嗯', '哈哈', '嘿嘿', '嘻嘻'])
-  const words = text.toLowerCase().replace(/[^\u4e00-\u9fa5a-zA-Z]/g, '').split('')
-  const freq: Record<string, number> = {}
-
-  for (const word of words) {
-    if (word.length >= 2 && !stopWords.has(word)) {
-      freq[word] = (freq[word] || 0) + 1
-    }
-  }
-
-  return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([w]) => w)
 }
 
 export function getRecentContext(conversationId: string, count?: number): Array<{ role: string; content: string }> {
@@ -157,11 +150,15 @@ export function clearWorkingMemory(conversationId: string): void {
 }
 
 export async function addEpisodicMemory(
-  memory: Omit<EpisodicMemory, 'id' | 'createdAt' | 'accessCount' | 'lastAccessed'>
+  memory: Omit<EpisodicMemory, 'id' | 'createdAt' | 'accessCount' | 'lastAccessed'>,
+  encodingContext?: EncodingContext
 ): Promise<EpisodicMemory> {
   const engine = getEmbeddingEngine()
   const embeddingVec = await engine.embed(memory.content)
   const embeddingArr = Array.from(embeddingVec)
+
+  const keywords = memory.keywords || extractKeywordsWithFallback(memory.content)
+  const keywordsText = segmentForFTS(memory.content)
 
   const newMemory: EpisodicMemory = {
     ...memory,
@@ -170,6 +167,8 @@ export async function addEpisodicMemory(
     lastAccessed: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     embedding: embeddingArr,
+    encodingContext,
+    keywords,
   }
 
   await dbInsertEpi({
@@ -181,9 +180,12 @@ export async function addEpisodicMemory(
     tags: JSON.stringify(memory.tags),
     importance: memory.importance ?? 0.5,
     embedding_json: JSON.stringify(embeddingArr),
+    encoding_context_json: encodingContext ? JSON.stringify(encodingContext) : null,
+    fragment_type: memory.fragmentType ?? null,
+    keywords_text: keywordsText,
   })
 
-  console.log(`[MemorySystem] +Episodic [${PRIVACY_ICONS[memory.privacyLevel]}] ${memory.content.slice(0, 50)}...`)
+  console.log(`[MemorySystem] +Episodic [${PRIVACY_ICONS[memory.privacyLevel]}] ${memory.content.slice(0, 50)}...${encodingContext ? ` [相:${encodingContext.userMood}/${encodingContext.timeOfDay}]` : ''}`)
 
   return newMemory
 }
@@ -192,7 +194,8 @@ export async function retrieveRelevantEpisodic(
   petId: string,
   query: string,
   mode: ChatMode,
-  limit: number = 3
+  limit: number = 3,
+  queryContext?: EncodingContext
 ): Promise<EpisodicMemory[]> {
   if (!isInitialized) return []
 
@@ -203,52 +206,132 @@ export async function retrieveRelevantEpisodic(
 
   if (rows.length === 0) return []
 
+  const queryKeywords = extractKeywordsWithFallback(query)
+
   try {
+    const keywordResults = await dbSearchKeywords(petId, queryKeywords, 20)
+    const keywordMap = new Map(keywordResults.map(kr => [kr.row.id, kr.score]))
+
     const candidates = rows.map((r) => ({ id: r.id, content: r.content }))
     const similar = await findMostSimilar(query, candidates, limit * 2, 0.15)
 
     const similarIds = new Set(similar.map((s) => s.id))
-    const results: EpisodicMemory[] = []
+    const scored: Array<{ memory: EpisodicMemory; score: number; rowId: string }> = []
 
     for (const row of rows) {
       if (!allowedLevels.includes(row.privacy_level as 1 | 2 | 3)) continue
-      if (results.length >= limit) break
 
-      const simScore = similar.find((s) => s.id === row.id)?.score ?? 0
-      const keywordScore = calculateKeywordScore(query, row.content)
-      const recencyBonus = Math.max(0, 1 - daysSince(row.last_accessed || row.created_at) / 30)
-      const finalScore = simScore * 0.5 + keywordScore * 0.3 + row.importance * 0.15 + recencyBonus * 0.05
+      const semanticScore = similar.find((s) => s.id === row.id)?.score ?? 0
+      const keywordScore = keywordMap.get(row.id) ?? calculateKeywordScoreLegacy(query, row.content)
+      const recencyScore = Math.max(0, 1 - daysSince(row.last_accessed || row.created_at) / 30)
+      const importanceScore = row.importance
 
-      if (finalScore > 0.2 || similarIds.has(row.id)) {
-        results.push({
-          id: row.id,
-          petId: row.pet_id,
-          content: row.content,
-          timestamp: row.timestamp,
-          privacyLevel: row.privacy_level as 1 | 2 | 3,
-          tags: JSON.parse(row.tags || '[]'),
-          importance: row.importance,
-          accessCount: row.access_count,
-          lastAccessed: row.last_accessed || row.created_at,
-          createdAt: row.created_at,
-          embedding: row.embedding_json ? JSON.parse(row.embedding_json) : undefined,
-        })
+      let contextScore = 0
+      if (queryContext) {
+        contextScore = calculateContextMatch(queryContext, row.encoding_context_json)
+      }
 
-        dbUpdateAccess(row.id)
+      const finalScore =
+        semanticScore * 0.30 +
+        keywordScore * 0.25 +
+        recencyScore * 0.15 +
+        importanceScore * 0.15 +
+        contextScore * 0.15
+
+      if (finalScore > 0.15 || similarIds.has(row.id)) {
+        const memory = rowToEpisodicMemory(row)
+        scored.push({ memory, score: finalScore, rowId: row.id })
       }
     }
 
-    results.sort((a, b) => b.importance - a.importance)
-    return results.slice(0, limit)
+    scored.sort((a, b) => b.score - a.score)
+    const results = scored.slice(0, limit)
+
+    for (const { rowId } of results) {
+      dbUpdateAccess(rowId).catch(() => {})
+    }
+
+    return results.map(r => r.memory)
   } catch (err: any) {
-    console.warn('[MemorySystem] 向量检索失败, 回退到关键词匹配:', err.message)
+    console.warn('[MemorySystem] 混合检索失败, 回退到关键词匹配:', err.message)
     return fallbackKeywordSearch(rows, query, allowedLevels, limit)
   }
 }
 
-function calculateKeywordScore(query: string, content: string): number {
-  const queryKeywords = new Set(extractKeywords(query))
-  const contentKeywords = extractKeywords(content)
+function calculateContextMatch(
+  queryCtx: EncodingContext,
+  memoryCtxJson: string | null
+): number {
+  if (!memoryCtxJson) return 0
+
+  let memCtx: EncodingContext
+  try {
+    memCtx = JSON.parse(memoryCtxJson)
+  } catch {
+    return 0
+  }
+
+  let score = 0
+
+  if (queryCtx.userMood === memCtx.userMood) {
+    score += 0.4
+  } else if (
+    (queryCtx.userMood === 'sad' && memCtx.userMood === 'anxious') ||
+    (queryCtx.userMood === 'anxious' && memCtx.userMood === 'sad') ||
+    (queryCtx.userMood === 'happy' && memCtx.userMood === 'excited') ||
+    (queryCtx.userMood === 'excited' && memCtx.userMood === 'happy')
+  ) {
+    score += 0.25
+  }
+
+  if (queryCtx.timeOfDay === memCtx.timeOfDay) {
+    score += 0.3
+  }
+
+  if (queryCtx.conversationTopic && memCtx.conversationTopic) {
+    if (queryCtx.conversationTopic === memCtx.conversationTopic) {
+      score += 0.3
+    } else {
+      const qTopicWords = new Set(queryCtx.conversationTopic.split(''))
+      const mTopicWords = new Set(memCtx.conversationTopic.split(''))
+      const overlap = [...qTopicWords].filter(w => mTopicWords.has(w)).length
+      score += Math.min(overlap * 0.1, 0.2)
+    }
+  }
+
+  return Math.min(score, 1.0)
+}
+
+function rowToEpisodicMemory(row: EpisodicRow): EpisodicMemory {
+  return {
+    id: row.id,
+    petId: row.pet_id,
+    content: row.content,
+    timestamp: row.timestamp,
+    privacyLevel: row.privacy_level as 1 | 2 | 3,
+    tags: JSON.parse(row.tags || '[]'),
+    importance: row.importance,
+    accessCount: row.access_count,
+    lastAccessed: row.last_accessed || row.created_at,
+    createdAt: row.created_at,
+    embedding: row.embedding_json ? JSON.parse(row.embedding_json) : undefined,
+    encodingContext: row.encoding_context_json ? safeParseJSON<EncodingContext>(row.encoding_context_json) : undefined,
+    fragmentType: (row.fragment_type as any) ?? undefined,
+    keywords: row.keywords_text ? row.keywords_text.split(' ').filter(Boolean) : undefined,
+  }
+}
+
+function safeParseJSON<T>(json: string): T | undefined {
+  try {
+    return JSON.parse(json) as T
+  } catch {
+    return undefined
+  }
+}
+
+function calculateKeywordScoreLegacy(query: string, content: string): number {
+  const queryKeywords = new Set(extractKeywordsWithFallback(query))
+  const contentKeywords = extractKeywordsWithFallback(content)
   let score = 0
 
   for (const qk of queryKeywords) {
@@ -269,36 +352,26 @@ function fallbackKeywordSearch(
   allowedLevels: PrivacyLevel[],
   limit: number
 ): EpisodicMemory[] {
-  const queryKeywords = new Set(extractKeywords(query))
+  const queryKeywords = new Set(extractKeywordsWithFallback(query))
 
   const scored = rows
     .filter((r) => allowedLevels.includes(r.privacy_level as 1 | 2 | 3))
     .map((row) => ({
       row,
       score:
-        calculateKeywordScore(query, row.content) +
+        calculateKeywordScoreLegacy(query, row.content) +
         row.importance * 0.5 +
         Math.log(row.access_count + 1) * 0.1,
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
 
-  return scored.map(({ row }) => ({
-    id: row.id,
-    petId: row.pet_id,
-    content: row.content,
-    timestamp: row.timestamp,
-    privacyLevel: row.privacy_level as PrivacyLevel,
-    tags: JSON.parse(row.tags || '[]'),
-    importance: row.importance,
-    accessCount: row.access_count,
-    lastAccessed: row.last_accessed || row.created_at,
-    createdAt: row.created_at,
-  }))
+  return scored.map(({ row }) => rowToEpisodicMemory(row))
 }
 
 export async function addSemanticFact(
-  fact: Omit<SemanticFact, 'id' | 'createdAt' | 'updatedAt'>
+  fact: Omit<SemanticFact, 'id' | 'createdAt' | 'updatedAt'>,
+  evolutionHint?: { pattern: EvolutionPattern; mergedValue?: string }
 ): Promise<SemanticFact> {
   const existingRows = await dbGetSem(fact.petId, { categories: [fact.category] })
   const existing = existingRows.find((r) => r.key === fact.key)
@@ -306,12 +379,38 @@ export async function addSemanticFact(
   let result: SemanticFact
 
   if (existing) {
-    const newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST)
+    let newConfidence: number
+    let finalValue = fact.value
+
+    if (evolutionHint) {
+      switch (evolutionHint.pattern) {
+        case 'reinforcement':
+          newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST * 2)
+          break
+        case 'refinement':
+          newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST)
+          if (evolutionHint.mergedValue) finalValue = evolutionHint.mergedValue
+          break
+        case 'contradiction':
+          newConfidence = existing.confidence * 0.5
+          if (evolutionHint.mergedValue) finalValue = evolutionHint.mergedValue
+          break
+        case 'generalization':
+          newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST)
+          if (evolutionHint.mergedValue) finalValue = evolutionHint.mergedValue
+          break
+        default:
+          newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST)
+      }
+    } else {
+      newConfidence = Math.min(1, existing.confidence + SEMANTIC_CONFIDENCE_BOOST)
+    }
+
     await dbInsertSem({
       id: existing.id,
       pet_id: fact.petId,
       key: fact.key,
-      value: fact.value,
+      value: finalValue,
       category: fact.category,
       confidence: newConfidence,
       source_episodic_ids: JSON.stringify(fact.sourceEpisodicIds),
@@ -322,7 +421,7 @@ export async function addSemanticFact(
       id: existing.id,
       petId: fact.petId,
       key: fact.key,
-      value: fact.value,
+      value: finalValue,
       category: fact.category,
       confidence: newConfidence,
       sourceEpisodicIds: fact.sourceEpisodicIds,
@@ -331,7 +430,8 @@ export async function addSemanticFact(
       updatedAt: new Date().toISOString(),
     }
 
-    console.log(`[MemorySystem] ~Semantic ↑ ${fact.key}=${fact.value} (${(newConfidence * 100).toFixed(0)}%)`)
+    const patternLabel = evolutionHint ? ` [${evolutionHint.pattern}]` : ''
+    console.log(`[MemorySystem] ~Semantic ↑ ${fact.key}=${finalValue} (${(newConfidence * 100).toFixed(0)}%)${patternLabel}`)
   } else {
     const id = `sem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const now = new Date().toISOString()
@@ -441,68 +541,27 @@ export function clearConsolidationTimer(): void {
 }
 
 export function extractAndClassify(rawText: string, petId: string): MemoryExtractResult {
-  const sentences = rawText
-    .split(/(?<=[。！？\n])/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 4 && s.length < 150)
-
-  const episodic: MemoryExtractResult['episodic'] = []
-  const semantic: MemoryExtractResult['semantic'] = []
-
-  for (const sentence of sentences) {
-    const privacyLevel = classifyPrivacyFromContent(sentence)
-    const tags = extractKeywords(sentence)
-
-    if (looksLikeEvent(sentence)) {
-      episodic.push({
-        content: sentence,
-        privacyLevel,
-        tags: tags.slice(0, 4),
-      })
-    }
-
-    const factMatch = sentence.match(/(?:主人|用户|他|她)(.{0,3})(?:是|喜欢|讨厌|想|会|觉得|认为|从事|在)(.{2,30})/)
-    if (factMatch) {
-      const category = categorizeFact(factMatch[2])
-      semantic.push({
-        key: factMatch[2].trim().slice(0, 40),
-        value: factMatch[2].trim(),
-        category,
-        privacyLevel,
-      })
-    }
-  }
-
-  return { episodic: episodic.slice(0, 3), semantic: semantic.slice(0, 3) }
+  return cognitiveExtract(rawText, petId)
 }
 
-function looksLikeEvent(text: string): boolean {
-  const eventIndicators = [
-    /今天|昨天|刚才|刚刚|这周|最近/,
-    /打算|准备|要去|去了|正在/,
-    /说|告诉|提到|聊起/,
-    /因为|所以|但是|然后/,
-    /开心|难过|生气|兴奋|累|忙/,
-  ]
-  return eventIndicators.some((p) => p.test(text)) && text.length > 6
-}
-
-function categorizeFact(value: string): SemanticFact['category'] {
-  if (/喜欢|爱|爱好|兴趣|迷上|沉迷/i.test(value)) return 'preference'
-  if (/是.{0,4}(INFP|INTJ|ENTP|[A-Z]{4})|性格|MBTI|内向|外向/i.test(value)) return 'personality'
-  if (/工作|职业|公司|学校|住|住在/i.test(value)) return 'fact'
-  return 'preference'
+export function extractAndClassifyWithEvolution(
+  rawText: string,
+  petId: string,
+  existingFacts?: Array<{ key: string; value: string; confidence: number }>
+): MemoryExtractResult {
+  return cognitiveExtract(rawText, petId, existingFacts)
 }
 
 export async function buildMemoryPromptContext(
   petId: string,
   query: string,
-  mode: ChatMode
+  mode: ChatMode,
+  queryContext?: EncodingContext
 ): Promise<string> {
   if (!isInitialized) return ''
 
   const [relevantEpi, profile] = await Promise.all([
-    retrieveRelevantEpisodic(petId, query, mode, 2),
+    retrieveRelevantEpisodic(petId, query, mode, 2, queryContext),
     retrieveSemanticProfile(petId, mode),
   ])
 
@@ -533,18 +592,7 @@ export async function getAllMemories(petId: string): Promise<{
   const [epiRows, semRows] = await Promise.all([dbGetEpi(petId, { limit: 100 }), dbGetSem(petId)])
 
   return {
-    episodic: epiRows.map((r) => ({
-      id: r.id,
-      petId: r.pet_id,
-      content: r.content,
-      timestamp: r.timestamp,
-      privacyLevel: r.privacy_level as PrivacyLevel,
-      tags: JSON.parse(r.tags || '[]'),
-      importance: r.importance,
-      accessCount: r.access_count,
-      lastAccessed: r.last_accessed || r.created_at,
-      createdAt: r.created_at,
-    })),
+    episodic: epiRows.map((r) => rowToEpisodicMemory(r)),
     semantic: semRows.map((r) => ({
       id: r.id,
       petId: r.pet_id,

@@ -1,4 +1,5 @@
 let SQLiteModule: any = null
+let dbVersion = 0
 
 async function getSQLite() {
   if (!SQLiteModule) {
@@ -53,6 +54,9 @@ export async function initLocalDB(): Promise<SQLiteDatabase> {
       last_accessed TEXT,
       embedding_json TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      encoding_context_json TEXT,
+      fragment_type TEXT,
+      keywords_text TEXT,
       FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
     );
 
@@ -103,10 +107,45 @@ export async function initLocalDB(): Promise<SQLiteDatabase> {
     INSERT OR IGNORE INTO memory_config(key, value) VALUES ('last_consolidation', '');
     INSERT OR IGNORE INTO memory_config(key, value) VALUES ('total_episodic_count', '0');
     INSERT OR IGNORE INTO memory_config(key, value) VALUES ('auto_decay_enabled', '1');
+    INSERT OR IGNORE INTO memory_config(key, value) VALUES ('db_version', '2');
   `)
+
+  await migrateDB(db!)
 
   console.log('[LocalDB] ✅ 数据库初始化完成')
   return db!
+}
+
+async function migrateDB(database: SQLiteDatabase): Promise<void> {
+  try {
+    const versionRow = await database.getFirstAsync<{ value: string }>(
+      `SELECT value FROM memory_config WHERE key = 'db_version'`
+    )
+    const currentVersion = parseInt(versionRow?.value || '1', 10)
+    dbVersion = currentVersion
+
+    if (currentVersion < 2) {
+      console.log('[LocalDB] 🔄 Migrating DB v1 → v2 (add encoding_context, fragment_type, keywords_text)')
+      try {
+        await database.execAsync(`
+          ALTER TABLE episodic_memories ADD COLUMN encoding_context_json TEXT;
+          ALTER TABLE episodic_memories ADD COLUMN fragment_type TEXT;
+          ALTER TABLE episodic_memories ADD COLUMN keywords_text TEXT;
+        `)
+      } catch (alterErr: any) {
+        if (!alterErr.message?.includes('duplicate column')) {
+          console.warn('[LocalDB] ⚠️ ALTER TABLE failed (columns may already exist):', alterErr.message)
+        }
+      }
+      await database.runAsync(
+        `UPDATE memory_config SET value = '2' WHERE key = 'db_version'`
+      )
+      dbVersion = 2
+      console.log('[LocalDB] ✅ Migration v1→v2 complete')
+    }
+  } catch (e: any) {
+    console.warn('[LocalDB] ⚠️ Migration check failed:', e.message)
+  }
 }
 
 export function getDB(): SQLiteDatabase {
@@ -133,6 +172,9 @@ export interface EpisodicRow {
   last_accessed: string | null
   embedding_json: string | null
   created_at: string
+  encoding_context_json: string | null
+  fragment_type: string | null
+  keywords_text: string | null
 }
 
 export interface SemanticRow {
@@ -155,8 +197,8 @@ export async function insertEpisodicMemory(
   const sanitizedContent = memory.content.slice(0, 500)
   await database.runAsync(
     `INSERT OR REPLACE INTO episodic_memories 
-     (id, pet_id, content, timestamp, privacy_level, tags, importance, embedding_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, pet_id, content, timestamp, privacy_level, tags, importance, embedding_json, encoding_context_json, fragment_type, keywords_text)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       memory.id,
       memory.pet_id,
@@ -166,6 +208,9 @@ export async function insertEpisodicMemory(
       memory.tags,
       memory.importance,
       memory.embedding_json ?? null,
+      memory.encoding_context_json ?? null,
+      memory.fragment_type ?? null,
+      memory.keywords_text ?? null,
     ]
   )
 
@@ -204,6 +249,45 @@ export async function getRecentEpisodicMemories(
      LIMIT ?`,
     [petId, limit]
   )
+}
+
+export async function searchEpisodicByKeywords(
+  petId: string,
+  keywords: string[],
+  limit: number = 10
+): Promise<Array<{ row: EpisodicRow; score: number }>> {
+  if (keywords.length === 0) return []
+
+  const database = getDB()
+  const conditions: string[] = []
+  const params: any[] = [petId]
+
+  for (const kw of keywords) {
+    conditions.push(`(keywords_text LIKE ? OR content LIKE ?)`)
+    params.push(`%${kw}%`, `%${kw}%`)
+  }
+
+  const whereClause = conditions.join(' OR ')
+
+  const rows = await database.getAllAsync<EpisodicRow>(
+    `SELECT * FROM episodic_memories 
+     WHERE pet_id = ? AND (${whereClause})
+     ORDER BY importance DESC
+     LIMIT ?`,
+    [...params, limit]
+  )
+
+  return rows.map(row => {
+    let score = 0
+    const kwText = (row.keywords_text || '').toLowerCase()
+    const contentText = row.content.toLowerCase()
+    for (const kw of keywords) {
+      const kwLower = kw.toLowerCase()
+      if (kwText.includes(kwLower)) score += 0.5
+      if (contentText.includes(kwLower)) score += 0.3
+    }
+    return { row, score: Math.min(score, 1.0) }
+  })
 }
 
 export async function updateEpisodicAccess(id: string): Promise<void> {

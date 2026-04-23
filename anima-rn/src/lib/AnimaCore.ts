@@ -17,12 +17,14 @@ import {
   addEpisodicMemory,
   addSemanticFact,
   extractAndClassify,
+  extractAndClassifyWithEvolution,
   buildMemoryPromptContext,
   consolidateMemories,
   getAllMemories,
   getRecentContext,
   clearConsolidationTimer,
 } from './MemorySystem'
+import { captureEncodingContext, calculateEmotionGatedImportance } from './CognitiveMemoryExtractor'
 import { detectPromptInjection, classifyPrivacyFromContent } from './PrivacyGuard'
 import { initEmbeddingEngine, isUsingOnnxEngine, getEmbeddingEngine } from './EmbeddingEngine'
 import {
@@ -415,14 +417,20 @@ export class AnimaCore {
       if (wm.entries.length > 2) {
         const summaryContent = wm.topicSummary || `对话记录 (${wm.entries.length}轮)`
         try {
+          const archiveContent = `[对话归档] ${summaryContent}`
+          const encodingCtx = captureEncodingContext(archiveContent, wm.topicSummary)
+          const importance = calculateEmotionGatedImportance(
+            Math.min(0.8, 0.3 + tracker.turnCount * 0.05),
+            encodingCtx
+          )
           await addEpisodicMemory({
             petId: petId || 'unknown',
-            content: `[对话归档] ${summaryContent}`,
+            content: archiveContent,
             privacyLevel: 2 as PrivacyLevel,
             tags: ['conversation-archive'],
-            importance: Math.min(0.8, 0.3 + tracker.turnCount * 0.05),
+            importance,
             timestamp: new Date().toISOString(),
-          })
+          }, encodingCtx)
           console.log(`[AnimaCore] 📦 对话 ${conversationId} 已归档 (${tracker.turnCount}轮)`)
         } catch (e) {
           // ignore archive errors

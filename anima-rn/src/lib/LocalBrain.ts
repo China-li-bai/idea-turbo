@@ -15,8 +15,9 @@ import {
   buildMemoryPromptContext,
   addEpisodicMemory,
   addSemanticFact,
-  extractAndClassify,
+  extractAndClassifyWithEvolution,
 } from './MemorySystem'
+import { captureEncodingContext, calculateEmotionGatedImportance } from './CognitiveMemoryExtractor'
 import {
   ensureAnyModel,
   scanInstalledModels,
@@ -325,7 +326,8 @@ export async function generatePetReply(
   addToWorkingMemory(conversationId, 'user', userMessage)
   addToWorkingMemory(conversationId, 'pet', '')
 
-  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner')
+  const queryContext = captureEncodingContext(userMessage)
+  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext)
   if (memoryContext) {
     thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
   }
@@ -364,13 +366,23 @@ export async function generatePetReply(
     let newEpiCount = 0
     let newSemCount = 0
     try {
-      const extracted = extractAndClassify(userMessage, pet.id)
+      const encodingCtx = captureEncodingContext(userMessage)
+      const extracted = extractAndClassifyWithEvolution(userMessage, pet.id)
       for (const epi of extracted.episodic) {
-        await addEpisodicMemory({ petId: pet.id, ...epi, importance: 0.7, timestamp: new Date().toISOString() })
+        const baseImportance = epi.fragmentType === 'subjective' ? 0.8 : 0.6
+        const importance = calculateEmotionGatedImportance(baseImportance, encodingCtx)
+        await addEpisodicMemory(
+          { petId: pet.id, ...epi, importance, timestamp: new Date().toISOString() },
+          encodingCtx
+        )
         newEpiCount++
       }
       for (const sem of extracted.semantic) {
-        await addSemanticFact({ petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 })
+        const evolutionHint = extracted.evolutionHints?.find(h => h.key === sem.key)
+        await addSemanticFact(
+          { petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 },
+          evolutionHint ? { pattern: evolutionHint.pattern, mergedValue: evolutionHint.mergedValue } : undefined
+        )
         newSemCount++
       }
     } catch (memErr: any) {
@@ -399,7 +411,8 @@ export async function generatePetReplyStream(
   addToWorkingMemory(conversationId, 'user', userMessage)
   addToWorkingMemory(conversationId, 'pet', '')
 
-  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner')
+  const queryContext = captureEncodingContext(userMessage)
+  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext)
   if (memoryContext) {
     thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
   }
@@ -454,13 +467,23 @@ export async function generatePetReplyStream(
     let newEpiCount = 0
     let newSemCount = 0
     try {
-      const extracted = extractAndClassify(userMessage, pet.id)
+      const encodingCtx = captureEncodingContext(userMessage)
+      const extracted = extractAndClassifyWithEvolution(userMessage, pet.id)
       for (const epi of extracted.episodic) {
-        await addEpisodicMemory({ petId: pet.id, ...epi, importance: 0.7, timestamp: new Date().toISOString() })
+        const baseImportance = epi.fragmentType === 'subjective' ? 0.8 : 0.6
+        const importance = calculateEmotionGatedImportance(baseImportance, encodingCtx)
+        await addEpisodicMemory(
+          { petId: pet.id, ...epi, importance, timestamp: new Date().toISOString() },
+          encodingCtx
+        )
         newEpiCount++
       }
       for (const sem of extracted.semantic) {
-        await addSemanticFact({ petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 })
+        const evolutionHint = extracted.evolutionHints?.find(h => h.key === sem.key)
+        await addSemanticFact(
+          { petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 },
+          evolutionHint ? { pattern: evolutionHint.pattern, mergedValue: evolutionHint.mergedValue } : undefined
+        )
         newSemCount++
       }
     } catch (memErr: any) {
@@ -541,7 +564,8 @@ export async function generateVisitorReply(
 
   addToWorkingMemory(conversationId, 'visitor', `[${visitorName}] ${visitorMessage}`)
 
-  const memoryContext = await buildMemoryPromptContext(pet.id, visitorMessage, 'visitor')
+  const queryContext = captureEncodingContext(visitorMessage)
+  const memoryContext = await buildMemoryPromptContext(pet.id, visitorMessage, 'visitor', queryContext)
   if (memoryContext) {
     thinkingSteps.push(`${pet.avatarEmoji}${pet.name}正在查看公开信息...`)
   }
