@@ -1,5 +1,130 @@
 # Anima-RN Worklog
 
+## 2026-04-23 - 宠物星图（PetConstellation）实现
+
+### 为什么修改
+用户指出星图尚未实现，NPC和宠物在星图中的显示逻辑缺失。星图是Phase 2社交功能的核心可视化层——用赛博星空替代真地图，既保护隐私又契合"数字灵魂培养皿"美学。
+
+### 新增文件
+
+#### 1. ConstellationEngine.ts — H3空间索引 + 隐私保护 + 星点布局
+- **H3六边形索引**：res7≈5km²精度，用户GPS→H3格子号（只上传格子号，不暴露坐标）
+- **隐私匹配**：PetTagVector（标签SHA256前8位哈希）→ Jaccard相似度计算
+- **星点布局算法**：H3格子→极坐标映射→2D笛卡尔坐标，ringDistance决定距离，h3Cell哈希决定角度
+- **NPC位置**：6个核心商圈预置坐标→自动计算H3格子
+- **伪名生成**：`generatePseudonym()` 按物种生成星名（星喵42、月翼17等）
+- **邂逅事件**：`createEncounter()` 创建两只宠物的相遇记录
+
+#### 2. PetConstellation.tsx — 赛博星空UI组件
+- **背景星空**：120个随机Skia粒子 + Canvas渲染
+- **星座连线**：Skia Line绘制三种类型连线（match=粉、npc_proximity=珊瑚、same_species=蓝）
+- **星点渲染**：
+  - 自己的宠物：中心最亮的星（cyan），24px emoji，脉冲动画
+  - NPC宠物：珊瑚色光晕 + "NPC"徽章 + 品牌绿点
+  - 附近宠物：按匹配度0-100%显示，>50%粉红高亮
+- **图例**：左上角四种光点类型说明
+- **统计**：底部显示"X个光点 · X个NPC · X条缘分线"
+- **交互**：点击星点触发onNodePress回调
+
+### 修改文件
+
+#### NPCPetEngine.ts — H3格子填充
+- 新增NPC_LOCATION_DATA：6个核心商圈GPS坐标
+- `getNPCPool()` 现在自动计算每个NPC的h3Cells
+- 依赖h3-js的`latLngToCell()`
+
+#### store/index.ts — 星图状态
+- 新增：constellationLayout / userH3Cell / setConstellationLayout / setUserH3Cell
+- currentView新增：'starmap'
+
+### 依赖
+- 新增npm包：`h3-js`（纯JS，Expo Go兼容，Uber六边形空间索引）
+
+### TypeScript编译验证
+✅ `npx tsc --noEmit` 零错误通过
+
+### 星图数据流
+```
+用户GPS → latLngToCell() → H3格子号（隐私保护）
+H3格子号 → getRingDistance() → 邻近度
+邻近度 + 角度哈希 → 极坐标 → 2D布局
+标签哈希 → Jaccard相似度 → 匹配度 → 连线强度
+```
+
+---
+
+## 2026-04-23 - Phase 2 核心模块实现：冷启动/留存/裂变引擎
+
+### 为什么修改
+Phase 2 调研完成后，按照"先实现最重要的"原则，优先实现解决社交产品三大生死问题的核心引擎：
+1. **冷启动** → NPCPetEngine + PetDiaryGenerator（单机也极其好玩）
+2. **留存** → EnergySystem + PersonalityAwakener（脆弱感+养成羁绊）
+3. **裂变** → ShareSliceRenderer（炫耀切片）
+
+### 新增文件
+
+#### 1. PetDiaryGenerator.ts — 每日日记生成引擎
+- 核心功能：每天晚上8点后自动生成宠物视角的《观察人类日记》
+- 数据源：MemorySystem的情景记忆 + 语义事实 + 编码上下文
+- AI生成：调用本地LLM生成日记内容、关键点提取、主人状态总结
+- 降级策略：AI不可用时根据mood选择预设模板
+- 关键函数：`generateDiary()`, `generateDiaryIfNeeded()`, `getDiaryFallback()`
+
+#### 2. EnergySystem.ts — 情绪与社交能量机制
+- 双维度状态：Mood(0-100) + Energy(0-100)
+- 7种宠物状态：happy/idle/bored/tired/grumpy/sleeping/wandering
+- 自然衰减：mood随时间下降，energy随时间恢复
+- 交互影响：主人互动+mood，社交消耗-energy，骚扰消耗energy但+mood
+- 闲逛行为决策：`getWanderingBehavior()` → socialize/harass/sleep/go_home
+- 持久化：expo-file-system存储到documentDirectory
+
+#### 3. PersonalityAwakener.ts — 性格觉醒盲盒
+- 觉醒条件：观察≥10天 + 累计≥15条语义事实
+- 三维分类：说话风格×情感倾向×价值取向 = 4×4×4 = 64种人格
+- 关键词聚类：从语义事实中提取关键词命中数确定各维度
+- 16种人格标签：如"烈焰毒舌家""傲娇暖宝宝""赛博极客猫"等
+- 觉醒进度：seed→sprout→bud→bloom 四阶段可视化
+- 系统提示注入：`getAwakeningSystemPromptAddon()` 将觉醒人格注入AI对话
+
+#### 4. NPCPetEngine.ts — 官方NPC宠物池
+- 6只官方NPC：拿铁(星巴克猫)、墨先生(图书馆鸟)、火锅(重庆修勾)、云朵(大学城猫)、像素(科技园猫)、团子(便利店仓鼠)
+- 三层响应：L1固定脚本(0ms) → L2关键词触发(<50ms) → L3本地AI(1-3s)
+- 品牌合作预留：brandId + couponCode字段
+- 关键词触发器：每个NPC 3个关键词+专属回复
+
+#### 5. ShareSliceRenderer.ts — 炫耀切片渲染
+- 5种切片类型：diary_highlight/awakening/roast_quote/encounter/owner_portrait
+- 模板化生成：每种类型3个标题模板+2个副标题模板
+- 分享文本：`getShareText()` 生成可直接分享的完整文本
+- 关键函数：`createDiaryHighlightSlice()`, `createAwakeningSlice()`, `createRoastQuoteSlice()`
+
+### 修改文件
+
+#### types/index.ts — 新增类型定义
+- PetDiary: 日记数据结构
+- EnergyState + PetStatus: 能量状态
+- SpeechStyle + EmotionalTendency + ValueOrientation: 性格维度
+- PersonalityAwakening: 觉醒数据
+- NPCPet: NPC宠物
+- ShareSlice: 分享切片
+- PetTagVector + EncounterEvent + MatchNotification: 星图社交预留
+
+#### store/index.ts — Zustand状态扩展
+- 新增视图：'diary' | 'npc'
+- 新增状态：diaries/latestDiary/energyState/awakening/shareSlices
+- 新增操作：addDiary/setEnergyState/setAwakening/addShareSlice
+
+### TypeScript编译验证
+✅ `npx tsc --noEmit` 通过，项目零错误（排除android-sdk无关文件）
+
+### 增长飞轮闭环
+```
+新用户下载 → NPC宠物池(立刻有东西玩) → 每日日记(每天有理由回来)
+→ 性格觉醒(10天盲盒) → 炫耀切片(分享=获客) → 新用户下载
+```
+
+---
+
 ## 2026-04-21 - Living UI 重构（Cozy-Cyberpunk 风格）
 
 ### 为什么修改
@@ -1204,6 +1329,72 @@ ContextMatch = (
 
 ### TypeScript 编译验证
 ✅ `npx tsc --noEmit` 通过，项目零错误
+
+---
+
+## 2026-04-23 - Phase 2 调研：隐私保护LBS社交 + 冷启动/留存/裂变设计
+
+### 一、LBS隐私保护技术调研
+
+#### 核心洞察：不需要真地图
+用 PetConstellation（宠物星图）替代真地图——用户看到的是赛博星空中闪烁的光点，不是暴露位置的地图。
+- 更隐私：从不展示真实地理信息
+- 更契合美学：完美融入"数字灵魂培养皿"风格
+- 更轻量：零地图 SDK 依赖
+- 更浪漫："你的猫在星图上遇到了一只灵魂契合的狗" > "你附近2.3km有一只狗"
+
+#### 位置隐私方案对比
+| 方案 | 原理 | 隐私强度 | 复杂度 | 结论 |
+|------|------|---------|--------|------|
+| H3 六边形索引 | GPS→格子ID，只上传格子号 | ★★★★ | ★☆☆ | **MVP首选** |
+| Geohash + k-匿名 | GPS→字符串前缀匹配 | ★★★ | ★☆☆ | 备选 |
+| Geo-Indistinguishability | GPS加拉普拉斯噪声 | ★★★★★ | ★★★ | 未来增强 |
+| ZKLP零知识位置证明 | 证明"我在某区域"不暴露坐标 | ★★★★★ | ★★★★★ | 2025前沿(TUM/IEEE S&P 2025) |
+
+#### 选型：Uber H3 六边形空间索引
+- 16级分辨率：res7≈5km²（附近），res6≈36km²（同城区）
+- kRing(h3Index, 1) 一行代码获取7个相邻格子
+- npm: `h3-js`（纯JS），`h3-react-native`（原生绑定）
+- 2025前沿ZKLP论文也用六边形空间索引
+
+#### 隐私匹配：哈希Jaccard + OpenMined PSI
+- MVP: 标签SHA256前8位 → Jaccard相似度 → 服务器只看到哈希碰撞
+- 增强: `@openmined/psi.js`（ECDH+Bloom Filter）→ 服务器完全无法学习标签
+
+### 二、社交产品三大生死问题设计
+
+#### 问题1：冷启动
+- NPC宠物池：核心商圈H3格子预置官方NPC（星巴克打工猫、图书馆学霸鹰）
+- NPC三层响应：L1固定脚本(0ms) → L2关键词触发(<50ms) → L3本地AI(1-3s)
+- 单机闭环：《观察人类（主人）日记》— 记忆系统驱动，每天自动生成
+
+#### 问题2：留存
+- 情绪与电量机制：Mood(0-100) + Energy(0-100)，耗尽→罢工/撒娇/乱跑
+- 性格觉醒盲盒：10天观察期→聚类性格维度→觉醒人格（不是选的是聊出来的）
+- 觉醒人格矩阵：说话风格×情感倾向×价值观 = 4×4=16种人格
+
+#### 问题3：裂变
+- 炫耀切片：日记精选/觉醒时刻/毒舌金句/邂逅故事/主人画像
+- Skia渲染分享卡片 → 一键分享微信朋友圈
+
+### 三、新增模块与现有架构映射
+| 产品功能 | 技术组件 | 现有/新增 |
+|---------|---------|----------|
+| 每日日记 | PetDiaryGenerator | 新增（客户端） |
+| 日记内容源 | CognitiveMemoryExtractor + MemorySystem | ✅ 现有 |
+| 情绪/电量 | EnergySystem | 新增（客户端） |
+| 性格觉醒 | PersonalityAwakener | 新增（客户端） |
+| 觉醒数据源 | MemorySystem + EmbeddingEngine | ✅ 现有 |
+| NPC宠物池 | NPCPetEngine | 新增（服务端） |
+| 炫耀切片 | ShareSliceRenderer | 新增（Skia渲染） |
+| 星图社交 | H3 + WebSocket + TagVector | 已设计 |
+| 隐私保护 | PrivacyGuard | ✅ 现有 |
+
+### 四、增长飞轮
+```
+新用户下载 → NPC宠物池(立刻有东西玩) → 每日日记(每天有理由回来)
+→ 性格觉醒(10天盲盒) → 炫耀切片(分享=获客) → 新用户下载
+```
 
 ---
 

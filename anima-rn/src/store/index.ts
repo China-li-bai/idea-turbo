@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { Pet, Message, Conversation, MemoryNode, ShareLink } from '../types'
+import type { Pet, Message, Conversation, MemoryNode, ShareLink, PetDiary, EnergyState, PersonalityAwakening, ShareSlice } from '../types'
 import type { SystemStatus } from '../lib/AnimaCore'
+import type { ConstellationLayout } from '../lib/ConstellationEngine'
 
 interface AppState {
   currentPet: Pet | null
@@ -36,13 +37,34 @@ interface AppState {
   activeStreamId: string | null
   setActiveStreamId: (id: string | null) => void
 
-  currentView: 'home' | 'chat' | 'setup' | 'memories' | 'share' | 'visitor' | 'system'
+  currentView: 'home' | 'chat' | 'setup' | 'memories' | 'share' | 'visitor' | 'system' | 'diary' | 'npc' | 'starmap'
   setView: (view: AppState['currentView']) => void
 
   systemStatus: SystemStatus | null
   setSystemStatus: (status: SystemStatus | null) => void
   isCoreInitialized: boolean
   setCoreInitialized: (val: boolean) => void
+
+  diaries: PetDiary[]
+  setDiaries: (diaries: PetDiary[]) => void
+  addDiary: (diary: PetDiary) => void
+  latestDiary: PetDiary | null
+  setLatestDiary: (diary: PetDiary | null) => void
+
+  energyState: EnergyState | null
+  setEnergyState: (state: EnergyState | null) => void
+
+  awakening: PersonalityAwakening | null
+  setAwakening: (awakening: PersonalityAwakening | null) => void
+
+  shareSlices: ShareSlice[]
+  setShareSlices: (slices: ShareSlice[]) => void
+  addShareSlice: (slice: ShareSlice) => void
+
+  constellationLayout: ConstellationLayout | null
+  setConstellationLayout: (layout: ConstellationLayout | null) => void
+  userH3Cell: string | null
+  setUserH3Cell: (cell: string | null) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -86,4 +108,25 @@ export const useAppStore = create<AppState>((set) => ({
   setSystemStatus: (status) => set({ systemStatus: status }),
   isCoreInitialized: false,
   setCoreInitialized: (val) => set({ isCoreInitialized: val }),
+
+  diaries: [],
+  setDiaries: (diaries) => set({ diaries }),
+  addDiary: (diary) => set((s) => ({ diaries: [...s.diaries, diary] })),
+  latestDiary: null,
+  setLatestDiary: (diary) => set({ latestDiary: diary }),
+
+  energyState: null,
+  setEnergyState: (state) => set({ energyState: state }),
+
+  awakening: null,
+  setAwakening: (awakening) => set({ awakening }),
+
+  shareSlices: [],
+  setShareSlices: (slices) => set({ shareSlices: slices }),
+  addShareSlice: (slice) => set((s) => ({ shareSlices: [...s.shareSlices, slice] })),
+
+  constellationLayout: null,
+  setConstellationLayout: (layout) => set({ constellationLayout: layout }),
+  userH3Cell: null,
+  setUserH3Cell: (cell) => set({ userH3Cell: cell }),
 }))

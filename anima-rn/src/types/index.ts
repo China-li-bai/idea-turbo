@@ -208,3 +208,104 @@ export interface PrivacyGuardResult {
   warning?: string
   sanitizedMessage?: string
 }
+
+export interface PetDiary {
+  id: string
+  petId: string
+  date: string
+  content: string
+  mood: UserMood
+  highlights: string[]
+  ownerSummary: string
+  createdAt: string
+}
+
+export interface EnergyState {
+  mood: number
+  energy: number
+  lastInteractionAt: string
+  lastSocialAt: string | null
+  moodDecayRate: number
+  energyRecoveryRate: number
+  socialEnergyCost: number
+  status: PetStatus
+}
+
+export type PetStatus = 'happy' | 'idle' | 'bored' | 'tired' | 'grumpy' | 'sleeping' | 'wandering'
+
+export type SpeechStyle = 'sarcastic' | 'gentle' | 'chuunibyou' | 'academic'
+export type EmotionalTendency = 'passionate' | 'tsundere' | 'aloof' | 'clingy'
+export type ValueOrientation = 'pragmatic' | 'idealistic' | 'hedonistic' | 'ambitious'
+
+export interface PersonalityAwakening {
+  id: string
+  petId: string
+  awakenedAt: string
+  speechStyle: SpeechStyle
+  emotionalTendency: EmotionalTendency
+  valueOrientation: ValueOrientation
+  label: string
+  description: string
+  triggerReasons: string[]
+  observationDays: number
+  isNew: boolean
+}
+
+export interface NPCPet {
+  id: string
+  name: string
+  species: PetSpecies
+  personality: string[]
+  avatarEmoji: string
+  locationTag: string
+  h3Cells: string[]
+  greeting: string
+  catchphrase: string
+  brandId: string | null
+  keywordTriggers: Array<{
+    keyword: string
+    response: string
+    couponCode?: string
+  }>
+  systemPrompt: string
+}
+
+export interface ShareSlice {
+  id: string
+  petId: string
+  type: 'diary_highlight' | 'awakening' | 'roast_quote' | 'encounter' | 'owner_portrait'
+  title: string
+  content: string
+  subtitle: string
+  createdAt: string
+  sharedAt: string | null
+}
+
+export interface PetTagVector {
+  speciesHash: string
+  personalityHashes: string[]
+  activityLevel: number
+  timeHash: string
+  interestHashes: string[]
+  moodHash: string
+  nonce: string
+}
+
+export interface EncounterEvent {
+  encounterId: string
+  petA: string
+  petB: string
+  h3Cell: string
+  matchScore: number
+  timestamp: number
+  status: 'pending' | 'both_liked' | 'one_liked' | 'expired'
+}
+
+export interface MatchNotification {
+  encounterId: string
+  otherPseudonym: string
+  otherSpecies: string
+  matchScore: number
+  sharedTagCount: number
+  petReaction: string
+}
