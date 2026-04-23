@@ -129,6 +129,26 @@ export const PRIVACY_LABELS: Record<PrivacyLevel, { label: string; icon: string;
 
 export type ChatMode = 'owner' | 'friend' | 'visitor'
 
+export type UserMood = 'happy' | 'sad' | 'neutral' | 'anxious' | 'excited' | 'angry'
+
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night'
+
+export type SocialContext = 'alone' | 'with_friends' | 'at_work' | 'commuting'
+
+export interface EncodingContext {
+  userMood: UserMood
+  timeOfDay: TimeOfDay
+  dayOfWeek: 'weekday' | 'weekend'
+  conversationTopic: string
+  arousalLevel: number
+  valence: number
+  socialContext: SocialContext
+}
+
+export type MemoryFragmentType = 'factual' | 'experiential' | 'subjective'
+
+export type EvolutionPattern = 'reinforcement' | 'refinement' | 'contradiction' | 'generalization' | 'decay'
+
 export interface WorkingMemoryEntry {
   role: 'user' | 'pet' | 'visitor'
   content: string
@@ -154,6 +174,9 @@ export interface EpisodicMemory {
   lastAccessed: string
   createdAt: string
   embedding?: number[]
+  encodingContext?: EncodingContext
+  fragmentType?: MemoryFragmentType
+  keywords?: string[]
 }
 
 export interface SemanticFact {
@@ -170,8 +193,13 @@ export interface SemanticFact {
 }
 
 export interface MemoryExtractResult {
-  episodic: Pick<EpisodicMemory, 'content' | 'privacyLevel' | 'tags'>[]
+  episodic: Pick<EpisodicMemory, 'content' | 'privacyLevel' | 'tags' | 'fragmentType' | 'keywords'>[]
   semantic: Pick<SemanticFact, 'key' | 'value' | 'category' | 'privacyLevel'>[]
+  evolutionHints?: Array<{
+    key: string
+    pattern: EvolutionPattern
+    mergedValue?: string
+  }>
 }
 
 export interface PrivacyGuardResult {

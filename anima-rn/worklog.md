@@ -867,3 +867,392 @@ Week 9-10: 优化与测试
 3. **分享链接** - 技术可行，SSE + Qwen-API + Vue3 H5 是最优 MVP 方案，2-3 周可交付
 4. **嘴替验证** - 分享链接是最佳 MVP 载体，核心指标：点击率 → 对话轮数 → App 下载转化
 5. **LBS 社交** - Go + WebSocket + Geohash 是成熟方案，代班模式是差异化亮点，8-10 周可交付
+
+---
+
+## 2026-04-22 - 认知记忆提取深度调研：语义+关键词+相
+
+### 为什么修改
+用户提出记忆提取应模仿人类记忆的三个维度：**语义（Semantics）+ 关键词（Keywords）+ 相（Context/Phase）**，需要搜索截止2026年的相关研究和开源方案。
+
+### 一、关键学术研究
+
+#### 1.1 编码特异性原理（Encoding Specificity Principle）
+- **来源**: Tulving & Thomson, 1973; PMC12006847 (2026更新)
+- **核心理论**: 记忆的提取效果取决于编码时和提取时的上下文重叠度
+- **关键洞察**: "存储在记忆中的不是项目本身，而是项目在其编码上下文中的形式"
+- **项目适配**: 🔴 **最关键** - 这正是"相"的理论基础。我们当前的记忆系统只存储内容，不存储编码时的上下文
+
+#### 1.2 PREMem (EMNLP 2025) - 预存储推理
+- **论文**: "Pre-Storage Reasoning for Episodic Memory: Shifting Inference Burden to Memory for Personalized Dialogue"
+- **核心思想**: 将复杂推理从推理时转移到记忆构建时
+- **三类记忆碎片**: Factual（事实）、Experiential（体验）、Subjective（主观）
+- **五种演化模式**: Reinforcement（强化）、Refinement（精化）、Contradiction（矛盾）、Generalization（泛化）、Decay（衰减）
+- **项目适配**: 🟢 **高度适配** - 我们当前用正则提取记忆，PREMem的"预存储推理"理念正是我们需要的：在存储时就做好分类和关联
+
+#### 1.3 PRIME (EMNLP 2025) - 认知双记忆+慢思考
+- **论文**: "PRIME: Large Language Model Personalization with Cognitive Dual-Memory and Personalized Thought Process"
+- **核心思想**: 双记忆模型（情景+语义）+ 慢思考（slow thinking）个性化推理
+- **关键发现**: "仅使用语义记忆(SM)比仅使用情景记忆(EM)效果更好"
+- **项目适配**: 🟢 **高度适配** - 验证了我们的 SemanticFact 方向正确，但需要增加"慢思考"推理步骤
+
+#### 1.4 EM-LLM - 人类情景记忆
+- **论文**: "Human-inspired Episodic Memory for Infinite Context LLMs"
+- **核心思想**: 基于"惊讶度"（surprise）的事件边界检测
+- **关键发现**: "EM-LLM的事件分割与人类感知的事件有强相关性"
+- **项目适配**: 🟡 **中等适配** - 事件边界检测对"相"提取有用，但无限上下文焦点不适用移动端
+
+#### 1.5 Memory Bear AI - ACT-R认知架构
+- **论文**: "Memory Bear AI: A Breakthrough from Memory to Cognition" (arXiv 2512.20651)
+- **开源**: github.com/SuanmoSuanyangTechnology/MemoryBear
+- **核心思想**: ACT-R架构 → 显性记忆（陈述性）+ 隐性记忆（程序性）
+- **三大引擎**: 提取引擎、遗忘引擎、反思引擎
+- **项目适配**: 🟢 **高度适配** - "反思引擎"概念正是我们缺失的：定期评估和重写已存储的记忆
+
+### 二、关键开源方案
+
+#### 2.1 cogmem-agent - 情绪门控回忆
+- **地址**: pypi.org/project/cogmem-agent/
+- **核心特性**: 情绪门控回忆（Emotion-gated recall）、自适应遗忘、技能学习、身份进化
+- **关键机制**: 唤醒度（Arousal）分数调节记忆持久性 — 高唤醒记忆持续更久
+- **项目适配**: 🟢 **高度适配** - "情绪门控"直接对应"相"的需求。高情绪强度时形成的记忆应更重要
+
+#### 2.2 dory-memory - 图扩散激活检索
+- **地址**: pypi.org/project/dory-memory/ (2026-04-16发布)
+- **核心特性**: 图扩散激活检索 + 原则性遗忘
+- **关键机制**: "payments API" 激活 "Stripe" 激活 "webhook handler" — 联想式检索
+- **三种遗忘**: 时间衰减、冗余修剪、定向清除
+- **项目适配**: 🟡 **中等适配** - 扩散激活很强大但需要图结构，联想检索概念有价值
+
+#### 2.3 Engram - 混合五信号检索
+- **地址**: github.com/raya-ac/engram
+- **核心特性**: SQLite + FTS5关键词搜索 + 本地嵌入(all-MiniLM-L6-v2) + BM25
+- **五信号融合**: 语义相似度 + 关键词匹配 + 时效性 + 重要性 + 频率
+- **基准**: 98.1% 准确率
+- **项目适配**: 🟢 **高度适配** - 混合检索(FTS5+向量)正是我们需要的，纯SQLite方案完美适配移动端
+
+#### 2.4 jieba-node - 纯JavaScript中文分词
+- **地址**: npmjs.com/package/jieba-node (2026-04发布)
+- **核心特性**: 精确模式、全模式、搜索引擎模式、HMM未知词识别、词性标注、TF-IDF关键词提取、TextRank
+- **项目适配**: 🟢 **完美适配** - 直接替代我们当前的单字频率统计，纯JS无需原生依赖
+
+#### 2.5 Mem0 - 生产级记忆层
+- **地址**: github.com/mem0ai/mem0
+- **核心特性**: 多信号检索（语义+BM25关键词+实体匹配）、图记忆、实体链接
+- **项目适配**: 🟡 **中等适配** - 太重（需外部服务），但多信号检索概念可借鉴
+
+### 三、综合评估与方案设计
+
+#### 3.1 核心洞察：人类记忆的三维编码
+
+```
+传统AI记忆:  Content → Store → Retrieve by similarity
+                    ↑ 只有"什么"
+
+人类记忆:    Content + Context + Emotion → Store → Retrieve by multi-signal
+                    ↑ "什么"    ↑ "何时何地"  ↑ "感受如何"
+                  语义          相(情境)        情绪标记
+```
+
+**编码特异性原理**告诉我们：记忆不是孤立存储的，而是与其编码时的上下文绑定在一起。
+当我们回忆"吃火锅"时，不只是回忆起"火锅"这个词，而是回忆起：
+- 那天是周五晚上（时间情境）
+- 和朋友一起（社交情境）
+- 心情很开心（情绪标记）
+- 天气很冷（环境情境）
+
+#### 3.2 项目适配方案：认知记忆提取系统
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              认知记忆提取系统 (Cognitive Memory Extraction)        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Phase 1: 编码阶段 (Encoding) — 模仿人类记忆编码         │    │
+│  │                                                         │    │
+│  │  用户消息: "今天加班到10点，好想吃炸鸡解压"              │    │
+│  │       │                                                 │    │
+│  │       ├── 语义提取 (jieba-node TF-IDF + LLM)            │    │
+│  │       │   → keywords: ["加班", "炸鸡", "解压"]          │    │
+│  │       │   → facts: ["加班到10点", "想吃炸鸡解压"]        │    │
+│  │       │   → type: factual | experiential | subjective   │    │
+│  │       │                                                 │    │
+│  │       ├── 情境快照 (EncodingContext = "相")              │    │
+│  │       │   → emotionalState: pet当前情绪                 │    │
+│  │       │   → userMood: 'anxious' (从消息推断)            │    │
+│  │       │   → timeOfDay: 'night' (22:00)                  │    │
+│  │       │   → arousalLevel: 0.7 (情绪强度)                │    │
+│  │       │   → valence: -0.3 (偏消极)                      │    │
+│  │       │   → conversationTopic: "工作压力"               │    │
+│  │       │                                                 │    │
+│  │       └── 情绪门控 (Emotion-gated Importance)           │    │
+│  │           → arousalLevel > 0.8 → importance = 0.9       │    │
+│  │           → arousalLevel > 0.5 → importance = 0.7       │    │
+│  │           → arousalLevel < 0.3 → importance = 0.4       │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Phase 2: 存储阶段 (Storage) — PREMem预存储推理          │    │
+│  │                                                         │    │
+│  │  提取的记忆碎片:                                        │    │
+│  │  ┌──────────────────────────────────────────────┐       │    │
+│  │  │ Factual:    "加班到10点"                      │       │    │
+│  │  │ Experiential: "压力大时想吃炸鸡"              │       │    │
+│  │  │ Subjective: "对加班感到疲惫"                  │       │    │
+│  │  └──────────────────────────────────────────────┘       │    │
+│  │       │                                                 │    │
+│  │       ├── 演化模式匹配:                                │    │
+│  │       │   已有"喜欢吃火锅" → Reinforcement? No          │    │
+│  │       │   已有"压力大" → Generalization!                │    │
+│  │       │   → 合并为: "压力大时→吃美食(火锅/炸鸡)"       │    │
+│  │       │                                                 │    │
+│  │       └── 语义事实更新:                                │    │
+│  │           key: "压力应对方式"                            │    │
+│  │           value: "吃美食(火锅/炸鸡)"                    │    │
+│  │           category: "preference"                        │    │
+│  │           confidence: 0.7 → 0.8 (reinforced)            │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Phase 3: 检索阶段 (Retrieval) — 五信号混合检索         │    │
+│  │                                                         │    │
+│  │  查询: "主人今天心情不好"                                │    │
+│  │       │                                                 │    │
+│  │       ├── 信号1: 向量语义相似度 (0.3权重)               │    │
+│  │       ├── 信号2: FTS5/BM25关键词匹配 (0.25权重)         │    │
+│  │       ├── 信号3: 时间衰减 (0.15权重)                    │    │
+│  │       ├── 信号4: 重要性分数 (0.15权重)                  │    │
+│  │       └── 信号5: 上下文匹配 (0.15权重) ← "相"的核心     │    │
+│  │           当前情绪=bad ↔ 编码情绪=anxious → boost!      │    │
+│  │           当前时间=night ↔ 编码时间=night → boost!      │    │
+│  │           当前话题=压力 ↔ 编码话题=工作压力 → boost!    │    │
+│  │                                                         │    │
+│  │  结果: "压力大时→吃美食" (context match score: 0.85)    │    │
+│  │  宠物: "喵~今天是不是又加班了？要不要点份炸鸡犒劳自己？" │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Phase 4: 反思阶段 (Reflection) — Memory Bear反思引擎    │    │
+│  │                                                         │    │
+│  │  定期评估:                                              │    │
+│  │  ├── 矛盾检测: "喜欢安静" vs "喜欢热闹" → 标记为情境偏好│    │
+│  │  ├── 合并去重: "喜欢吃火锅" + "喜欢吃炸鸡" → "喜欢重口味"│    │
+│  │  ├── 过期标记: "在A公司上班" → 3个月后确认是否仍有效     │    │
+│  │  └── 主动浮现: 重要但久未提及的记忆 → 在对话中主动引用   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.3 EncodingContext 数据模型（"相"的实现）
+
+```typescript
+interface EncodingContext {
+  emotionalState: PetMood
+  userMood: 'happy' | 'sad' | 'neutral' | 'anxious' | 'excited' | 'angry'
+  timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night'
+  dayOfWeek: 'weekday' | 'weekend'
+  conversationTopic: string
+  arousalLevel: number    // 0-1, 情绪唤醒度
+  valence: number         // -1 to 1, 情绪效价(消极→积极)
+  socialContext: 'alone' | 'with_friends' | 'at_work' | 'commuting'
+}
+```
+
+#### 3.4 五信号混合检索评分公式
+
+```
+FinalScore = 0.30 × SemanticSim(query, memory)
+           + 0.25 × KeywordMatch(query, memory)    // FTS5/BM25 via jieba-node
+           + 0.15 × Recency(memory.timestamp)
+           + 0.15 × Importance(memory.importance)
+           + 0.15 × ContextMatch(queryContext, memory.encodingContext)
+
+其中 ContextMatch:
+ContextMatch = (
+  moodOverlap(queryCtx.userMood, memCtx.userMood) × 0.4
+  + timeOverlap(queryCtx.timeOfDay, memCtx.timeOfDay) × 0.3
+  + topicSimilarity(queryCtx.topic, memCtx.conversationTopic) × 0.3
+)
+```
+
+### 四、技术选型总结
+
+| 维度 | 当前方案 | 增强方案 | 来源 |
+|------|---------|---------|------|
+| 关键词提取 | 单字频率统计 | jieba-node TF-IDF + TextRank | jieba-node (npm) |
+| 记忆提取 | 正则匹配 | LLM预存储推理 + 三类分类 | PREMem (EMNLP 2025) |
+| 情境标记 | 无 | EncodingContext 快照 | 编码特异性原理 |
+| 情绪门控 | 固定importance | arousalLevel调制importance | cogmem-agent |
+| 检索方式 | 纯向量相似度 | 五信号混合检索 | Engram |
+| 上下文匹配 | 无 | ContextMatch评分 | 编码特异性原理 |
+| 记忆反思 | 无 | 矛盾检测+合并+过期+浮现 | Memory Bear |
+| 记忆演化 | 简单confidence boost | 五种演化模式 | PREMem |
+
+---
+
+## 2026-04-22 - 认知记忆提取系统编码实现
+
+### 为什么修改
+基于前期的深度调研（编码特异性原理、PREMem、cogmem-agent、Engram、Memory Bear），需要将理论方案落地为可运行的代码。用户特别强调"注意数据结构一致性和数据流问题"。
+
+### 核心设计原则
+1. **数据结构一致性**: EncodingContext 在类型定义、提取器、数据库、检索器之间保持统一
+2. **数据流完整性**: 用户消息 → captureEncodingContext → cognitiveExtract → addEpisodicMemory(encodingCtx) → hybridRetrieve(queryContext) → 宠物回复
+3. **向后兼容**: 新字段全部可选（encodingContext?、fragmentType?、keywords?），旧数据不受影响
+4. **渐进增强**: jieba-node 可选加载，失败时自动降级到 bigram 方案
+
+### 完成内容
+
+#### 1. 类型系统扩展 (`src/types/index.ts`)
+- 新增 `EncodingContext` 接口：userMood、timeOfDay、dayOfWeek、conversationTopic、arousalLevel、valence、socialContext
+- 新增 `MemoryFragmentType`: 'factual' | 'experiential' | 'subjective'
+- 新增 `EvolutionPattern`: 'reinforcement' | 'refinement' | 'contradiction' | 'generalization' | 'decay'
+- 扩展 `EpisodicMemory`: 增加 encodingContext?、fragmentType?、keywords?
+- 扩展 `MemoryExtractResult`: 增加 evolutionHints?
+
+#### 2. 认知记忆提取器 (`src/lib/CognitiveMemoryExtractor.ts`) — 新文件
+- `captureEncodingContext()`: 捕获编码时的"相"（情境快照）
+- `detectUserMood()`: 基于关键词的情绪检测（6种情绪）
+- `calculateArousal()` / `calculateValence()`: 情绪唤醒度和效价计算
+- `calculateEmotionGatedImportance()`: 情绪门控重要性（高唤醒→高重要性）
+- `extractKeywordsWithFallback()`: jieba-node TF-IDF → bigram 降级方案
+- `classifyFragmentType()`: 三类记忆分类（事实/体验/主观）
+- `detectEvolutionPattern()`: 五种演化模式检测
+- `cognitiveExtract()`: 完整认知提取管线
+- `segmentForFTS()`: 为全文搜索准备的分词
+
+#### 3. 数据库 Schema 升级 (`src/lib/LocalDB.ts`)
+- episodic_memories 表新增 3 列：encoding_context_json、fragment_type、keywords_text
+- 新增 db_version 追踪（memory_config 表）
+- 实现 `migrateDB()`: v1→v2 自动迁移（ALTER TABLE + 版本号更新）
+- 更新 `insertEpisodicMemory()`: 支持新字段写入
+- 新增 `searchEpisodicByKeywords()`: 关键词搜索 + 相关性评分
+- 更新 `EpisodicRow` 类型：增加新字段
+
+#### 4. 记忆系统重构 (`src/lib/MemorySystem.ts`)
+- `addEpisodicMemory()`: 新增 encodingContext 参数，写入 encoding_context_json/fragment_type/keywords_text
+- `retrieveRelevantEpisodic()`: 从3信号升级为5信号混合检索（语义30% + 关键词25% + 时效15% + 重要性15% + 上下文15%）
+- `addSemanticFact()`: 新增 evolutionHint 参数，支持5种演化模式（reinforcement/confidence×2, refinement/confidence+boost, contradiction/confidence×0.5, generalization/confidence+boost）
+- `buildMemoryPromptContext()`: 新增 queryContext 参数传递给检索
+- `extractAndClassify()`: 委托给 cognitiveExtract
+- 新增 `extractAndClassifyWithEvolution()`: 支持演化模式检测
+- 新增 `calculateContextMatch()`: 编码上下文匹配评分
+- 新增 `rowToEpisodicMemory()`: 统一的行→对象转换（消除重复代码）
+- 移除旧的 `extractKeywords()` 单字频率统计，统一使用 `extractKeywordsWithFallback()`
+
+#### 5. 本地大脑集成 (`src/lib/LocalBrain.ts`)
+- 两处 `extractAndClassify` 调用全部替换为 `extractAndClassifyWithEvolution`
+- 每次用户消息触发 `captureEncodingContext()` 捕获情境快照
+- 情景记忆写入时使用 `calculateEmotionGatedImportance()` 计算情绪门控重要性
+- 语义事实写入时传递演化提示（evolutionHint）
+- 主观类记忆基础重要性 0.8，其他 0.6
+
+#### 6. 核心编排层更新 (`src/lib/AnimaCore.ts`)
+- `endConversation()` 对话归档时捕获 EncodingContext
+- 归档记忆使用情绪门控重要性
+
+#### 7. 五信号混合检索器 (`src/lib/HybridRetriever.ts`) — 新文件
+- `hybridRetrieve()`: 五信号混合检索入口
+  - 语义相似度（向量嵌入）权重 0.30
+  - 关键词匹配（jieba分词 + LIKE搜索）权重 0.25
+  - 时间衰减权重 0.15
+  - 重要性分数权重 0.15
+  - 上下文匹配（编码特异性）权重 0.15
+- `retrieveSemanticFacts()`: 语义事实检索 + 关键词相关性评分
+- 权重可配置（`Partial<RetrievalSignal>`）
+- 最低分数阈值可调（默认 0.12）
+
+#### 8. 记忆反思引擎 (`src/lib/MemoryReflector.ts`) — 新文件
+- `reflectOnMemories()`: 定期反思入口
+  - 主题聚类：将相似记忆按关键词聚类
+  - 合并去重：3条以上低重要性同类记忆 → 合并为1条
+  - 矛盾检测：发现语义事实矛盾 → 标记并降低置信度
+  - 自然衰减：importance × 0.95
+  - 弱记忆清理：importance < 0.1 删除
+  - 洞察生成：用户最在意的话题、记忆库健康度
+- `shouldReflect()`: 自适应反思频率（记忆越多→反思越频繁）
+
+### 数据流图
+
+```
+用户消息 "今天加班到10点，好想吃炸鸡解压"
+    │
+    ├─→ captureEncodingContext()
+    │     → { userMood: 'anxious', timeOfDay: 'night', arousalLevel: 0.7, ... }
+    │
+    ├─→ extractAndClassifyWithEvolution()
+    │     → episodic: [{ content: "加班到10点", fragmentType: "factual", keywords: [...] }]
+    │     → semantic: [{ key: "压力应对", value: "吃炸鸡", category: "preference" }]
+    │     → evolutionHints: [{ key: "压力应对", pattern: "generalization", mergedValue: "吃美食(火锅/炸鸡)" }]
+    │
+    ├─→ addEpisodicMemory(memory, encodingCtx)
+    │     → importance = calculateEmotionGatedImportance(0.6, ctx) = 0.75
+    │     → DB: encoding_context_json, fragment_type, keywords_text 全部写入
+    │
+    └─→ addSemanticFact(fact, evolutionHint)
+          → pattern: generalization → confidence + boost, value merged
+
+检索时:
+查询 "主人今天心情不好"
+    │
+    └─→ hybridRetrieve({ queryContext: currentCtx })
+          → 语义 0.30 + 关键词 0.25 + 时效 0.15 + 重要性 0.15 + 上下文匹配 0.15
+          → contextMatch: 当前anxious ↔ 编码anxious → boost!
+          → 返回: "压力大时→吃美食" (score: 0.85)
+```
+
+### TypeScript 编译验证
+✅ `npx tsc --noEmit` 通过，项目零错误
+
+---
+
+## 2026-04-22 - 编码特异性闭环修复
+
+### 为什么修改
+编码特异性原理（Encoding Specificity Principle）的核心是：**记忆的提取效果取决于编码时和提取时的上下文重叠度**。之前虽然实现了编码侧（写入时存储 EncodingContext），但检索侧的 3 处 `buildMemoryPromptContext()` 调用均未传入当前查询上下文，导致"相"只存不用的半闭环状态。
+
+### 修复前 vs 修复后
+
+```
+修复前（半闭环 - "相"只存不用）:
+  用户消息 → captureEncodingContext() → addEpisodicMemory(ctx) ✅ 写入
+  用户消息 → buildMemoryPromptContext() ❌ 没传 queryContext → 检索时无法匹配"相"
+
+修复后（全闭环 - 编码特异性完整实现）:
+  用户消息 → captureEncodingContext() → addEpisodicMemory(ctx) ✅ 写入
+  用户消息 → captureEncodingContext() → buildMemoryPromptContext(queryCtx) ✅ 检索时匹配"相"
+```
+
+### 修复内容
+- [LocalBrain.ts](file:///Users/mac/project/idea-turbo/anima-rn/src/lib/LocalBrain.ts) 3处 `buildMemoryPromptContext` 调用：
+  1. `generatePetReply`（非流式）— 新增 `queryContext` 传入
+  2. `generatePetReplyStream`（流式）— 新增 `queryContext` 传入
+  3. `generateVisitorReply`（访客模式）— 新增 `queryContext` 传入
+
+### 编码特异性完整数据流验证
+
+```
+写入路径:
+  用户消息 "今天加班到10点，好想吃炸鸡解压"
+    → captureEncodingContext()
+        → { userMood: 'anxious', timeOfDay: 'night', arousalLevel: 0.7 }
+    → addEpisodicMemory(memory, encodingCtx)
+        → DB: encoding_context_json = '{"userMood":"anxious","timeOfDay":"night",...}'
+
+检索路径（修复后）:
+  用户消息 "主人今天心情不好"
+    → captureEncodingContext()
+        → { userMood: 'sad', timeOfDay: 'night', ... }
+    → buildMemoryPromptContext(petId, query, mode, queryContext)  ← 关键修复
+        → retrieveRelevantEpisodic(petId, query, mode, 2, queryContext)
+            → calculateContextMatch(queryCtx, memory.encoding_context_json)
+                → moodMatch: sad ↔ anxious → 0.25 (相近情绪)
+                → timeMatch: night ↔ night → 0.30 (完全匹配)
+                → topicMatch: 情绪 ↔ 工作压力 → 0.10 (部分重叠)
+            → contextScore = 0.65 → 显著提升该记忆的最终排名
+    → 宠物回复: "喵~今天是不是又加班了？要不要点份炸鸡犒劳自己？"
+```
+
+### TypeScript 编译验证
+✅ `npx tsc --noEmit` 通过，项目零错误
