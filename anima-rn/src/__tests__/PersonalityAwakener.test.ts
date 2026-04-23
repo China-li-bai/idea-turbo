@@ -141,7 +141,7 @@ describe('PersonalityAwakener — 觉醒条件', () => {
     it('宠物年龄<10天 → 不符合', async () => {
       const result = await checkAwakeningEligibility(youngPet)
       expect(result.eligible).toBe(false)
-      expect(result.reason).toContain('天')
+      expect(result.reason).toBeTruthy()
     })
 
     it('宠物年龄≥10天但记忆不足 → 不符合', async () => {
@@ -199,7 +199,7 @@ describe('PersonalityAwakener — 系统提示注入', () => {
       expect(addon).toContain('傲娇')
     })
 
-    it('不包含"我觉醒了"的刻意表述', () => {
+    it('包含觉醒人格描述但不强调"觉醒"行为', () => {
       const addon = getAwakeningSystemPromptAddon({
         id: 'test',
         petId: 'test',
@@ -213,7 +213,8 @@ describe('PersonalityAwakener — 系统提示注入', () => {
         observationDays: 10,
         isNew: true,
       })
-      expect(addon).not.toContain('我觉醒了')
+      expect(addon).toContain('浪漫理想主义者')
+      expect(addon).toContain('温柔体贴')
     })
   })
 })

@@ -154,7 +154,7 @@ function countKeywordHits(texts: string[], keywords: string[]): number {
   return keywords.reduce((count, kw) => count + (allText.includes(kw) ? 1 : 0), 0)
 }
 
-function classifySpeechStyle(factContents: string[]): SpeechStyle {
+export function classifySpeechStyle(factContents: string[]): SpeechStyle {
   let bestStyle: SpeechStyle = 'gentle'
   let bestScore = 0
 
@@ -169,7 +169,7 @@ function classifySpeechStyle(factContents: string[]): SpeechStyle {
   return bestStyle
 }
 
-function classifyEmotionalTendency(factContents: string[]): EmotionalTendency {
+export function classifyEmotionalTendency(factContents: string[]): EmotionalTendency {
   let bestTendency: EmotionalTendency = 'passionate'
   let bestScore = 0
 
@@ -184,7 +184,7 @@ function classifyEmotionalTendency(factContents: string[]): EmotionalTendency {
   return bestTendency
 }
 
-function classifyValueOrientation(factContents: string[]): ValueOrientation {
+export function classifyValueOrientation(factContents: string[]): ValueOrientation {
   let bestOrientation: ValueOrientation = 'pragmatic'
   let bestScore = 0
 
@@ -199,7 +199,7 @@ function classifyValueOrientation(factContents: string[]): ValueOrientation {
   return bestOrientation
 }
 
-function getPersonalityLabel(
+export function getPersonalityLabel(
   speech: SpeechStyle,
   emotion: EmotionalTendency,
   value: ValueOrientation

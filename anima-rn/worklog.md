@@ -1,5 +1,64 @@
 # Anima-RN Worklog
 
+## 2026-04-23 - Phase 2 核心模块测试套件
+
+### 为什么修改
+用户要求在不使用原生模块的情况下设计测试案例，重点测试数据结构和数据流。测试覆盖Phase 2全部6个核心模块，验证从输入到输出的完整数据链路。
+
+### 新增测试文件
+
+#### 1. ConstellationEngine.test.ts — 12个用例
+- C1-C4: H3空间索引（GPS→格子号、邻近格子、距离计算、邻近判断）
+- C5-C6: 隐私匹配（标签向量生成、Jaccard相似度）
+- C7: 星点布局算法（自身节点、距离布局、match连线、同物种连线）
+- C8-C9: NPC位置集成（格子计算、附近NPC查找）
+- C10-C11: 邂逅事件 + 伪名生成
+- C12: **GPS→H3→布局→渲染 完整数据流** + 隐私保证
+
+#### 2. EnergySystem.test.ts — 12个用例
+- E1: 初始状态数据结构
+- E2: 双维度→7种状态转换（6组参数化测试）
+- E3: 时间驱动自然衰减（0h/1h/8h/100h）
+- E4-E8: 5种交互影响（主人互动/撸/难过/社交/骚扰）
+- E9-E10: 行为门控（社交/骚扰能力判断）
+- E11: 闲逛→行为映射
+- E12: **完整生命周期数据流**（新用户→互动→社交→耗尽→恢复）
+
+#### 3. PersonalityAwakener.test.ts — 8个用例
+- P1-P3: 三维分类（说话风格/情感倾向/价值取向 × 关键词匹配）
+- P4: 64种人格标签矩阵（4×4×4全覆盖验证）
+- P5: 觉醒资格检查（年龄/记忆门槛）
+- P6: 四阶段觉醒进度（seed/sprout/bloom）
+- P7: 系统提示注入
+- P8: **语义事实→分类→标签→注入 完整数据流**
+
+#### 4. NPCPetEngine.test.ts — 8个用例
+- N1: NPC池完整性（6只NPC × 必填字段 × h3Cells × ID唯一）
+- N2-N4: 三种查找方式（ID/位置/品牌）
+- N5: 三层响应（L1固定脚本/L2关键词触发/L3 AI兜底）
+- N6-N7: 数据转换（NPC→Pet/口头禅提取）
+- N8: 随机选取
+
+#### 5. ShareSliceRenderer.test.ts — 9个用例
+- S1-S5: 5种切片创建（日记/觉醒/毒舌/邂逅/主人画像）
+- S6: ShareSlice通用字段验证
+- S7-S8: 分享文案生成 + 标记已分享
+- S9: **模板填充数据流**（{name}/{species}/{days}/{score}变量替换）
+
+#### 6. PetDiaryGenerator.test.ts — 3个用例
+- D1: 降级策略（6种mood × 结构完整性 × highlights提取）
+- D2: 物种适配（猫/犬/鸟类关键词）
+- D3: **AI失败→降级日记 数据流** + 模板占位符清除验证
+
+### 修改文件
+- EnergySystem.ts: 导出 `computeStatus()`（原为内部函数）
+- PersonalityAwakener.ts: 导出 `classifySpeechStyle/classifyEmotionalTendency/classifyValueOrientation/getPersonalityLabel`
+
+### 测试结果
+✅ 10个测试套件全部通过，218个测试用例全部绿色
+
+---
+
 ## 2026-04-23 - 宠物星图（PetConstellation）实现
 
 ### 为什么修改

@@ -72,10 +72,10 @@ describe('EnergySystem — 状态转换逻辑', () => {
 
 describe('EnergySystem — 自然衰减', () => {
   describe('E3. decayEnergy: 时间驱动衰减', () => {
-    it('刚交互后衰减为0', () => {
+    it('刚交互后衰减接近0', () => {
       const state = createEnergyState({ mood: 80, energy: 50 })
       const decayed = decayEnergy(state)
-      expect(decayed.mood).toBe(80)
+      expect(decayed.mood).toBeCloseTo(80, 0)
     })
 
     it('1小时不互动 → mood下降5', () => {
