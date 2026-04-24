@@ -9,8 +9,7 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk",
-        "image": "latest",
-        "gradleCommand": ":app:assembleDebug -Preact.native.architectures=arm64-v8a"
+        "image": "latest"
       },
       "ios": {
         "simulator": true
