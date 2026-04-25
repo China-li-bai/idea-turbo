@@ -1,5 +1,114 @@
 # Anima-RN Worklog
 
+## 2026-04-25 - Android Debug APK 本地打包（容器环境）
+
+### 为什么修改
+需要在当前 Linux 容器环境中搭建 Android 开发调试环境，验证能否本地构建 Debug APK。
+
+### 环境概况
+| 项目 | 值 |
+|------|-----|
+| OS | Linux (容器, overlayfs) |
+| CPU | AMD EPYC 9K85, 64核 |
+| 内存 | 16GB (cgroup 限制, 无 swap) |
+| 可写目录 | `/root/idea-turbo`, `/tmp`, `/root/.gradle`, `/root/.sdkman` 等 |
+| 只读目录 | `/root` 本身只读（无法创建 `/root/.android`） |
+| KVM | ❌ 不存在 (`/dev/kvm`) |
+
+### 已安装的 SDK 组件
+- `platforms;android-35`
+- `build-tools;35.0.0`
+- `platform-tools` 37.0.0
+- `emulator` 36.5.11
+- `system-images;android-35;google_apis;x86_64`
+- `ndk;27.1.12297006`（prebuild 自动安装）
+
+### 遇到的问题及解决方案
+
+#### 问题1: `/root/.android` 只读 → ADB/Gradle 无法运行
+**现象**: `adb version` 报 `Cannot mkdir '/root/.android': Read-only file system`
+**根因**: 容器中 `/root` 是只读 overlayfs，只有子目录如 `/root/idea-turbo` 是可写的
+**解决**: 
+```bash
+export HOME=/root/idea-turbo          # 让工具在可写目录下创建 .android
+export ANDROID_USER_HOME=/root/idea-turbo/.android
+```
+
+#### 问题2: Android 模拟器无法启动
+**现象1**: `CPU Architecture 'arm' is not supported` — 模拟器误判架构为 ARM
+**根因**: 系统镜像目录缺少 `config.ini`，模拟器无法识别 x86_64 ABI
+**解决**: 手动创建 `/system-images/android-35/google_apis/x86_64/config.ini`:
+```ini
+abi.type=x86_64
+hw.cpu.arch=x86_64
+tag.id=google_apis
+tag.display=Google APIs
+```
+
+**现象2**: `Broken AVD system path` / `not valid sdk root directory`
+**根因**: SDK root 缺少 `tools/source.properties`，模拟器无法验证 SDK 有效性
+**解决**: 创建 `tools/source.properties` 和 `platforms/android-35/source.properties`
+
+**最终结论**: 即使修复了上述问题，**模拟器仍无法运行** — 容器没有 `/dev/kvm` 硬件虚拟化支持，QEMU2 不支持纯软件模拟 ARM/x86
+
+#### 问题3: `init.gradle` 语法错误 → Gradle 编译失败
+**现象**: `Unexpected input: '{' @ line 1, column 13`
+**根因**: `/root/.gradle/init.gradle` 有两个错误:
+1. `mavelCentral()` 拼写错误（应为 `mavenCentral()`）
+2. URL 缺少引号: `url https://...` 应为 `url 'https://...'`
+**解决**: 重写 init.gradle，修正语法并补充 `google()` 仓库
+
+#### 问题4: Gradle Daemon OOM 崩溃（连续3次）
+**现象**: `Gradle build daemon disappeared unexpectedly`
+**根因**: `dmesg` 确认 OOM Killer 杀掉了 Java 进程:
+```
+Memory cgroup out of memory: Killed process (java) total-vm:16936576kB, anon-rss:1497128kB
+memory: usage 16777204kB, limit 16777216kB
+```
+**解决**: 三管齐下:
+1. **限制架构**: `reactNativeArchitectures=arm64-v8a`（从4架构减到1个，内存降75%）
+2. **降低 JVM 堆**: `-Xmx2g`（从4g降到2g）
+3. **禁用并行**: `org.gradle.parallel=false` + `--no-daemon -Dorg.gradle.workers.max=1`
+
+#### 问题5: AVD 创建失败 — avdmanager Java 兼容性问题
+**现象**: `Cannot invoke "java.nio.file.Path.getFileSystem()" because "path" is null`
+**根因**: avdmanager 与当前 Java 17 版本存在兼容性问题
+**解决**: 手动创建 AVD 配置文件:
+- `.android/avd/Pixel_8_API_35.ini`
+- `.android/avd/Pixel_8_API_35.avd/config.ini`
+
+### 最终成果
+- ✅ Debug APK 构建成功: `android/app/build/outputs/apk/debug/app-debug.apk` (176MB)
+- ✅ 架构: arm64-v8a（适用于大多数现代 Android 真机）
+- ✅ env.sh 已更新，包含所有必要环境变量
+
+### 一键构建命令
+```bash
+cd /root/idea-turbo/anima-rn
+source env.sh
+export NODE_ENV=development
+
+# 首次需要 prebuild 生成 android 目录
+npx expo prebuild --platform android --clean
+
+# 打包 debug APK
+cd android && ./gradlew assembleDebug --no-daemon -Dorg.gradle.workers.max=1
+```
+
+### 安装到真机
+```bash
+# USB 连接手机后
+source env.sh
+adb install android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### 关键经验教训
+1. **容器环境 `/root` 只读是最大陷阱** — ADB、Gradle、模拟器都默认写 `/root/.android`，必须通过 `HOME` 和 `ANDROID_USER_HOME` 重定向
+2. **16GB 内存刚好够单架构构建** — 4架构并行必 OOM，arm64-v8a 单架构约用 12GB
+3. **模拟器在无 KVM 的容器中不可用** — 不要浪费时间尝试，直接用真机或 Web 开发
+4. **SDK 镜像安装不完整** — `config.ini` 和 `source.properties` 可能缺失，需要手动补全
+5. **init.gradle 是隐藏的坑** — 腾讯云镜像配置语法错误会导致所有 Gradle 构建失败
+
 ## 2026-04-23 - Phase 2 核心模块测试套件
 
 ### 为什么修改
