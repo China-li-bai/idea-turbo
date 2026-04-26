@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "RNLlamaSpec_autolinked_build",
+		"source" : "/root/idea-turbo/anima-rn/node_modules/llama.rn/android/build/generated/source/codegen/jni"
+	}
+}

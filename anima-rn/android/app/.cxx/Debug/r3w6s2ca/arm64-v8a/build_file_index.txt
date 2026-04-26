@@ -1,0 +1,8 @@
+/root/idea-turbo/anima-rn/node_modules/@shopify/react-native-skia/android/build/generated/source/codegen/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/llama.rn/android/build/generated/source/codegen/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt
+/root/idea-turbo/anima-rn/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt
