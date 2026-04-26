@@ -51,7 +51,10 @@
   },
   "expo": {
     "autolinking": {
-      "legacy_shallowReactNativeLinking": true
+      "legacy_shallowReactNativeLinking": true,
+      "include": [
+        "onnxruntime-react-native"
+      ]
     }
   },
   "private": true
