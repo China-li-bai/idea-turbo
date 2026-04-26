@@ -142,4 +142,5 @@ const styles = StyleSheet.create({
   },
 })
 
+export { FluidBackgroundWeb as FluidBackground }
 export default FluidBackgroundWeb
