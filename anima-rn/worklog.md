@@ -1500,6 +1500,44 @@ ContextMatch = (
 
 ---
 
+## 2026-04-26 - 修复 ONNX 模型下载 URL 错误导致 Protobuf parsing failed
+
+### 为什么修改
+ONNX Embedding 模型加载失败，错误信息为 "Protobuf parsing failed"。经排查发现模型文件只有 22KB（应为 ~127MB），实际内容是 HuggingFace 的 HTML 页面而非真正的 ONNX 模型文件。
+
+### 根因分析
+1. **HF_BASE URL 缺少 `/resolve/main/` 路径**：`https://hf-mirror.com/BAAI/bge-small-en-v1.5/` 会返回仓库页面 HTML，而非原始文件。正确 URL 应为 `https://hf-mirror.com/BAAI/bge-small-en-v1.5/resolve/main/`
+2. **缺少文件大小校验**：下载后未验证文件大小，损坏的 HTML 文件被当作有效模型使用
+3. **损坏文件未被清理**：`getFileInfo` 返回 `exists: true`（因为文件确实存在），导致跳过重新下载
+
+### 修改内容
+**文件**: [OnnxEmbeddingEngine.ts](src/lib/OnnxEmbeddingEngine.ts)
+
+1. **修复下载 URL**：
+   ```diff
+   - const HF_BASE = 'https://hf-mirror.com/BAAI/bge-small-en-v1.5/'
+   + const HF_BASE = 'https://hf-mirror.com/BAAI/bge-small-en-v1.5/resolve/main/'
+   ```
+
+2. **添加文件大小校验常量**：
+   ```typescript
+   const MIN_MODEL_SIZE = 10 * 1024 * 1024  // 10MB 最小阈值
+   const MIN_VOCAB_SIZE = 1000               // vocab 最小阈值
+   ```
+
+3. **增强 `ensureEmbeddingModelExists()` 逻辑**：
+   - 检查文件存在性 **且** 大小超过阈值才视为有效
+   - 检测到损坏文件时自动删除并重新下载
+   - 下载后再次验证文件大小，不满足则抛出明确错误
+
+### 验证方式
+1. 删除设备上的损坏模型文件：`adb shell "run-as com.weigh.animarn rm -rf files/models/embedding/"`
+2. 重启 Metro (`npx expo start --dev-client --clear`)
+3. 在模拟器上滑进入聊天界面触发初始化
+4. 观察 Metro 日志确认模型从正确 URL 下载并通过大小校验
+
+---
+
 ## 2026-04-23 - Phase 2 调研：隐私保护LBS社交 + 冷启动/留存/裂变设计
 
 ### 一、LBS隐私保护技术调研

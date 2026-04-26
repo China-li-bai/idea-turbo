@@ -14,11 +14,14 @@ import * as FileSystem from 'expo-file-system/legacy'
 
 const EMBEDDING_MODEL_DIR = 'models/embedding/'
 const ONNX_SUBDIR = 'onnx/'
-const HF_BASE = 'https://hf-mirror.com/BAAI/bge-small-en-v1.5/'
+const HF_BASE = 'https://hf-mirror.com/BAAI/bge-small-en-v1.5/resolve/main/'
 
 let _modelDir = ''
 let _onnxModelPath = ''
 let _vocabPath = ''
+
+const MIN_MODEL_SIZE = 10 * 1024 * 1024
+const MIN_VOCAB_SIZE = 1000
 
 async function ensureEmbeddingModelExists(): Promise<string> {
   const docDir = await ensureDocumentDirectory()
@@ -29,12 +32,24 @@ async function ensureEmbeddingModelExists(): Promise<string> {
   const modelInfo = await getFileInfo(_onnxModelPath)
   const vocabInfo = await getFileInfo(_vocabPath)
 
-  if (modelInfo.exists && vocabInfo.exists) {
+  const modelValid = modelInfo.exists && (modelInfo.size || 0) > MIN_MODEL_SIZE
+  const vocabValid = vocabInfo.exists && (vocabInfo.size || 0) > MIN_VOCAB_SIZE
+
+  if (modelValid && vocabValid) {
     console.log('[OnnxEmbedding] 📁 Model files already exist at:', _modelDir)
     return _modelDir
   }
 
-  console.log('[OnnxEmbedding] � Downloading embedding model from HuggingFace...')
+  if (modelInfo.exists && !modelValid) {
+    console.warn('[OnnxEmbedding] ⚠️ Model file corrupted (' + modelInfo.size + ' bytes), deleting...')
+    try { await FileSystem.deleteAsync(_onnxModelPath) } catch (_) {}
+  }
+  if (vocabInfo.exists && !vocabValid) {
+    console.warn('[OnnxEmbedding] ⚠️ Vocab file corrupted, deleting...')
+    try { await FileSystem.deleteAsync(_vocabPath) } catch (_) {}
+  }
+
+  console.log('[OnnxEmbedding] 📥 Downloading embedding model from HuggingFace...')
 
   try {
     await makeDirectoryAsync(_modelDir + ONNX_SUBDIR, { intermediates: true })
@@ -45,33 +60,36 @@ async function ensureEmbeddingModelExists(): Promise<string> {
   }
 
   try {
-    if (!modelInfo.exists) {
-      console.log('[OnnxEmbedding]   Downloading ONNX model (127MB)...')
+    if (!modelValid) {
+      console.log('[OnnxEmbedding]   Downloading ONNX model (~127MB)...')
       const dlResult = await FileSystem.downloadAsync(
         HF_BASE + 'onnx/model.onnx',
         _onnxModelPath
       )
       if (!dlResult) throw new Error('ONNX download returned null')
-      console.log('[OnnxEmbedding]   ✅ ONNX model downloaded')
+      console.log('[OnnxEmbedding]   ✅ ONNX model downloaded, status:', dlResult.status, 'size:', dlResult.headers?.['Content-Length'] || 'unknown')
     }
 
-    if (!vocabInfo.exists) {
+    if (!vocabValid) {
       console.log('[OnnxEmbedding]   Downloading vocab...')
       const dlResult = await FileSystem.downloadAsync(
         HF_BASE + 'vocab.txt',
         _vocabPath
       )
       if (!dlResult) throw new Error('Vocab download returned null')
-      console.log('[OnnxEmbedding]   ✅ Vocab downloaded')
+      console.log('[OnnxEmbedding]   ✅ Vocab downloaded, status:', dlResult.status)
     }
 
     const verifyModel = await getFileInfo(_onnxModelPath)
     const verifyVocab = await getFileInfo(_vocabPath)
-    if (!verifyModel.exists || !verifyVocab.exists) {
-      throw new Error('File verification failed after download')
+    if (!verifyModel.exists || (verifyModel.size || 0) < MIN_MODEL_SIZE) {
+      throw new Error('Model file invalid after download: ' + (verifyModel.size || 0) + ' bytes')
+    }
+    if (!verifyVocab.exists || (verifyVocab.size || 0) < MIN_VOCAB_SIZE) {
+      throw new Error('Vocab file invalid after download: ' + (verifyVocab.size || 0) + ' bytes')
     }
 
-    console.log('[OnnxEmbedding] ✅ All embedding model files downloaded')
+    console.log('[OnnxEmbedding] ✅ All embedding model files verified')
     return _modelDir
   } catch (dlErr: any) {
     console.error('[OnnxEmbedding] ❌ Download failed:', dlErr.message)
