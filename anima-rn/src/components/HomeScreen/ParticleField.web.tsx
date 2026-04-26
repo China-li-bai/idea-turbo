@@ -123,4 +123,5 @@ const styles = StyleSheet.create({
   },
 })
 
+export { ParticleFieldWeb as ParticleField }
 export default ParticleFieldWeb
