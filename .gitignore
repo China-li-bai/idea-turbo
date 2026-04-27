@@ -1,8 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # Dependencies
-node_modules
-.pnp
+node_modules/
+.pnp/
 .pnp.js
 
 # Local env files
@@ -13,20 +13,19 @@ node_modules
 .env.production.local
 
 # Testing
-coverage
+coverage/
 
 # Turbo
-.turbo
+.turbo/
 
 # Vercel
-.vercel
+.vercel/
 
 # Build Outputs
 .next/
 out/
-build
-dist
-
+build/
+dist/
 
 # Debug
 npm-debug.log*
@@ -37,16 +36,86 @@ pnpm-error.log*
 .DS_Store
 *.pem
 
-English_MIF_Library
+# Android SDK (use wildcard instead of specific paths)
+.android-sdk/
+!.android-sdk/README.md
 
-# Sherpa-onnx large model files (downloaded from remote)
-# WASM files
-# apps/listen-book/public/sherpa-onnx-wasm-main-asr.data
-# apps/listen-book/public/sherpa-onnx-wasm-main-asr.wasm
-# # ONNX model files
-# apps/listen-book/public/models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/*.onnx
-# apps/listen-book/public/models/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/*.int8.onnx
+# Android/Flutter cache
+.android/
+.cache/
 
-# Temporary sherpa models directory (for deployment)
-temp-sherpa-models/
-.gstack/
+# Expo cache
+.expo/
+
+# Config
+.config/
+
+# Dart/Flutter toolchain
+.dart_tool/
+.dart-tool/
+.flutter
+.flutter/
+flutter/
+
+# Logs
+*.log
+analytics.settings
+
+# Scripts
+noSLEEP.sh
+
+# Projects
+flutter_demo/
+app.json
+.gradle/
+!.gradle/**/README.md
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.flutter/
+
+# NPM cache (use wildcard)
+.npm/
+
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+*.apk
+*.aab
+*.dex
+*.class
+*.jar
+
+# iOS build outputs
+ios/Pods/
+ios/build/
+DerivedData/
+*.ipa
+*.xcarchive
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Core dumps
+core
+core.*
+
+# Temp files
+*.tmp
+*.temp
+.tmp/
+temp/
