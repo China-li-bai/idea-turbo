@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -6,483 +6,73 @@ import {
   Dimensions,
   TextInput,
   Pressable,
-  FlatList,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  withSequence,
-  withDelay,
-  withRepeat,
-  runOnJS,
-  Easing,
-  FadeInDown,
-} from 'react-native-reanimated'
 import { triggerHaptic } from './HapticEngine'
-import { CyberGlass } from './CyberGlass'
 import { theme, dark, candy } from '../../theme'
 import type { PetMood } from './types'
-import type { TokenSpeedLevel } from './TokenSpeedTracker'
-import { getBreathCurve, getBreathPhysicsForCurve, getStreamingCursorAnimation, getBubblePulseAnimation } from './BreathCurve'
+import type { InitPhase } from '../../screens/ChatScreen'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
-const PET_AREA_HEIGHT = SCREEN_HEIGHT * 0.25
+const PET_AREA_HEIGHT = SCREEN_HEIGHT * 0.18
 
-interface ImmersionMessage {
+export interface ImmersionMessage {
   id: string
   role: 'user' | 'pet' | 'system'
   content: string
   timestamp: number
   mood?: PetMood
-  isStreaming?: boolean
-  speedLevel?: TokenSpeedLevel
-  memoryAnchors?: Array<{
-    id: string
-    content: string
-    type: 'episodic' | 'semantic' | 'emotion'
-  }>
-}
-
-interface UserPulseProps {
-  text: string
-  onSent: () => void
-}
-
-function UserPulse({ text, onSent }: UserPulseProps) {
-  const opacity = useSharedValue(0)
-  const scale = useSharedValue(0.5)
-  const translateY = useSharedValue(30)
-  const glowOpacity = useSharedValue(0)
-
-  useEffect(() => {
-    opacity.value = withSpring(1, { damping: 12, stiffness: 150 })
-    scale.value = withSpring(1, { damping: 10, stiffness: 180 })
-    translateY.value = withSpring(0, { damping: 15, stiffness: 120 })
-    glowOpacity.value = withSequence(
-      withTiming(1, { duration: 300 }),
-      withTiming(0.3, { duration: 800 })
-    )
-
-    const timer = setTimeout(onSent, 600)
-    return () => clearTimeout(timer)
-  }, [])
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { scale: scale.value },
-      { translateY: translateY.value },
-    ],
-  }))
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }))
-
-  return (
-    <Animated.View style={[styles.userPulseContainer, animatedStyle]}>
-      <Animated.View
-        style={[
-          styles.userPulseGlow,
-          { backgroundColor: candy.cyan[400] },
-          glowStyle,
-        ]}
-      />
-      <View style={[styles.userPulseBody, { borderColor: candy.cyan[400] + '50' }]}>
-        <Text style={[styles.userPulseText, { color: candy.cyan[300] }]}>
-          {text}
-        </Text>
-      </View>
-      <View style={[styles.userPulseRing, { borderColor: candy.cyan[400] + '30' }]} />
-    </Animated.View>
-  )
-}
-
-interface PetEmergenceProps {
-  text: string
-  mood?: PetMood
-  isStreaming?: boolean
-  speedLevel?: TokenSpeedLevel
-  onComplete?: () => void
-}
-
-const MOOD_EMERGENCE_COLORS: Record<PetMood, string> = {
-  idle: candy.violet[400],
-  thinking: candy.cyan[400],
-  typing: candy.cyan[300],
-  sniffing: candy.lime[400],
-  listening: candy.electricBlue[400],
-  happy: candy.coral[400],
-  excited: candy.neonPink[400],
-  sad: candy.violet[500],
-  angry: candy.coral[600],
-  sleepy: candy.violet[300],
-  curious: candy.lime[500],
-  love: candy.neonPink[500],
-  surprised: candy.coral[500],
-  shy: candy.neonPink[300],
-}
-
-function BreathingCursor({ color, speedLevel = 'normal', mood = 'typing' }: { color: string; speedLevel?: TokenSpeedLevel; mood?: PetMood }) {
-  const cursorConfig = getStreamingCursorAnimation(speedLevel, mood)
-  const opacity = useSharedValue(0)
-  const width = useSharedValue(cursorConfig.width)
-
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: cursorConfig.blinkDuration / 2, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.2, { duration: cursorConfig.blinkDuration / 2, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      true
-    )
-  }, [cursorConfig.blinkDuration])
-
-  useEffect(() => {
-    width.value = withSpring(cursorConfig.width, { damping: 15, stiffness: 200 })
-  }, [cursorConfig.width, width])
-
-  const cursorStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    width: width.value,
-    height: cursorConfig.height,
-  }))
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value * 0.5,
-    width: width.value + cursorConfig.glowRadius * 2,
-    height: cursorConfig.height + cursorConfig.glowRadius * 2,
-    borderRadius: (cursorConfig.height + cursorConfig.glowRadius * 2) / 2,
-  }))
-
-  return (
-    <View style={styles.cursorContainer}>
-      <Animated.View
-        style={[
-          styles.cursorGlow,
-          { backgroundColor: color },
-          glowStyle,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.cursorBody,
-          { backgroundColor: color },
-          cursorStyle,
-        ]}
-      />
-    </View>
-  )
-}
-
-function PetEmergence({ text, mood = 'happy', isStreaming, speedLevel = 'normal', onComplete }: PetEmergenceProps) {
-  const emergenceColor = MOOD_EMERGENCE_COLORS[mood] || candy.violet[400]
-  const breathCurve = getBreathCurve(speedLevel, mood)
-  const breathPhysics = getBreathPhysicsForCurve(speedLevel, mood)
-  const pulseConfig = getBubblePulseAnimation(speedLevel, mood)
-
-  const opacity = useSharedValue(0)
-  const translateY = useSharedValue(40)
-  const scale = useSharedValue(0.8)
-  const breathScale = useSharedValue(0)
-  const glowPulse = useSharedValue(0)
-  const textReveal = useSharedValue(0)
-  const rippleScale = useSharedValue(1)
-  const rippleOpacity = useSharedValue(0)
-
-  useEffect(() => {
-    opacity.value = withSpring(1, breathPhysics)
-    translateY.value = withSpring(0, {
-      damping: breathPhysics.damping + 2,
-      stiffness: breathPhysics.stiffness - 20,
-      mass: breathPhysics.mass,
-    })
-    scale.value = withSpring(1, breathPhysics)
-
-    const glowDuration = breathCurve.rippleSpeed
-    glowPulse.value = withRepeat(
-      withSequence(
-        withTiming(breathCurve.glowIntensity, { duration: glowDuration, easing: Easing.inOut(Easing.sin) }),
-        withTiming(breathCurve.glowIntensity * 0.3, { duration: glowDuration, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      true
-    )
-
-    if (isStreaming) {
-      breathScale.value = withRepeat(
-        withSequence(
-          withTiming(pulseConfig.scaleAmplitude, {
-            duration: pulseConfig.duration / 2,
-            easing: Easing.inOut(Easing.sin),
-          }),
-          withTiming(-pulseConfig.scaleAmplitude, {
-            duration: pulseConfig.duration / 2,
-            easing: Easing.inOut(Easing.sin),
-          })
-        ),
-        -1,
-        true
-      )
-
-      rippleScale.value = withRepeat(
-        withSequence(
-          withTiming(1.03, { duration: pulseConfig.duration, easing: Easing.inOut(Easing.sin) }),
-          withTiming(1, { duration: pulseConfig.duration / 2, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1,
-        true
-      )
-      rippleOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.4, { duration: pulseConfig.duration, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.1, { duration: pulseConfig.duration / 2, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1,
-        true
-      )
-    }
-
-    if (!isStreaming) {
-      textReveal.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) })
-    }
-  }, [speedLevel])
-
-  useEffect(() => {
-    if (!isStreaming && text.length > 0) {
-      textReveal.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
-      breathScale.value = withSpring(0, { damping: 20, stiffness: 100 })
-      rippleScale.value = withSpring(1, { damping: 20, stiffness: 100 })
-      rippleOpacity.value = withTiming(0, { duration: 400 })
-    }
-  }, [isStreaming])
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { translateY: translateY.value },
-      { scale: scale.value + breathScale.value },
-    ],
-  }))
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowPulse.value,
-  }))
-
-  const rippleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: rippleScale.value }],
-    opacity: rippleOpacity.value,
-  }))
-
-  return (
-    <Animated.View style={[styles.petEmergenceContainer, animatedStyle]}>
-      <Animated.View
-        style={[
-          styles.emergenceGlow,
-          { backgroundColor: emergenceColor },
-          glowStyle,
-        ]}
-      />
-
-      <View style={[styles.emergenceBody, { borderColor: emergenceColor + '30', backgroundColor: emergenceColor + '10' }]}>
-        <View style={[styles.emergenceTail, { borderTopColor: emergenceColor + '20' }]} />
-
-        <Text style={[styles.emergenceText, { color: dark.text.primary }]}>
-          {text}
-        </Text>
-
-        {isStreaming && (
-          <BreathingCursor
-            color={emergenceColor}
-            speedLevel={speedLevel}
-            mood={mood}
-          />
-        )}
-      </View>
-
-      <Animated.View style={[styles.emergenceRipple, { borderColor: emergenceColor + '15' }, rippleStyle]} />
-    </Animated.View>
-  )
-}
-
-interface ImmersionInputProps {
-  value: string
-  onChangeText: (text: string) => void
-  onSend: () => void
-  placeholder?: string
-  editable?: boolean
-  petMood?: PetMood
-  speedLevel?: TokenSpeedLevel
-}
-
-function ImmersionInput({
-  value,
-  onChangeText,
-  onSend,
-  placeholder = '向它倾诉...',
-  editable = true,
-  petMood = 'idle',
-  speedLevel = 'normal',
-}: ImmersionInputProps) {
-  const inputGlow = useSharedValue(0)
-  const isFocused = useRef(false)
-
-  const moodColor = MOOD_EMERGENCE_COLORS[petMood] || candy.violet[400]
-  const breathCurve = getBreathCurve(speedLevel, petMood)
-
-  useEffect(() => {
-    if (isFocused.current) {
-      inputGlow.value = withRepeat(
-        withSequence(
-          withTiming(breathCurve.glowIntensity, { duration: breathCurve.rippleSpeed, easing: Easing.inOut(Easing.sin) }),
-          withTiming(breathCurve.glowIntensity * 0.3, { duration: breathCurve.rippleSpeed, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1,
-        true
-      )
-    } else {
-      inputGlow.value = withTiming(0.2, { duration: 300 })
-    }
-  }, [petMood, speedLevel])
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: inputGlow.value,
-  }))
-
-  return (
-    <View style={styles.inputContainer}>
-      <Animated.View
-        style={[
-          styles.inputGlowRing,
-          { backgroundColor: moodColor },
-          glowStyle,
-        ]}
-      />
-
-      <CyberGlass intensity={0.15} tint="dark">
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.textInput}
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor={dark.text.tertiary}
-            editable={editable}
-            multiline
-            maxLength={500}
-            onFocus={() => {
-              isFocused.current = true
-              inputGlow.value = withTiming(0.6, { duration: 300 })
-            }}
-            onBlur={() => {
-              isFocused.current = false
-              inputGlow.value = withTiming(0.2, { duration: 300 })
-            }}
-            onSubmitEditing={onSend}
-          />
-
-          <Pressable
-            onPress={() => {
-              if (value.trim()) {
-                runOnJS(triggerHaptic)('messageSend')
-                onSend()
-              }
-            }}
-            style={({ pressed }) => [
-              styles.sendButton,
-              {
-                backgroundColor: value.trim() ? moodColor + '30' : 'transparent',
-                borderColor: moodColor + '50',
-                transform: [{ scale: pressed ? 0.9 : 1 }],
-              },
-            ]}
-          >
-            <Text style={[styles.sendIcon, { color: moodColor }]}>↑</Text>
-          </Pressable>
-        </View>
-      </CyberGlass>
-    </View>
-  )
 }
 
 interface ImmersionChatProps {
   messages: ImmersionMessage[]
-  activeStreamId: string | null
-  petMood?: PetMood
-  speedLevel?: TokenSpeedLevel
   onSend: (text: string) => void
-  onStreamComplete?: (messageId: string, fullText: string) => void
   onDismiss?: () => void
   inputPlaceholder?: string
   editable?: boolean
+  initPhase?: InitPhase
+  loadProgress?: number
+  initError?: string | null
+  onRetryInit?: () => void
 }
 
 export function ImmersionChat({
   messages,
-  activeStreamId,
-  petMood = 'idle',
-  speedLevel = 'normal',
   onSend,
-  onStreamComplete,
   onDismiss,
   inputPlaceholder,
   editable = true,
+  initPhase,
+  loadProgress = 0,
+  initError,
+  onRetryInit,
 }: ImmersionChatProps) {
   const [inputText, setInputText] = useState('')
-  const [sendingPulse, setSendingPulse] = useState<string | null>(null)
-  const flatListRef = useRef<FlatList>(null)
+  const scrollViewRef = useRef<ScrollView>(null)
+  const [localMsgCount, setLocalMsgCount] = useState(0)
+
+  useEffect(() => {
+    if (messages.length !== localMsgCount) {
+      setLocalMsgCount(messages.length)
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true })
+      }, 50)
+    }
+  }, [messages.length, localMsgCount])
 
   const handleSend = useCallback(() => {
-    if (!inputText.trim()) return
     const text = inputText.trim()
+    if (!text) return
     setInputText('')
-    setSendingPulse(text)
+    triggerHaptic('messageSend')
+    console.log('[ImmersionChat] 发送消息:', text.substring(0, 30))
     onSend(text)
   }, [inputText, onSend])
 
-  const renderItem = useCallback(({ item }: { item: ImmersionMessage; index: number }) => {
-    if (item.role === 'user') {
-      return (
-        <View style={styles.userMessageRow}>
-          <View style={styles.userPulseWrapper}>
-            <PetEmergence
-              text={item.content}
-              mood={petMood}
-              speedLevel={speedLevel}
-            />
-          </View>
-        </View>
-      )
-    }
-
-    if (item.role === 'pet') {
-      return (
-        <View style={styles.petMessageRow}>
-          <PetEmergence
-            text={item.content}
-            mood={item.mood || petMood}
-            isStreaming={item.isStreaming}
-            speedLevel={item.isStreaming ? speedLevel : 'normal'}
-          />
-        </View>
-      )
-    }
-
-    if (item.role === 'system') {
-      return (
-        <View style={styles.systemRow}>
-          <Text style={styles.systemText}>{item.content}</Text>
-        </View>
-      )
-    }
-
-    return null
-  }, [petMood, speedLevel])
+  const isInitializing = initPhase && initPhase !== 'ready' && initPhase !== 'idle' && initPhase !== 'error'
+  const isError = initPhase === 'error'
 
   return (
     <KeyboardAvoidingView
@@ -493,44 +83,101 @@ export function ImmersionChat({
       <View style={styles.petReserveArea} />
 
       {onDismiss && (
-        <Pressable
-          onPress={onDismiss}
-          style={styles.dismissButton}
-        >
+        <Pressable onPress={onDismiss} style={styles.dismissButton}>
           <Text style={styles.dismissText}>▼ 返回</Text>
         </Pressable>
       )}
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        inverted
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
         contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })}
-        removeClippedSubviews
-        maxToRenderPerBatch={8}
-        windowSize={11}
-      />
+        showsVerticalScrollIndicator={true}
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="handled"
+      >
+        {isInitializing && messages.length === 0 && (
+          <View style={styles.centerBox}>
+            {isError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+                <Text style={styles.errorText}>{initError || '初始化失败'}</Text>
+                {onRetryInit && (
+                  <Pressable onPress={onRetryInit} style={styles.retryButton}>
+                    <Text style={styles.retryText}>重试</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : (
+              <View style={styles.loadingBox}>
+                <Text style={styles.loadingEmoji}>
+                  {initPhase === 'downloading' ? '📥' : initPhase === 'extracting' ? '📦' : initPhase === 'loading' ? '🧠' : '💾'}
+                </Text>
+                <Text style={styles.loadingLabel}>
+                  {initPhase === 'downloading' ? '下载模型中...' : initPhase === 'extracting' ? '解压资源中...' : initPhase === 'loading' ? '加载引擎中...' : '准备记忆系统中...'}
+                </Text>
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${loadProgress}%` }]} />
+                </View>
+                <Text style={styles.loadingPercent}>{loadProgress}%</Text>
+              </View>
+            )}
+          </View>
+        )}
 
-      {sendingPulse && (
-        <UserPulse
-          text={sendingPulse}
-          onSent={() => setSendingPulse(null)}
-        />
-      )}
+        {!isInitializing && messages.length === 0 && (
+          <View style={styles.centerBox}>
+            <Text style={styles.emptyEmoji}>💬</Text>
+            <Text style={styles.emptyTitle}>开始对话</Text>
+            <Text style={styles.emptyHint}>向它倾诉你的想法吧~</Text>
+          </View>
+        )}
 
-      <ImmersionInput
-        value={inputText}
-        onChangeText={setInputText}
-        onSend={handleSend}
-        placeholder={inputPlaceholder || '向它倾诉...'}
-        editable={editable}
-        petMood={petMood}
-        speedLevel={speedLevel}
-      />
+        {messages.map((msg) => (
+          <View key={msg.id} style={msg.role === 'user' ? styles.userRow : msg.role === 'pet' ? styles.petRow : styles.systemRow}>
+            {msg.role === 'user' && (
+              <View style={styles.userBubble}>
+                <Text style={styles.userText}>{msg.content}</Text>
+              </View>
+            )}
+            {msg.role === 'pet' && (
+              <View style={styles.petBubble}>
+                <Text style={styles.petText}>{msg.content}</Text>
+              </View>
+            )}
+            {msg.role === 'system' && (
+              <Text style={styles.systemText}>{msg.content}</Text>
+            )}
+          </View>
+        ))}
+
+        <View style={{ height: 20 }} />
+      </ScrollView>
+
+      <View style={styles.debugBar}>
+        <Text style={styles.debugText}>消息数: {messages.length}</Text>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder={inputPlaceholder || '说点什么...'}
+            placeholderTextColor={dark.text.tertiary}
+            multiline
+            maxLength={500}
+            editable={editable}
+          />
+          <Pressable
+            onPress={handleSend}
+            style={[styles.sendButton, { opacity: inputText.trim() ? 1 : 0.3 }]}
+          >
+            <Text style={styles.sendIcon}>↑</Text>
+          </Pressable>
+        </View>
+      </View>
     </KeyboardAvoidingView>
   )
 }
@@ -549,160 +196,175 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: 8,
     zIndex: 10,
   },
   dismissText: {
-    fontSize: theme.typography.sizes.xs,
     color: dark.text.tertiary,
-    fontWeight: theme.typography.weights.medium,
+    fontSize: 14,
+  },
+  scrollView: {
+    flex: 1,
   },
   messageList: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.xl,
+    minHeight: SCREEN_HEIGHT * 0.5,
   },
-  userMessageRow: {
+  centerBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+    minHeight: SCREEN_HEIGHT * 0.4,
+  },
+  userRow: {
     alignItems: 'flex-end',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  userPulseWrapper: {
-    maxWidth: SCREEN_WIDTH * 0.7,
+  userBubble: {
+    maxWidth: SCREEN_WIDTH * 0.75,
+    backgroundColor: candy.violet[500] + '20',
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: candy.violet[400] + '60',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
   },
-  petMessageRow: {
+  userText: {
+    fontSize: 17,
+    color: dark.text.primary,
+    lineHeight: 24,
+  },
+  petRow: {
     alignItems: 'flex-start',
     marginBottom: theme.spacing.md,
+  },
+  petBubble: {
+    maxWidth: SCREEN_WIDTH * 0.75,
+    backgroundColor: dark.bg.tertiary + '80',
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: dark.border.subtle,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  petText: {
+    fontSize: 17,
+    color: dark.text.primary,
+    lineHeight: 24,
   },
   systemRow: {
     alignItems: 'center',
     marginVertical: theme.spacing.sm,
   },
   systemText: {
-    fontSize: theme.typography.sizes.xs,
+    fontSize: 14,
     color: dark.text.tertiary,
     fontStyle: 'italic',
   },
-  userPulseContainer: {
-    alignItems: 'flex-end',
-    position: 'relative',
-  },
-  userPulseGlow: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    opacity: 0.3,
-  },
-  userPulseBody: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderRadius: 20,
-    borderBottomRightRadius: 6,
-    borderWidth: 1,
-    backgroundColor: candy.cyan[400] + '10',
-  },
-  userPulseText: {
-    fontSize: theme.typography.sizes.md,
-    lineHeight: theme.typography.lineHeights.relaxed,
-  },
-  userPulseRing: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-  },
-  petEmergenceContainer: {
-    maxWidth: SCREEN_WIDTH * 0.75,
-    position: 'relative',
-  },
-  emergenceGlow: {
-    position: 'absolute',
-    bottom: -6,
-    left: 10,
-    width: 50,
-    height: 12,
-    borderRadius: 6,
-    opacity: 0.2,
-  },
-  emergenceBody: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderRadius: 20,
-    borderBottomLeftRadius: 6,
-    borderWidth: 1,
-    position: 'relative',
-  },
-  emergenceTail: {
-    position: 'absolute',
-    bottom: -8,
-    left: 20,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightWidth: 8,
-    borderRightColor: 'transparent',
-    borderTopWidth: 10,
-  },
-  emergenceText: {
-    fontSize: theme.typography.sizes.md,
-    lineHeight: theme.typography.lineHeights.relaxed,
-  },
-  emergenceRipple: {
-    position: 'absolute',
-    top: -6,
-    left: -6,
-    right: -6,
-    bottom: -6,
-    borderRadius: 26,
-    borderWidth: 1,
-  },
-  cursorContainer: {
-    flexDirection: 'row',
+  loadingBox: {
     alignItems: 'center',
-    marginTop: theme.spacing.xs,
-    height: 20,
-    position: 'relative',
+    paddingVertical: theme.spacing.xl,
   },
-  cursorGlow: {
-    position: 'absolute',
-    left: -4,
-    top: -4,
+  loadingEmoji: {
+    fontSize: 36,
+    marginBottom: theme.spacing.md,
   },
-  cursorBody: {
-    borderRadius: 1,
+  loadingLabel: {
+    fontSize: 16,
+    color: dark.text.secondary,
+    marginBottom: theme.spacing.md,
+  },
+  progressBarBg: {
+    width: 200,
+    height: 4,
+    backgroundColor: dark.bg.tertiary,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: theme.spacing.xs,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: candy.violet[400],
+    borderRadius: 2,
+  },
+  loadingPercent: {
+    fontSize: 14,
+    color: dark.text.tertiary,
+  },
+  errorBox: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  errorIcon: {
+    fontSize: 40,
+    marginBottom: theme.spacing.md,
+  },
+  errorText: {
+    fontSize: 16,
+    color: candy.coral[300],
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  retryButton: {
+    backgroundColor: candy.coral[400] + '20',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: candy.coral[400] + '40',
+  },
+  retryText: {
+    color: candy.coral[300],
+    fontSize: 16,
+    fontWeight: theme.typography.weights.medium,
+  },
+  emptyEmoji: {
+    fontSize: 40,
+    marginBottom: theme.spacing.md,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    color: dark.text.secondary,
+    fontWeight: theme.typography.weights.semibold,
+    marginBottom: theme.spacing.xs,
+  },
+  emptyHint: {
+    fontSize: 16,
+    color: dark.text.tertiary,
+  },
+  debugBar: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 4,
+    backgroundColor: dark.bg.primary + '60',
+    alignItems: 'center',
+  },
+  debugText: {
+    fontSize: 12,
+    color: dark.text.tertiary,
   },
   inputContainer: {
-    position: 'relative',
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
-    paddingTop: theme.spacing.sm,
-  },
-  inputGlowRing: {
-    position: 'absolute',
-    top: -4,
-    left: theme.spacing.lg - 8,
-    right: theme.spacing.lg - 8,
-    height: 4,
-    borderRadius: 2,
-    opacity: 0.3,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: dark.border.subtle,
+    backgroundColor: dark.bg.primary + '90',
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: theme.spacing.sm,
-    borderRadius: theme.radius.xl,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    backgroundColor: dark.bg.tertiary,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: dark.border.subtle,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
   textInput: {
     flex: 1,
-    fontSize: theme.typography.sizes.md,
+    fontSize: 17,
     color: dark.text.primary,
     maxHeight: 100,
     paddingVertical: theme.spacing.xs,
@@ -711,12 +373,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1,
+    backgroundColor: candy.violet[500] + '30',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: theme.spacing.xs,
   },
   sendIcon: {
     fontSize: 18,
-    fontWeight: theme.typography.weights.bold,
+    color: candy.violet[400],
+    fontWeight: '600',
   },
 })

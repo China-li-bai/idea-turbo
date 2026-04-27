@@ -327,7 +327,12 @@ export async function generatePetReply(
   addToWorkingMemory(conversationId, 'pet', '')
 
   const queryContext = captureEncodingContext(userMessage)
-  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext)
+  let memoryContext = ''
+  try {
+    memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext) || ''
+  } catch (memErr: any) {
+    console.warn('[LocalBrain] Memory context build failed (non-critical):', memErr.message)
+  }
   if (memoryContext) {
     thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
   }
@@ -359,7 +364,12 @@ export async function generatePetReply(
     }
 
     reply = reply.replace(/^["']|["']$/g, '').trim()
-    if (!reply) reply = `${petSound(pet.species)}！嗯...让我想想怎么说...`
+
+    const INVALID_REPLIES = ['None', 'none', 'null', 'undefined', 'N/A', 'n/a', 'NIL', 'nil', 'NaN']
+    if (!reply || INVALID_REPLIES.includes(reply)) {
+      console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
+      reply = getFallbackReply(userMessage, pet)
+    }
 
     addToWorkingMemory(conversationId, 'pet', reply)
 
@@ -412,7 +422,12 @@ export async function generatePetReplyStream(
   addToWorkingMemory(conversationId, 'pet', '')
 
   const queryContext = captureEncodingContext(userMessage)
-  const memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext)
+  let memoryContext = ''
+  try {
+    memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext) || ''
+  } catch (memErr: any) {
+    console.warn('[LocalBrain] Memory context build failed (non-critical):', memErr.message)
+  }
   if (memoryContext) {
     thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
   }
@@ -449,6 +464,8 @@ export async function generatePetReplyStream(
     streamEventBus.emit(`done-${streamId}`)
     tokenSpeedTracker.reset()
 
+    console.log('[LocalBrain] rawReply from LLM:', JSON.stringify(rawReply), 'length:', rawReply?.length)
+
     let reply = rawReply
 
     const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
@@ -460,7 +477,12 @@ export async function generatePetReplyStream(
     }
 
     reply = reply.replace(/^["']|["']$/g, '').trim()
-    if (!reply) reply = `${petSound(pet.species)}！嗯...让我想想怎么说...`
+
+    const INVALID_REPLIES = ['None', 'none', 'null', 'undefined', 'N/A', 'n/a', 'NIL', 'nil', 'NaN']
+    if (!reply || INVALID_REPLIES.includes(reply)) {
+      console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
+      reply = getFallbackReply(userMessage, pet)
+    }
 
     addToWorkingMemory(conversationId, 'pet', reply)
 
@@ -565,7 +587,12 @@ export async function generateVisitorReply(
   addToWorkingMemory(conversationId, 'visitor', `[${visitorName}] ${visitorMessage}`)
 
   const queryContext = captureEncodingContext(visitorMessage)
-  const memoryContext = await buildMemoryPromptContext(pet.id, visitorMessage, 'visitor', queryContext)
+  let memoryContext = ''
+  try {
+    memoryContext = await buildMemoryPromptContext(pet.id, visitorMessage, 'visitor', queryContext) || ''
+  } catch (memErr: any) {
+    console.warn('[LocalBrain] Visitor memory context build failed (non-critical):', memErr.message)
+  }
   if (memoryContext) {
     thinkingSteps.push(`${pet.avatarEmoji}${pet.name}正在查看公开信息...`)
   }

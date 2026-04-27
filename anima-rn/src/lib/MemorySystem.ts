@@ -153,9 +153,17 @@ export async function addEpisodicMemory(
   memory: Omit<EpisodicMemory, 'id' | 'createdAt' | 'accessCount' | 'lastAccessed'>,
   encodingContext?: EncodingContext
 ): Promise<EpisodicMemory> {
-  const engine = getEmbeddingEngine()
-  const embeddingVec = await engine.embed(memory.content)
-  const embeddingArr = Array.from(embeddingVec)
+  const EMBEDDING_DIM = 384
+  let embeddingArr: number[]
+
+  try {
+    const engine = getEmbeddingEngine()
+    const embeddingVec = await engine.embed(memory.content)
+    embeddingArr = Array.from(embeddingVec)
+  } catch (embedErr: any) {
+    console.warn('[MemorySystem] Embedding failed, using zero vector:', embedErr.message)
+    embeddingArr = Array(EMBEDDING_DIM).fill(0)
+  }
 
   const keywords = memory.keywords || extractKeywordsWithFallback(memory.content)
   const keywordsText = segmentForFTS(memory.content)

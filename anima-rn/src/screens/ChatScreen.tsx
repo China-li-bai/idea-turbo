@@ -24,9 +24,7 @@ import {
   DevourAnimation,
   useDevourAnimation,
 } from '../components/LivingUI'
-import type { TokenSpeedLevel } from '../components/LivingUI/TokenSpeedTracker'
 import type { SubconsciousNode, SubconsciousEdge } from '../components/LivingUI/SubconsciousMap'
-import { streamEventBus } from '../components/FluidChat/StreamEventBus'
 import { FluidBackground } from '../components/HomeScreen/FluidBackground'
 import { ParticleField } from '../components/HomeScreen/ParticleField'
 import { petTheme, dark, candy } from '../theme'
@@ -34,7 +32,7 @@ import type { PetMood, MemoryAnchorData } from '../components/LivingUI'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
-type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
+export type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
 
 interface AmbientBubbleData {
   id: string
@@ -69,7 +67,6 @@ function LivingChatScreenInner() {
   const [loadProgress, setLoadProgress] = useState(0)
   const [immersionActive, setImmersionActive] = useState(false)
   const [ambientBubbles, setAmbientBubbles] = useState<AmbientBubbleData[]>([])
-  const [speedLevel, setSpeedLevel] = useState<TokenSpeedLevel>('normal')
   const [mapModeActive, setMapModeActive] = useState(false)
   const [mapNodes, setMapNodes] = useState<SubconsciousNode[]>([])
   const [mapEdges, setMapEdges] = useState<SubconsciousEdge[]>([])
@@ -104,25 +101,7 @@ function LivingChatScreenInner() {
 
   useEffect(() => {
     if (!activeStreamId) return
-
-    const speedListener = streamEventBus.addListener(
-      `speed-${activeStreamId}`,
-      (level: TokenSpeedLevel) => {
-        setSpeedLevel(level)
-      }
-    )
-
-    const doneListener = streamEventBus.addListener(
-      `done-${activeStreamId}`,
-      () => {
-        setSpeedLevel('normal')
-      }
-    )
-
-    return () => {
-      speedListener.remove()
-      doneListener.remove()
-    }
+    return () => {}
   }, [activeStreamId])
 
   useEffect(() => {
@@ -254,51 +233,55 @@ function LivingChatScreenInner() {
     }
   }, [currentPet])
 
-  const handleStreamComplete = useCallback((messageId: string, fullText: string) => {
-    addMessage({
-      id: messageId,
-      conversationId: 'test-conv',
-      role: 'pet',
-      content: fullText,
-      createdAt: new Date().toISOString(),
-    })
-    setActiveStreamId(null)
-    setThinking(false)
-
-    emotionIntegration.current.onPetReply(fullText)
-
-    const detectedMood = detectMoodFromText(fullText)
-    if (detectedMood !== 'idle') {
-      setMood(detectedMood)
-      setPetMood(detectedMood)
+  async function handleSendText(userMsg: string) {
+    if (!userMsg.trim() || !currentPet) {
+      console.log('[ChatScreen] handleSendText 拒绝: 空消息或无宠物')
+      return
     }
-  }, [addMessage, setActiveStreamId, setThinking, setMood])
 
-  async function handleSend() {
-    if (!inputText.trim() || !currentPet || !isCoreInitialized) return
-
-    const userMsg = inputText.trim()
+    const trimmedMsg = userMsg.trim()
     setInputText('')
+    console.log('[ChatScreen] handleSendText:', trimmedMsg.substring(0, 30))
 
-    emotionIntegration.current.onUserMessage(userMsg)
+    emotionIntegration.current.onUserMessage(trimmedMsg)
     await triggerHaptic('messageSend')
 
+    const userMsgId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
     addMessage({
-      id: `msg-${Date.now()}`,
+      id: userMsgId,
       conversationId: 'test-conv',
       role: 'user',
-      content: userMsg,
+      content: trimmedMsg,
       createdAt: new Date().toISOString(),
     })
+    console.log('[ChatScreen] 用户消息已添加, id:', userMsgId)
 
-    const streamId = `pet-${Date.now()}`
+    if (!isCoreInitialized) {
+      const statusMsg = initPhase === 'error'
+        ? `⚠️ ${initError || 'AI系统初始化失败，请返回首页重试'}`
+        : initPhase === 'idle'
+          ? '🔄 AI系统正在启动中，马上就好...'
+          : `🔄 AI系统正在${initPhase === 'downloading' ? '下载模型' : initPhase === 'extracting' ? '解压资源' : initPhase === 'loading' ? '加载引擎' : '准备记忆系统'}...`
+      addMessage({
+        id: `msg-${Date.now()}-status`,
+        conversationId: 'test-conv',
+        role: 'system',
+        content: statusMsg,
+        createdAt: new Date().toISOString(),
+      })
+      return
+    }
+
+    const streamId = `pet-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
     setActiveStreamId(streamId)
     setThinking(true, ['👂 接收消息...'])
     setMood('sniffing')
     setPetMood('sniffing')
+    console.log('[ChatScreen] 开始流式请求, streamId:', streamId)
 
     try {
-      const result = await animaCore.chatStream(currentPet, userMsg, streamId, 'test-conv', 'owner')
+      const result = await animaCore.chatStream(currentPet, trimmedMsg, streamId, 'test-conv', 'owner')
+      console.log('[ChatScreen] 流式请求完成, result:', JSON.stringify(result).slice(0, 200))
 
       if (result.piBlocked) {
         addMessage({
@@ -318,22 +301,30 @@ function LivingChatScreenInner() {
         setSystemStatus(updatedStatus)
       }
 
-      if (activeStreamId === streamId) {
-        setActiveStreamId(null)
-        setThinking(false)
+      if (result.reply && !result.piBlocked) {
+        addMessage({
+          id: streamId,
+          conversationId: 'test-conv',
+          role: 'pet',
+          content: result.reply,
+          createdAt: new Date().toISOString(),
+        })
+        console.log('[ChatScreen] 宠物回复已添加, id:', streamId, 'content:', result.reply.slice(0, 50))
+      }
 
-        const finalStreamMood = emotionIntegration.current.onStreamComplete()
-        if (finalStreamMood && finalStreamMood !== 'idle') {
-          setMood(finalStreamMood)
-          setPetMood(finalStreamMood)
-        }
+      console.log('[ChatScreen] 流式完成，重置状态')
+      setActiveStreamId(null)
+      setThinking(false)
+
+      const finalStreamMood = emotionIntegration.current.onStreamComplete()
+      if (finalStreamMood && finalStreamMood !== 'idle') {
+        setMood(finalStreamMood)
+        setPetMood(finalStreamMood)
       }
     } catch (e: any) {
       console.error('[ChatScreen] Send error:', e)
-      if (activeStreamId === streamId) {
-        setActiveStreamId(null)
-        setThinking(false)
-      }
+      setActiveStreamId(null)
+      setThinking(false)
       setMood('shy')
       setPetMood('shy')
       addMessage({
@@ -347,8 +338,8 @@ function LivingChatScreenInner() {
   }
 
   function handleImmersionSend(text: string) {
-    setInputText(text)
-    handleSend()
+    console.log('[ChatScreen] handleImmersionSend 收到文本:', text.substring(0, 30))
+    handleSendText(text)
   }
 
   function addAmbientBubble(text: string, mood?: PetMood) {
@@ -369,39 +360,41 @@ function LivingChatScreenInner() {
     content: m.content,
     timestamp: new Date(m.createdAt).getTime(),
     mood: m.role === 'pet' ? currentMood : undefined,
-    isStreaming: m.id === activeStreamId,
-    speedLevel: m.id === activeStreamId ? speedLevel : 'normal' as TokenSpeedLevel,
   }))
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={dark.bg.primary} translucent />
 
-      <View style={styles.vibeLayer}>
-        <FluidBackground
-          mood={currentMood}
-          intensity={1}
-          timeSpeed={currentMood === 'sleepy' ? 0.5 : currentMood === 'excited' ? 2.0 : 1.0}
-        />
-      </View>
+      {!immersionActive && (
+        <View style={styles.vibeLayer}>
+          <FluidBackground
+            mood={currentMood}
+            intensity={1}
+            timeSpeed={currentMood === 'sleepy' ? 0.5 : currentMood === 'excited' ? 2.0 : 1.0}
+          />
+        </View>
+      )}
 
-      <View style={styles.soulLayer}>
-        <ParticleField
-          brainActivity={activity === 'streaming' ? 2.5 : activity === 'waiting' ? 1.8 : 1.0}
-          particleCount={activity === 'streaming' ? 36 : 24}
-          color={
-            currentMood === 'love' ? candy.neonPink[400] :
-            currentMood === 'happy' ? candy.cyan[400] :
-            currentMood === 'excited' ? candy.coral[400] :
-            candy.violet[400]
-          }
-        />
-      </View>
+      {!immersionActive && (
+        <View style={styles.soulLayer}>
+          <ParticleField
+            brainActivity={activity === 'streaming' ? 2.5 : activity === 'waiting' ? 1.8 : 1.0}
+            particleCount={activity === 'streaming' ? 36 : 24}
+            color={
+              currentMood === 'love' ? candy.neonPink[400] :
+              currentMood === 'happy' ? candy.cyan[400] :
+              currentMood === 'excited' ? candy.coral[400] :
+              candy.violet[400]
+            }
+          />
+        </View>
+      )}
 
       <SharedPet
         emoji={currentPet?.avatarEmoji || '🐱'}
         species={currentPet?.species || 'cat'}
-        baseSize={160}
+        baseSize={immersionActive ? 100 : 160}
         onPetPress={() => {
           setMood('love')
           setPetMood('love')
@@ -507,14 +500,14 @@ function LivingChatScreenInner() {
       <ImmersionPortal isActive={immersionActive && !mapModeActive}>
         <ImmersionChat
           messages={immersionMessages}
-          activeStreamId={activeStreamId}
-          petMood={currentMood}
-          speedLevel={speedLevel}
           onSend={handleImmersionSend}
-          onStreamComplete={handleStreamComplete}
           onDismiss={exitImmersion}
           inputPlaceholder={brainReady ? '向它倾诉...' : '正在准备 AI 系统...'}
           editable={brainReady && !isLoading && !activeStreamId}
+          initPhase={initPhase}
+          loadProgress={loadProgress}
+          initError={initError}
+          onRetryInit={handleAutoInit}
         />
 
         {immersionActive && !mapModeActive && messages.length >= 6 && (

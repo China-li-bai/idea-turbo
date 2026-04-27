@@ -357,17 +357,11 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
 
     const tokens = this.tokenizer!.encode(text)
 
-    const inputIdsTensor = {
-      dims: [1, MAX_SEQ_LENGTH],
-      type: 'int64' as const,
-      data: tokens.inputIds,
-    }
+    const ONNX = await getONNX()
+    const TensorCtor = ONNX.Tensor
 
-    const attentionMaskTensor = {
-      dims: [1, MAX_SEQ_LENGTH],
-      type: 'int64' as const,
-      data: tokens.attentionMask,
-    }
+    const inputIdsTensor = new TensorCtor('int64', tokens.inputIds, [1, MAX_SEQ_LENGTH])
+    const attentionMaskTensor = new TensorCtor('int64', tokens.attentionMask, [1, MAX_SEQ_LENGTH])
 
     const feeds: Record<string, any> = {}
     const inputNames = this.session!.inputNames
@@ -379,16 +373,14 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
         feeds[name] = attentionMaskTensor
       } else if (name.includes('token_type')) {
         const tokenTypeIds = new BigInt64Array(MAX_SEQ_LENGTH)
-        feeds[name] = {
-          dims: [1, MAX_SEQ_LENGTH],
-          type: 'int64' as const,
-          data: tokenTypeIds,
-        }
+        feeds[name] = new TensorCtor('int64', tokenTypeIds, [1, MAX_SEQ_LENGTH])
       }
     }
 
     try {
+      console.log('[OnnxEmbedding] Running inference, feeds keys:', Object.keys(feeds))
       const results: Record<string, any> = await this.session!.run(feeds)
+      console.log('[OnnxEmbedding] Inference done, output keys:', Object.keys(results))
 
       let lastHiddenState: Float32Array | null = null
 
@@ -431,7 +423,11 @@ export class OnnxEmbeddingEngine implements IEmbeddingEngine {
       const embedding = this.meanPooling(lastHiddenState, tokens.attentionMask, tokens.tokenCount)
       return this.l2Normalize(embedding)
     } catch (e: any) {
-      console.error('[OnnxEmbedding] ❌ Embed error:', e.message)
+      const errDetail = e?.message || e?.toString() || String(e) || 'unknown'
+      const errType = e?.constructor?.name || 'Error'
+      console.error(`[OnnxEmbedding] ❌ Embed error [${errType}]: ${errDetail}`)
+      console.error('[OnnxEmbedding] ❌ Error keys:', Object.keys(e || {}))
+      console.error('[OnnxEmbedding] ❌ Error stack:', e?.stack?.slice(0, 500))
       throw e
     }
   }
