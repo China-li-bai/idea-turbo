@@ -32,6 +32,34 @@ export interface InstalledModel {
 
 const MODEL_REGISTRY: ModelInfo[] = [
   {
+    id: 'qwen3-0.6b-q4km',
+    name: 'Qwen3-0.6B-Q4',
+    filename: 'Qwen3-0.6B-Q4_K_M.gguf',
+    quality: 'lite',
+    language: 'zh_en',
+    sizeMB: 372,
+    bundled: false,
+    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
+    mirrorUrl: 'https://modelscope.cn/api/v1/models/Qwen/Qwen3-0.6B-GGUF/file/Qwen3-0.6B-Q4_K_M.gguf',
+    bundledAsset: null,
+    architecture: 'qwen3',
+    description: '中文轻量模型，手机端首选，流畅运行',
+  },
+  {
+    id: 'qwen3-0.6b-q8',
+    name: 'Qwen3-0.6B-Q8',
+    filename: 'Qwen3-0.6B-Q8_0.gguf',
+    quality: 'standard',
+    language: 'zh_en',
+    sizeMB: 639,
+    bundled: false,
+    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+    mirrorUrl: 'https://modelscope.cn/api/v1/models/Qwen/Qwen3-0.6B-GGUF/file/Qwen3-0.6B-Q8_0.gguf',
+    bundledAsset: null,
+    architecture: 'qwen3',
+    description: '中文标准模型，回复质量更好',
+  },
+  {
     id: 'smollm-360m-q8',
     name: 'SmolLM2-360M',
     filename: 'smollm2-360m-instruct-q8_0.gguf',
@@ -43,21 +71,7 @@ const MODEL_REGISTRY: ModelInfo[] = [
     mirrorUrl: 'https://hf-mirror.com/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
     bundledAsset: null,
     architecture: 'llama',
-    description: '英文基础模型，WiFi下载，首次启动即可用',
-  },
-  {
-    id: 'qwen3-0.6b-q8',
-    name: 'Qwen3-0.6B',
-    filename: 'Qwen3-0.6B-Q8_0.gguf',
-    quality: 'standard',
-    language: 'zh_en',
-    sizeMB: 639,
-    bundled: false,
-    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
-    mirrorUrl: 'https://modelscope.cn/models/Qwen/Qwen3-0.6B-GGUF/resolve/master/Qwen3-0.6B-Q8_0.gguf',
-    bundledAsset: null,
-    architecture: 'qwen2',
-    description: '中文模型，WiFi下载，回复质量好',
+    description: '英文基础模型(仅英文)，备用',
   },
 ]
 
@@ -127,25 +141,59 @@ export async function ensureAnyModel(onProgress?: (progress: number) => void): P
   await scanInstalledModels()
   const installed = getInstalledModels()
   if (installed.length > 0) {
-    const first = installed[0]
-    setActiveModel(first.id)
-    console.log(`[ModelManager] 📁 已有模型: ${first.id}`)
-    return first.path
+    const zhModel = installed.find((m) => m.language === 'zh_en' || m.language === 'zh')
+    if (zhModel) {
+      setActiveModel(zhModel.id)
+      console.log(`[ModelManager] 📁 已有中文模型: ${zhModel.id}`)
+      return zhModel.path
+    }
+
+    const enModel = installed[0]
+    console.log(`[ModelManager] 📁 已有英文模型: ${enModel.id}, 尝试下载中文模型...`)
+    const zhRegistry = MODEL_REGISTRY.find((m) => (m.language === 'zh_en' || m.language === 'zh') && !installed.some(i => i.id === m.id))
+    if (zhRegistry) {
+      try {
+        const path = await downloadModel(zhRegistry.id, onProgress)
+        setActiveModel(zhRegistry.id)
+        console.log(`[ModelManager] ✅ 中文模型下载成功: ${zhRegistry.id}`)
+        return path
+      } catch (e: any) {
+        console.warn(`[ModelManager] ⚠️ 中文模型下载失败: ${e.message}, 使用已有英文模型`)
+      }
+    }
+    setActiveModel(enModel.id)
+    return enModel.path
   }
 
-  const liteModel = MODEL_REGISTRY.find((m) => m.quality === 'lite')
-  if (!liteModel) {
-    console.error('[ModelManager] ❌ 没有可下载的轻量模型')
+  const zhModel = MODEL_REGISTRY.find((m) => m.language === 'zh_en' || m.language === 'zh')
+  const targetModel = zhModel || MODEL_REGISTRY.find((m) => m.quality === 'lite')
+  if (!targetModel) {
+    console.error('[ModelManager] ❌ 没有可下载的模型')
     return null
   }
 
-  console.log(`[ModelManager] 📥 首次启动，下载轻量模型: ${liteModel.name} (${liteModel.sizeMB}MB)`)
+  console.log(`[ModelManager] 📥 首次启动，下载模型: ${targetModel.name} (${targetModel.sizeMB}MB, ${targetModel.language})`)
   try {
-    const path = await downloadModel(liteModel.id, onProgress)
-    setActiveModel(liteModel.id)
+    const path = await downloadModel(targetModel.id, onProgress)
+    setActiveModel(targetModel.id)
     return path
   } catch (e: any) {
     console.error(`[ModelManager] ❌ 下载失败: ${e.message}`)
+
+    if (zhModel && targetModel.id === zhModel.id) {
+      const liteModel = MODEL_REGISTRY.find((m) => m.quality === 'lite')
+      if (liteModel && liteModel.id !== targetModel.id) {
+        console.log(`[ModelManager] 📥 中文模型下载失败, 回退下载轻量模型: ${liteModel.name}`)
+        try {
+          const path = await downloadModel(liteModel.id, onProgress)
+          setActiveModel(liteModel.id)
+          return path
+        } catch (e2: any) {
+          console.error(`[ModelManager] ❌ 回退下载也失败: ${e2.message}`)
+        }
+      }
+    }
+
     return null
   }
 }

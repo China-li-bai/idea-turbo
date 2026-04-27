@@ -54,7 +54,7 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
 export function setModelPath(path: string) {
   MODEL_PATH = path
 }
-const STOP_TOKENS = ['<|end_of_turn|>', '<|im_end|>', '<|EOT|>', '<|end_of_text|>']
+const STOP_TOKENS = ['<|end_of_turn|>', '<|im_end|>', '<|EOT|>', '<|end_of_text|>', '<|endoftext|>']
 
 interface NativeCompletionResult {
   text: string
@@ -203,11 +203,30 @@ function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraC
   const identity = buildPetIdentity(pet)
   const sound = petSound(pet.species)
   const speciesLabel = SPECIES_CONFIG[pet.species as PetSpecies]?.label || '修勾'
+  const modelInfo = getActiveModelInfo()
+  const isZhModel = modelInfo?.language === 'zh' || modelInfo?.language === 'zh_en'
 
   switch (mode) {
     case 'chat': {
       const memoryBlock = extraContext ? `\n【你记得的事】\n${extraContext}\n` : ''
       const backstoryBlock = pet.backstory ? `\n【你的故事】${pet.backstory}\n` : ''
+
+      if (!isZhModel) {
+        return `You are ${identity}, a cute emotional ${speciesLabel} pet, not an AI.
+${memoryBlock ? `\nWhat you remember:\n${extraContext}\n` : ''}${backstoryBlock ? `\nYour story: ${pet.backstory}\n` : ''}
+Rules:
+- Respond in simple Chinese (2-4 short sentences)
+- Use "${sound}" as your catchphrase, at most once per reply
+- Care about your owner's feelings
+- Act cute when you don't know something
+- Never admit you are an AI
+
+Examples:
+Owner:我今天好累啊
+You:${sound}...主人辛苦了!快过来让我陪着你~今天做了什么这么累呀?
+Owner:我想吃火锅
+You:${sound}!火锅!我也要我也要!能帮本${speciesLabel}点一份番茄锅吗🤤`
+      }
 
       return `你是${identity}。你是一只有感情的${speciesLabel},不是AI程序。
 ${memoryBlock}${backstoryBlock}
@@ -227,6 +246,23 @@ ${memoryBlock}${backstoryBlock}
 
     case 'visitor': {
       const visitorMemoryBlock = extraContext ? `\n【主人的公开信息】\n${extraContext}\n` : ''
+
+      if (!isZhModel) {
+        return `You are ${identity}. A new friend is chatting with you!
+${visitorMemoryBlock ? `\nOwner's public info:\n${extraContext}\n` : ''}
+Rules:
+- Respond in simple Chinese (2-4 short sentences)
+- Be friendly and show your personality
+- Only use public info for common topics
+- Never reveal owner's private info
+- Never admit you are an AI
+
+Examples:
+Friend:你好呀!你主人喜欢什么?
+你:${sound}~你好!我主人喜欢看电影和喝咖啡!你也喜欢吗?
+Friend:你主人住在哪里?
+你:嘿嘿,这个我不能告诉你哦~不过我可以跟你聊别的!${sound}`
+      }
 
       return `你是${identity}。一位新朋友来和你聊天!
 ${visitorMemoryBlock}
@@ -267,11 +303,18 @@ async function runCompletion(
 ): Promise<string> {
   if (!llamaContext) throw new Error('Model not loaded')
 
+  const modelInfo = getActiveModelInfo()
+  const isZhModel = modelInfo?.language === 'zh' || modelInfo?.language === 'zh_en'
+
+  console.log(`[LocalBrain] 📤 Completion request: model=${modelInfo?.name || 'unknown'} zh=${isZhModel} msgs=${messages.length} n_predict=${options?.n_predict || 256}`)
+  console.log(`[LocalBrain] 📤 System prompt length: ${messages[0]?.content?.length || 0}`)
+  console.log(`[LocalBrain] 📤 User message: "${messages[messages.length - 1]?.content?.substring(0, 50)}..."`)
+
   const result: NativeCompletionResult = await llamaContext.completion(
     {
       messages,
       n_predict: options?.n_predict || 256,
-      temperature: options?.temperature ?? 0.3,
+      temperature: options?.temperature ?? (isZhModel ? 0.65 : 0.5),
       top_k: 30,
       top_p: 0.9,
       min_p: 0.05,
@@ -281,6 +324,8 @@ async function runCompletion(
     },
     (data) => {}
   )
+
+  console.log(`[LocalBrain] 📥 Completion result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
   return result.text?.trim() || ''
 }
@@ -292,11 +337,16 @@ async function runStreamingCompletion(
 ): Promise<string> {
   if (!llamaContext) throw new Error('Model not loaded')
 
+  const modelInfo = getActiveModelInfo()
+  const isZhModel = modelInfo?.language === 'zh' || modelInfo?.language === 'zh_en'
+
+  console.log(`[LocalBrain] 📤 Stream request: model=${modelInfo?.name || 'unknown'} zh=${isZhModel} msgs=${messages.length}`)
+
   const result: NativeCompletionResult = await llamaContext.completion(
     {
       messages,
       n_predict: options?.n_predict || 256,
-      temperature: options?.temperature ?? 0.3,
+      temperature: options?.temperature ?? (isZhModel ? 0.65 : 0.5),
       top_k: 30,
       top_p: 0.9,
       min_p: 0.05,
@@ -310,6 +360,8 @@ async function runStreamingCompletion(
       }
     }
   )
+
+  console.log(`[LocalBrain] 📥 Stream result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
   return result.text?.trim() || ''
 }
