@@ -68,15 +68,31 @@ const STOP_TOKENS: string[] = [
   '<|endoftext|>',
 ]
 
-function stripThinkBlock(text: string): string {
-  let cleaned = text.replace(/<think[\s/]*>[\s\S]*?<\/think>/gi, '')
+export function stripThinkBlock(text: string): string {
+  let cleaned = text.replace(/<think[\s/]*>[\s\S]*?<\/think[\s/]*>/gi, '')
   cleaned = cleaned.replace(/<think[\s/]*>[\s\S]*/gi, '')
-  cleaned = cleaned.replace(/<\/think>/gi, '')
+  cleaned = cleaned.replace(/<\/think[\s/]*>/gi, '')
+  return cleaned.trim()
+}
+
+export function cleanLlmArtifacts(text: string): string {
+  let cleaned = text
+  cleaned = cleaned.replace(/\n---[\s\S]*$/g, '')
+  cleaned = cleaned.replace(/^---[\s\S]*?\n\n/g, '')
+  const metaPatterns = [
+    /（[^）]*(?:保持|注意|请|应该|需要|确保|记得|不要|尽量|尝试|继续|按照|遵循)[^）]*）/g,
+    /\([^)]*(?:keep|note|please|should|make sure|remember|ensure|try|continue|follow)[^)]*\)/gi,
+  ]
+  for (const p of metaPatterns) {
+    cleaned = cleaned.replace(p, '')
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n')
   return cleaned.trim()
 }
 
 interface NativeCompletionResult {
   text: string
+  content?: string
   tokens_predicted: number
   timings: {
     predicted_per_second: number
@@ -216,7 +232,7 @@ function petEmoji(species: string): string {
   return SPECIES_CONFIG[species as PetSpecies]?.emoji || '🐕'
 }
 
-function buildPetIdentity(pet: Pet): string {
+export function buildPetIdentity(pet: Pet): string {
   const species = SPECIES_CONFIG[pet.species]
   const traits = (pet.personality || [])
     .map((p) => {
@@ -228,7 +244,7 @@ function buildPetIdentity(pet: Pet): string {
   return `名字:${pet.name}|物种:${species.label}${species.emoji}|性格:${traits}|叫声:${species.sound}`
 }
 
-function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraContext?: string): string {
+export function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraContext?: string): string {
   const identity = buildPetIdentity(pet)
   const sound = petSound(pet.species)
   const speciesLabel = SPECIES_CONFIG[pet.species as PetSpecies]?.label || '修勾'
@@ -353,14 +369,15 @@ async function runCompletion(
         stop: STOP_TOKENS as any,
         penalty_repeat: 1.5,
         penalty_last_n: 64,
+        enable_thinking: false,
       },
       (data) => {}
     )
   })
 
-  console.log(`[LocalBrain] 📥 Completion result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
+  console.log(`[LocalBrain] 📥 Completion result: "${result.content?.substring(0, 80) || result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
-  let text = result.text?.trim() || ''
+  let text = (result.content || result.text)?.trim() || ''
   text = stripThinkBlock(text)
   return text
 }
@@ -393,6 +410,7 @@ async function runStreamingCompletion(
         stop: STOP_TOKENS as any,
         penalty_repeat: 1.5,
         penalty_last_n: 64,
+        enable_thinking: false,
       },
       (data) => {
         if (data.token && isQwen3Model) {
@@ -423,9 +441,9 @@ async function runStreamingCompletion(
     )
   })
 
-  console.log(`[LocalBrain] 📥 Stream result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
+  console.log(`[LocalBrain] 📥 Stream result: "${(result.content || result.text)?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
-  let text = result.text?.trim() || ''
+  let text = (result.content || result.text)?.trim() || ''
   text = stripThinkBlock(text)
   return text
 }
@@ -442,6 +460,7 @@ export function cleanRawReply(rawReply: string, pet: Pet, userMessage: string): 
     } catch {}
   }
   reply = reply.replace(/^["']|["']$/g, '').trim()
+  reply = cleanLlmArtifacts(reply)
   if (!reply || INVALID_REPLIES.includes(reply)) {
     console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
     reply = getFallbackReply(userMessage, pet)
@@ -845,7 +864,7 @@ const MEMORY_RULES: { patterns: RegExp[]; type: string }[] = [
   { patterns: [/今天|昨天|刚才|刚刚|这周|最近|打算|准备|要去|想去看/], type: 'episodic' },
 ]
 
-function extractMemoriesFallback(userMessage: string): string[] {
+export function extractMemoriesFallback(userMessage: string): string[] {
   const memories: string[] = []
   for (const rule of MEMORY_RULES) {
     if (rule.patterns.some((p) => p.test(userMessage))) {
