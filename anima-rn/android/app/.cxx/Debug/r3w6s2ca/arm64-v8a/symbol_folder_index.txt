@@ -1,1 +1,0 @@
-/root/idea-turbo/anima-rn/android/app/build/intermediates/cxx/Debug/r3w6s2ca/obj/arm64-v8a

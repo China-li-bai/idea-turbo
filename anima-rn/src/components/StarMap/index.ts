@@ -1,1 +1,0 @@
-export { PetConstellation } from './PetConstellation'
