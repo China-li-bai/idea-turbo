@@ -30,8 +30,9 @@ class Mnemosyne {
   factory Mnemosyne({
     MnemosyneConfig config = const MnemosyneConfig(),
     XiangPlugin? xiangPlugin,
+    String? directoryOverride,
   }) {
-    final datasource = ObjectBoxMemoryDataSource(config);
+    final datasource = ObjectBoxMemoryDataSource(config, directoryOverride: directoryOverride);
     return Mnemosyne._internal(
       config: config,
       memoryService: MemoryService.withDatasource(

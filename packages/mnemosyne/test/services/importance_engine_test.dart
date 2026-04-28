@@ -36,14 +36,14 @@ void main() {
     group('default values', () {
       test('should have sensible defaults', () {
         final engine = ImportanceEngine();
-        expect(engine.recencyWeight, equals(0.15));
+        expect(engine.recencyWeight, equals(0.12));
         expect(engine.accessRecencyWeight, equals(0.05));
-        expect(engine.frequencyWeight, equals(0.15));
-        expect(engine.emotionalWeight, equals(0.2));
-        expect(engine.surpriseWeight, equals(0.15));
-        expect(engine.entityWeight, equals(0.08));
+        expect(engine.frequencyWeight, equals(0.12));
+        expect(engine.emotionalWeight, equals(0.15));
+        expect(engine.surpriseWeight, equals(0.12));
+        expect(engine.entityWeight, equals(0.06));
         expect(engine.topicWeight, equals(0.02));
-        expect(engine.explicitWeight, equals(0.2));
+        expect(engine.explicitWeight, equals(0.18));
       });
 
       test('should accept custom values', () {

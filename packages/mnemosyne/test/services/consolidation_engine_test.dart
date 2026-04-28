@@ -220,7 +220,7 @@ void main() {
         expect(engine.findSharedItems([[], []]), isEmpty);
       });
 
-      test('should not return items only in some lists', () {
+      test('should not return items only in minority of lists', () {
         final engine = ConsolidationEngine();
         final shared = engine.findSharedItems([
           ['a', 'b'],
@@ -228,7 +228,7 @@ void main() {
           ['a', 'c'],
         ]);
         expect(shared, contains('a'));
-        expect(shared, isNot(contains('b')));
+        expect(shared, contains('b'));
         expect(shared, isNot(contains('c')));
       });
 

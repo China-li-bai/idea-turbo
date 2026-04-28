@@ -94,9 +94,9 @@ class MemoryEntity {
       strength: item.strength,
       emotionalValence: item.emotionalValence,
       surpriseScore: item.surpriseScore,
-      keywords: item.keywords.join('\x00'),
-      entities: item.entities.join('\x00'),
-      topics: item.topics.join('\x00'),
+      keywords: item.keywords.join('\x01'),
+      entities: item.entities.join('\x01'),
+      topics: item.topics.join('\x01'),
       embedding: item.embedding,
       encodingContextJson: item.encodingContext != null
           ? jsonEncode(item.encodingContext!.toJson())
@@ -109,7 +109,7 @@ class MemoryEntity {
       sourceId: item.sourceId,
       agentId: item.agentId,
       userId: item.userId,
-      relatedMemoryIds: item.relatedMemoryIds.join('\x00'),
+      relatedMemoryIds: item.relatedMemoryIds.join('\x01'),
       parentMemoryId: item.parentMemoryId,
       supersededById: item.supersededById,
       isPinned: item.isPinned,
@@ -156,7 +156,7 @@ class MemoryEntity {
 
   static List<String> _splitNull(String? value) {
     if (value == null || value.isEmpty) return [];
-    return value.split('\x00').where((s) => s.isNotEmpty).toList();
+    return value.split('\x01').where((s) => s.isNotEmpty).toList();
   }
 
   static EncodingContext? _encodingContextFromJson(String json) {

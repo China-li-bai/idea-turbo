@@ -84,6 +84,7 @@ void main() {
 
         final recentAccess = MemoryItem(
           id: 'recent',
+          content: 'recent memory',
           importance: 0.5,
           createdAt: baseTime,
           accessedAt: futureTime.subtract(const Duration(hours: 1)),
@@ -92,6 +93,7 @@ void main() {
 
         final oldAccess = MemoryItem(
           id: 'old',
+          content: 'old memory',
           importance: 0.5,
           createdAt: baseTime,
           accessedAt: baseTime.add(const Duration(hours: 1)),

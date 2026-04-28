@@ -12,13 +12,20 @@ class ObjectBoxMemoryDataSource {
   Store? _store;
   Box<MemoryEntity>? _box;
   final MnemosyneConfig config;
+  final String? _directoryOverride;
 
-  ObjectBoxMemoryDataSource(this.config);
+  ObjectBoxMemoryDataSource(this.config, {String? directoryOverride})
+      : _directoryOverride = directoryOverride;
 
   Future<Store> get store async {
     if (_store != null && !_store!.isClosed()) return _store!;
-    final dir = await getApplicationDocumentsDirectory();
-    final dbPath = join(dir.path, config.databaseName.replaceAll('.db', '-objectbox'));
+    final String dbPath;
+    if (_directoryOverride != null) {
+      dbPath = join(_directoryOverride, config.databaseName.replaceAll('.db', '-objectbox'));
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      dbPath = join(dir.path, config.databaseName.replaceAll('.db', '-objectbox'));
+    }
     _store = Store(getObjectBoxModel(), directory: dbPath);
     return _store!;
   }
