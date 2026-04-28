@@ -2,6 +2,8 @@ import { initLlama } from './llama-adapter'
 import type { LlamaContext } from 'llama.rn'
 import * as FileSystem from 'expo-file-system/legacy'
 import { SPECIES_CONFIG, PERSONALITY_OPTIONS, type Pet, type PetSpecies, type ChatMode } from '../types'
+import { streamEventBus } from '../components/FluidChat/StreamEventBus'
+import { tokenSpeedTracker } from '../components/LivingUI/TokenSpeedTracker'
 import {
   detectPromptInjection,
   buildPrivacyContext,
@@ -54,7 +56,24 @@ export async function ensureModelExists(onDownloadProgress?: (progress: number) 
 export function setModelPath(path: string) {
   MODEL_PATH = path
 }
-const STOP_TOKENS = ['<|end_of_turn|>', '<|im_end|>', '<|EOT|>', '<|end_of_text|>', '<|endoftext|>']
+const STOP_TOKENS: string[] = [
+  '<|end_of_turn|>',
+  '<|im_end|>',
+  '<|EOT|>',
+  '<|end_of_text|>',
+  '</think',
+  '<|tool_call|>',
+  '</tool_call',
+  '<|reserved',
+  '<|endoftext|>',
+]
+
+function stripThinkBlock(text: string): string {
+  let cleaned = text.replace(/<think[\s/]*>[\s\S]*?<\/think>/gi, '')
+  cleaned = cleaned.replace(/<think[\s/]*>[\s\S]*/gi, '')
+  cleaned = cleaned.replace(/<\/think>/gi, '')
+  return cleaned.trim()
+}
 
 interface NativeCompletionResult {
   text: string
@@ -65,6 +84,16 @@ interface NativeCompletionResult {
 }
 
 let llamaContext: LlamaContext | null = null
+
+let completionLock: Promise<void> = Promise.resolve()
+
+export function withCompletionLock<T>(fn: () => Promise<T>): Promise<T> {
+  let release: () => void
+  const prev = completionLock
+  completionLock = new Promise<void>((resolve) => { release = resolve })
+  return prev.then(() => fn()).finally(() => release!())
+}
+
 let brainState: {
   isLoaded: boolean
   isLoading: boolean
@@ -205,6 +234,8 @@ function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraC
   const speciesLabel = SPECIES_CONFIG[pet.species as PetSpecies]?.label || '修勾'
   const modelInfo = getActiveModelInfo()
   const isZhModel = modelInfo?.language === 'zh' || modelInfo?.language === 'zh_en'
+  const isQwen3 = modelInfo?.architecture === 'qwen3'
+  const noThink = isQwen3 ? '/no_think\n' : ''
 
   switch (mode) {
     case 'chat': {
@@ -212,7 +243,7 @@ function buildSystemPrompt(pet: Pet, mode: 'chat' | 'visitor' | 'memory', extraC
       const backstoryBlock = pet.backstory ? `\n【你的故事】${pet.backstory}\n` : ''
 
       if (!isZhModel) {
-        return `You are ${identity}, a cute emotional ${speciesLabel} pet, not an AI.
+        return `${noThink}You are ${identity}, a cute emotional ${speciesLabel} pet, not an AI.
 ${memoryBlock ? `\nWhat you remember:\n${extraContext}\n` : ''}${backstoryBlock ? `\nYour story: ${pet.backstory}\n` : ''}
 Rules:
 - Respond in simple Chinese (2-4 short sentences)
@@ -228,7 +259,7 @@ Owner:我想吃火锅
 You:${sound}!火锅!我也要我也要!能帮本${speciesLabel}点一份番茄锅吗🤤`
       }
 
-      return `你是${identity}。你是一只有感情的${speciesLabel},不是AI程序。
+      return `${noThink}你是${identity}。你是一只有感情的${speciesLabel},不是AI程序。
 ${memoryBlock}${backstoryBlock}
 【规则】
 - 用"${sound}"作语气词,每句最多用1次
@@ -248,7 +279,7 @@ ${memoryBlock}${backstoryBlock}
       const visitorMemoryBlock = extraContext ? `\n【主人的公开信息】\n${extraContext}\n` : ''
 
       if (!isZhModel) {
-        return `You are ${identity}. A new friend is chatting with you!
+        return `${noThink}You are ${identity}. A new friend is chatting with you!
 ${visitorMemoryBlock ? `\nOwner's public info:\n${extraContext}\n` : ''}
 Rules:
 - Respond in simple Chinese (2-4 short sentences)
@@ -264,7 +295,7 @@ Friend:你主人住在哪里?
 你:嘿嘿,这个我不能告诉你哦~不过我可以跟你聊别的!${sound}`
       }
 
-      return `你是${identity}。一位新朋友来和你聊天!
+      return `${noThink}你是${identity}。一位新朋友来和你聊天!
 ${visitorMemoryBlock}
 【规则】
 - 友好欢迎,展现你的性格
@@ -281,7 +312,7 @@ ${visitorMemoryBlock}
     }
 
     case 'memory':
-      return `你是记忆提取器。从对话中提取关于主人的重要信息。
+      return `${noThink}你是记忆提取器。从对话中提取关于主人的重要信息。
 只返回JSON数组,每条是简短描述字符串。
 类型:preference(喜好),semantic(认知/职业),episodic(事件)
 没有值得记住的信息返回[]
@@ -310,24 +341,28 @@ async function runCompletion(
   console.log(`[LocalBrain] 📤 System prompt length: ${messages[0]?.content?.length || 0}`)
   console.log(`[LocalBrain] 📤 User message: "${messages[messages.length - 1]?.content?.substring(0, 50)}..."`)
 
-  const result: NativeCompletionResult = await llamaContext.completion(
-    {
-      messages,
-      n_predict: options?.n_predict || 256,
-      temperature: options?.temperature ?? (isZhModel ? 0.65 : 0.5),
-      top_k: 30,
-      top_p: 0.9,
-      min_p: 0.05,
-      stop: STOP_TOKENS as any,
-      penalty_repeat: 1.15,
-      penalty_last_n: 64,
-    },
-    (data) => {}
-  )
+  const result: NativeCompletionResult = await withCompletionLock(async () => {
+    return llamaContext!.completion(
+      {
+        messages,
+        n_predict: options?.n_predict || 256,
+        temperature: options?.temperature ?? (isZhModel ? 0.7 : 0.5),
+        top_k: 20,
+        top_p: isZhModel ? 0.8 : 0.9,
+        min_p: 0,
+        stop: STOP_TOKENS as any,
+        penalty_repeat: 1.5,
+        penalty_last_n: 64,
+      },
+      (data) => {}
+    )
+  })
 
   console.log(`[LocalBrain] 📥 Completion result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
-  return result.text?.trim() || ''
+  let text = result.text?.trim() || ''
+  text = stripThinkBlock(text)
+  return text
 }
 
 async function runStreamingCompletion(
@@ -339,39 +374,115 @@ async function runStreamingCompletion(
 
   const modelInfo = getActiveModelInfo()
   const isZhModel = modelInfo?.language === 'zh' || modelInfo?.language === 'zh_en'
+  const isQwen3Model = modelInfo?.architecture === 'qwen3'
+
+  let thinkBuffer = ''
+  let insideThink = false
 
   console.log(`[LocalBrain] 📤 Stream request: model=${modelInfo?.name || 'unknown'} zh=${isZhModel} msgs=${messages.length}`)
 
-  const result: NativeCompletionResult = await llamaContext.completion(
-    {
-      messages,
-      n_predict: options?.n_predict || 256,
-      temperature: options?.temperature ?? (isZhModel ? 0.65 : 0.5),
-      top_k: 30,
-      top_p: 0.9,
-      min_p: 0.05,
-      stop: STOP_TOKENS as any,
-      penalty_repeat: 1.15,
-      penalty_last_n: 64,
-    },
-    (data) => {
-      if (data.token) {
-        onToken(data.token)
+  const result: NativeCompletionResult = await withCompletionLock(async () => {
+    return llamaContext!.completion(
+      {
+        messages,
+        n_predict: options?.n_predict || 256,
+        temperature: options?.temperature ?? (isZhModel ? 0.7 : 0.5),
+        top_k: 20,
+        top_p: isZhModel ? 0.8 : 0.9,
+        min_p: 0,
+        stop: STOP_TOKENS as any,
+        penalty_repeat: 1.5,
+        penalty_last_n: 64,
+      },
+      (data) => {
+        if (data.token && isQwen3Model) {
+          thinkBuffer += data.token
+          if (!insideThink && thinkBuffer.includes('<think')) {
+            insideThink = true
+            const beforeThink = thinkBuffer.substring(0, thinkBuffer.indexOf('<think'))
+            if (beforeThink) onToken(beforeThink)
+            thinkBuffer = ''
+            return
+          }
+          if (insideThink && thinkBuffer.includes('</think')) {
+            insideThink = false
+            thinkBuffer = ''
+            return
+          }
+          if (insideThink) {
+            thinkBuffer = ''
+            return
+          }
+          const toEmit = thinkBuffer
+          thinkBuffer = ''
+          onToken(toEmit)
+        } else if (data.token) {
+          onToken(data.token)
+        }
       }
-    }
-  )
+    )
+  })
 
   console.log(`[LocalBrain] 📥 Stream result: "${result.text?.substring(0, 80)}..." tokens=${result.tokens_predicted} speed=${result.timings?.predicted_per_second?.toFixed(1) || '?'} t/s`)
 
-  return result.text?.trim() || ''
+  let text = result.text?.trim() || ''
+  text = stripThinkBlock(text)
+  return text
 }
 
-export async function generatePetReply(
+const INVALID_REPLIES = ['None', 'none', 'null', 'undefined', 'N/A', 'n/a', 'NIL', 'nil', 'NaN']
+
+export function cleanRawReply(rawReply: string, pet: Pet, userMessage: string): string {
+  let reply = rawReply
+  const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0])
+      reply = parsed.reply || parsed.response || parsed.text || rawReply
+    } catch {}
+  }
+  reply = reply.replace(/^["']|["']$/g, '').trim()
+  if (!reply || INVALID_REPLIES.includes(reply)) {
+    console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
+    reply = getFallbackReply(userMessage, pet)
+  }
+  return reply
+}
+
+async function writeMemories(pet: Pet, userMessage: string): Promise<{ episodic: number; semantic: number }> {
+  let newEpiCount = 0
+  let newSemCount = 0
+  try {
+    const encodingCtx = captureEncodingContext(userMessage)
+    const extracted = extractAndClassifyWithEvolution(userMessage, pet.id)
+    for (const epi of extracted.episodic) {
+      const baseImportance = epi.fragmentType === 'subjective' ? 0.8 : 0.6
+      const importance = calculateEmotionGatedImportance(baseImportance, encodingCtx)
+      await addEpisodicMemory(
+        { petId: pet.id, ...epi, importance, timestamp: new Date().toISOString() },
+        encodingCtx
+      )
+      newEpiCount++
+    }
+    for (const sem of extracted.semantic) {
+      const evolutionHint = extracted.evolutionHints?.find(h => h.key === sem.key)
+      await addSemanticFact(
+        { petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 },
+        evolutionHint ? { pattern: evolutionHint.pattern, mergedValue: evolutionHint.mergedValue } : undefined
+      )
+      newSemCount++
+    }
+  } catch (memErr: any) {
+    console.error('[LocalBrain] Memory write error:', memErr.message)
+  }
+  return { episodic: newEpiCount, semantic: newSemCount }
+}
+
+async function prepareChatContext(
   pet: Pet,
   userMessage: string,
-  conversationId: string = 'default',
-  _conversationHistory?: Array<{ role: string; content: string }>
-): Promise<{ reply: string; thinkingSteps: string[]; newMemories?: { episodic: number; semantic: number } }> {
+  conversationId: string
+): Promise<{ thinkingSteps: string[]; fullMessages: Array<{ role: string; content: string }> }> {
   const thinkingSteps: string[] = []
   thinkingSteps.push(`${petEmoji(pet.species)}正在竖起耳朵听...`)
 
@@ -390,68 +501,36 @@ export async function generatePetReply(
   }
   thinkingSteps.push(`${petEmoji(pet.species)}正在思考...`)
 
+  const systemPrompt = buildSystemPrompt(pet, 'chat', memoryContext)
+  const recentHistory = getRecentContext(conversationId, 10)
+  const fullMessages = [
+    { role: 'system', content: systemPrompt },
+    ...recentHistory,
+    { role: 'user', content: userMessage },
+  ]
+
+  return { thinkingSteps, fullMessages }
+}
+
+export async function generatePetReply(
+  pet: Pet,
+  userMessage: string,
+  conversationId: string = 'default',
+  _conversationHistory?: Array<{ role: string; content: string }>
+): Promise<{ reply: string; thinkingSteps: string[]; newMemories?: { episodic: number; semantic: number } }> {
+  const { thinkingSteps, fullMessages } = await prepareChatContext(pet, userMessage, conversationId)
+
   try {
-    const systemPrompt = buildSystemPrompt(pet, 'chat', memoryContext)
-    const recentHistory = getRecentContext(conversationId, 10)
-
-    const fullMessages = [
-      { role: 'system', content: systemPrompt },
-      ...recentHistory,
-      { role: 'user', content: userMessage },
-    ]
-
     const rawReply = await runCompletion(fullMessages, {
       n_predict: 200,
-      temperature: 0.65,
+      temperature: 0.7,
     })
 
-    let reply = rawReply
-
-    const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0])
-        reply = parsed.reply || parsed.response || parsed.text || rawReply
-      } catch {}
-    }
-
-    reply = reply.replace(/^["']|["']$/g, '').trim()
-
-    const INVALID_REPLIES = ['None', 'none', 'null', 'undefined', 'N/A', 'n/a', 'NIL', 'nil', 'NaN']
-    if (!reply || INVALID_REPLIES.includes(reply)) {
-      console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
-      reply = getFallbackReply(userMessage, pet)
-    }
-
+    const reply = cleanRawReply(rawReply, pet, userMessage)
     addToWorkingMemory(conversationId, 'pet', reply)
+    const newMemories = await writeMemories(pet, userMessage)
 
-    let newEpiCount = 0
-    let newSemCount = 0
-    try {
-      const encodingCtx = captureEncodingContext(userMessage)
-      const extracted = extractAndClassifyWithEvolution(userMessage, pet.id)
-      for (const epi of extracted.episodic) {
-        const baseImportance = epi.fragmentType === 'subjective' ? 0.8 : 0.6
-        const importance = calculateEmotionGatedImportance(baseImportance, encodingCtx)
-        await addEpisodicMemory(
-          { petId: pet.id, ...epi, importance, timestamp: new Date().toISOString() },
-          encodingCtx
-        )
-        newEpiCount++
-      }
-      for (const sem of extracted.semantic) {
-        const evolutionHint = extracted.evolutionHints?.find(h => h.key === sem.key)
-        await addSemanticFact(
-          { petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 },
-          evolutionHint ? { pattern: evolutionHint.pattern, mergedValue: evolutionHint.mergedValue } : undefined
-        )
-        newSemCount++
-      }
-    } catch (memErr: any) {
-      console.error('[LocalBrain] Memory write error:', memErr.message)
-    }
-
-    return { reply, thinkingSteps, newMemories: { episodic: newEpiCount, semantic: newSemCount } }
+    return { reply, thinkingSteps, newMemories }
   } catch (e: any) {
     console.error('[LocalBrain] Reply error:', e.message)
     return {
@@ -467,37 +546,9 @@ export async function generatePetReplyStream(
   streamId: string,
   conversationId: string = 'default'
 ): Promise<{ reply: string; thinkingSteps: string[]; newMemories?: { episodic: number; semantic: number } }> {
-  const thinkingSteps: string[] = []
-  thinkingSteps.push(`${petEmoji(pet.species)}正在竖起耳朵听...`)
-
-  addToWorkingMemory(conversationId, 'user', userMessage)
-  addToWorkingMemory(conversationId, 'pet', '')
-
-  const queryContext = captureEncodingContext(userMessage)
-  let memoryContext = ''
-  try {
-    memoryContext = await buildMemoryPromptContext(pet.id, userMessage, 'owner', queryContext) || ''
-  } catch (memErr: any) {
-    console.warn('[LocalBrain] Memory context build failed (non-critical):', memErr.message)
-  }
-  if (memoryContext) {
-    thinkingSteps.push(`${petEmoji(pet.species)}正在翻看记忆本...`)
-  }
-  thinkingSteps.push(`${petEmoji(pet.species)}正在思考...`)
+  const { thinkingSteps, fullMessages } = await prepareChatContext(pet, userMessage, conversationId)
 
   try {
-    const systemPrompt = buildSystemPrompt(pet, 'chat', memoryContext)
-    const recentHistory = getRecentContext(conversationId, 10)
-
-    const fullMessages = [
-      { role: 'system', content: systemPrompt },
-      ...recentHistory,
-      { role: 'user', content: userMessage },
-    ]
-
-    const { streamEventBus } = await import('../components/FluidChat/StreamEventBus')
-    const { tokenSpeedTracker } = await import('../components/LivingUI/TokenSpeedTracker')
-
     tokenSpeedTracker.reset()
 
     const rawReply = await runStreamingCompletion(
@@ -509,7 +560,7 @@ export async function generatePetReplyStream(
       },
       {
         n_predict: 200,
-        temperature: 0.65,
+        temperature: 0.7,
       }
     )
 
@@ -518,56 +569,13 @@ export async function generatePetReplyStream(
 
     console.log('[LocalBrain] rawReply from LLM:', JSON.stringify(rawReply), 'length:', rawReply?.length)
 
-    let reply = rawReply
-
-    const jsonMatch = rawReply.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0])
-        reply = parsed.reply || parsed.response || parsed.text || rawReply
-      } catch {}
-    }
-
-    reply = reply.replace(/^["']|["']$/g, '').trim()
-
-    const INVALID_REPLIES = ['None', 'none', 'null', 'undefined', 'N/A', 'n/a', 'NIL', 'nil', 'NaN']
-    if (!reply || INVALID_REPLIES.includes(reply)) {
-      console.warn('[LocalBrain] LLM 返回无效回复, rawReply:', JSON.stringify(rawReply), ', 使用 fallback')
-      reply = getFallbackReply(userMessage, pet)
-    }
-
+    const reply = cleanRawReply(rawReply, pet, userMessage)
     addToWorkingMemory(conversationId, 'pet', reply)
+    const newMemories = await writeMemories(pet, userMessage)
 
-    let newEpiCount = 0
-    let newSemCount = 0
-    try {
-      const encodingCtx = captureEncodingContext(userMessage)
-      const extracted = extractAndClassifyWithEvolution(userMessage, pet.id)
-      for (const epi of extracted.episodic) {
-        const baseImportance = epi.fragmentType === 'subjective' ? 0.8 : 0.6
-        const importance = calculateEmotionGatedImportance(baseImportance, encodingCtx)
-        await addEpisodicMemory(
-          { petId: pet.id, ...epi, importance, timestamp: new Date().toISOString() },
-          encodingCtx
-        )
-        newEpiCount++
-      }
-      for (const sem of extracted.semantic) {
-        const evolutionHint = extracted.evolutionHints?.find(h => h.key === sem.key)
-        await addSemanticFact(
-          { petId: pet.id, ...sem, sourceEpisodicIds: [], confidence: 0.5 },
-          evolutionHint ? { pattern: evolutionHint.pattern, mergedValue: evolutionHint.mergedValue } : undefined
-        )
-        newSemCount++
-      }
-    } catch (memErr: any) {
-      console.error('[LocalBrain] Memory write error:', memErr.message)
-    }
-
-    return { reply, thinkingSteps, newMemories: { episodic: newEpiCount, semantic: newSemCount } }
+    return { reply, thinkingSteps, newMemories }
   } catch (e: any) {
     console.error('[LocalBrain] Stream reply error:', e.message)
-    const { streamEventBus } = await import('../components/FluidChat/StreamEventBus')
     streamEventBus.emit(`done-${streamId}`)
     return {
       reply: getFallbackReply(userMessage, pet),

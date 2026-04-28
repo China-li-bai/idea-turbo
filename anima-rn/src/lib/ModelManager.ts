@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy'
-import { Asset } from 'expo-asset'
 
 export type ModelQuality = 'lite' | 'standard' | 'full'
 export type ModelLanguage = 'zh' | 'en' | 'zh_en'
@@ -14,10 +13,8 @@ export interface ModelInfo {
   quality: ModelQuality
   language: ModelLanguage
   sizeMB: number
-  bundled: boolean
   downloadUrl: string
   mirrorUrl?: string
-  bundledAsset: any
   architecture: string
   description: string
 }
@@ -37,11 +34,9 @@ const MODEL_REGISTRY: ModelInfo[] = [
     filename: 'Qwen3-0.6B-Q4_K_M.gguf',
     quality: 'lite',
     language: 'zh_en',
-    sizeMB: 372,
-    bundled: false,
-    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
-    mirrorUrl: 'https://modelscope.cn/api/v1/models/Qwen/Qwen3-0.6B-GGUF/file/Qwen3-0.6B-Q4_K_M.gguf',
-    bundledAsset: null,
+    sizeMB: 378,
+    downloadUrl: 'https://hf-mirror.com/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
+    mirrorUrl: 'https://modelscope.cn/models/unsloth/Qwen3-0.6B-GGUF/resolve/master/Qwen3-0.6B-Q4_K_M.gguf',
     architecture: 'qwen3',
     description: '中文轻量模型，手机端首选，流畅运行',
   },
@@ -51,11 +46,9 @@ const MODEL_REGISTRY: ModelInfo[] = [
     filename: 'Qwen3-0.6B-Q8_0.gguf',
     quality: 'standard',
     language: 'zh_en',
-    sizeMB: 639,
-    bundled: false,
-    downloadUrl: 'https://hf-mirror.com/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
-    mirrorUrl: 'https://modelscope.cn/api/v1/models/Qwen/Qwen3-0.6B-GGUF/file/Qwen3-0.6B-Q8_0.gguf',
-    bundledAsset: null,
+    sizeMB: 610,
+    downloadUrl: 'https://hf-mirror.com/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+    mirrorUrl: 'https://modelscope.cn/models/Qwen/Qwen3-0.6B-GGUF/resolve/master/Qwen3-0.6B-Q8_0.gguf',
     architecture: 'qwen3',
     description: '中文标准模型，回复质量更好',
   },
@@ -66,10 +59,8 @@ const MODEL_REGISTRY: ModelInfo[] = [
     quality: 'lite',
     language: 'en',
     sizeMB: 386,
-    bundled: false,
-    downloadUrl: 'https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
-    mirrorUrl: 'https://hf-mirror.com/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
-    bundledAsset: null,
+    downloadUrl: 'https://hf-mirror.com/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf',
+    mirrorUrl: 'https://modelscope.cn/models/unsloth/SmolLM2-360M-Instruct-GGUF/resolve/master/smollm2-360m-instruct-q8_0.gguf',
     architecture: 'llama',
     description: '英文基础模型(仅英文)，备用',
   },
@@ -81,6 +72,21 @@ let _downloadCallbacks: Map<string, (progress: number) => void> = new Map()
 
 function getModelsDir(): string {
   return `${FileSystem.documentDirectory}models/`
+}
+
+export async function verifyGgufHeader(filePath: string): Promise<boolean> {
+  try {
+    const content = await FileSystem.readAsStringAsync(filePath, {
+      encoding: FileSystem.EncodingType.Base64,
+      position: 0,
+      length: 4,
+    })
+    if (!content) return false
+    const bytes = atob(content)
+    return bytes === 'GGUF'
+  } catch {
+    return false
+  }
 }
 
 export function getModelRegistry(): ModelInfo[] {
@@ -131,6 +137,31 @@ export async function scanInstalledModels(): Promise<InstalledModel[]> {
   return getInstalledModels()
 }
 
+function findInstalledZhModel(): InstalledModel | undefined {
+  return getInstalledModels().find((m) => m.language === 'zh_en' || m.language === 'zh')
+}
+
+function findRegistryZhModel(excludeIds?: string[]): ModelInfo | undefined {
+  return MODEL_REGISTRY.find(
+    (m) => (m.language === 'zh_en' || m.language === 'zh') && !excludeIds?.includes(m.id)
+  )
+}
+
+function findRegistryLiteModel(excludeIds?: string[]): ModelInfo | undefined {
+  return MODEL_REGISTRY.find((m) => m.quality === 'lite' && !excludeIds?.includes(m.id))
+}
+
+async function tryDownloadAndActivate(modelId: string, onProgress?: (progress: number) => void): Promise<string | null> {
+  try {
+    const path = await downloadModel(modelId, onProgress)
+    setActiveModel(modelId)
+    return path
+  } catch (e: any) {
+    console.warn(`[ModelManager] ⚠️ 模型下载失败 ${modelId}: ${e.message}`)
+    return null
+  }
+}
+
 export async function ensureAnyModel(onProgress?: (progress: number) => void): Promise<string | null> {
   const dir = getModelsDir()
   const dirInfo = await FileSystem.getInfoAsync(dir)
@@ -140,8 +171,9 @@ export async function ensureAnyModel(onProgress?: (progress: number) => void): P
 
   await scanInstalledModels()
   const installed = getInstalledModels()
+
   if (installed.length > 0) {
-    const zhModel = installed.find((m) => m.language === 'zh_en' || m.language === 'zh')
+    const zhModel = findInstalledZhModel()
     if (zhModel) {
       setActiveModel(zhModel.id)
       console.log(`[ModelManager] 📁 已有中文模型: ${zhModel.id}`)
@@ -149,53 +181,46 @@ export async function ensureAnyModel(onProgress?: (progress: number) => void): P
     }
 
     const enModel = installed[0]
-    console.log(`[ModelManager] 📁 已有英文模型: ${enModel.id}, 尝试下载中文模型...`)
-    const zhRegistry = MODEL_REGISTRY.find((m) => (m.language === 'zh_en' || m.language === 'zh') && !installed.some(i => i.id === m.id))
+    const installedIds = installed.map((m) => m.id)
+    const zhRegistry = findRegistryZhModel(installedIds)
     if (zhRegistry) {
-      try {
-        const path = await downloadModel(zhRegistry.id, onProgress)
-        setActiveModel(zhRegistry.id)
+      console.log(`[ModelManager] 📁 已有英文模型: ${enModel.id}, 尝试下载中文模型...`)
+      const path = await tryDownloadAndActivate(zhRegistry.id, onProgress)
+      if (path) {
         console.log(`[ModelManager] ✅ 中文模型下载成功: ${zhRegistry.id}`)
         return path
-      } catch (e: any) {
-        console.warn(`[ModelManager] ⚠️ 中文模型下载失败: ${e.message}, 使用已有英文模型`)
       }
     }
     setActiveModel(enModel.id)
     return enModel.path
   }
 
-  const zhModel = MODEL_REGISTRY.find((m) => m.language === 'zh_en' || m.language === 'zh')
-  const targetModel = zhModel || MODEL_REGISTRY.find((m) => m.quality === 'lite')
-  if (!targetModel) {
-    console.error('[ModelManager] ❌ 没有可下载的模型')
-    return null
-  }
+  const zhModel = findRegistryZhModel()
+  if (zhModel) {
+    console.log(`[ModelManager] 📥 首次启动，下载中文模型: ${zhModel.name} (${zhModel.sizeMB}MB)`)
+    const path = await tryDownloadAndActivate(zhModel.id, onProgress)
+    if (path) return path
 
-  console.log(`[ModelManager] 📥 首次启动，下载模型: ${targetModel.name} (${targetModel.sizeMB}MB, ${targetModel.language})`)
-  try {
-    const path = await downloadModel(targetModel.id, onProgress)
-    setActiveModel(targetModel.id)
-    return path
-  } catch (e: any) {
-    console.error(`[ModelManager] ❌ 下载失败: ${e.message}`)
-
-    if (zhModel && targetModel.id === zhModel.id) {
-      const liteModel = MODEL_REGISTRY.find((m) => m.quality === 'lite')
-      if (liteModel && liteModel.id !== targetModel.id) {
-        console.log(`[ModelManager] 📥 中文模型下载失败, 回退下载轻量模型: ${liteModel.name}`)
-        try {
-          const path = await downloadModel(liteModel.id, onProgress)
-          setActiveModel(liteModel.id)
-          return path
-        } catch (e2: any) {
-          console.error(`[ModelManager] ❌ 回退下载也失败: ${e2.message}`)
-        }
-      }
+    const liteModel = findRegistryLiteModel([zhModel.id])
+    if (liteModel) {
+      console.log(`[ModelManager] 📥 中文模型下载失败, 回退下载轻量模型: ${liteModel.name}`)
+      const fallbackPath = await tryDownloadAndActivate(liteModel.id, onProgress)
+      if (fallbackPath) return fallbackPath
     }
 
+    console.error('[ModelManager] ❌ 所有下载尝试均失败')
     return null
   }
+
+  const liteModel = findRegistryLiteModel()
+  if (liteModel) {
+    console.log(`[ModelManager] 📥 首次启动，下载轻量模型: ${liteModel.name} (${liteModel.sizeMB}MB)`)
+    const path = await tryDownloadAndActivate(liteModel.id, onProgress)
+    if (path) return path
+  }
+
+  console.error('[ModelManager] ❌ 没有可下载的模型')
+  return null
 }
 
 export async function downloadModel(
@@ -239,12 +264,27 @@ export async function downloadModel(
 
     for (const url of urlsToTry) {
       for (let attempt = 1; attempt <= MAX_RETRIES_PER_URL; attempt++) {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+        let pollIntervalId: ReturnType<typeof setInterval> | null = null
         try {
           console.log(`[ModelManager] 🔗 下载源: ${url.substring(0, 50)}... (尝试 ${attempt}/${MAX_RETRIES_PER_URL})`)
 
           const downloadPromise = FileSystem.downloadAsync(url, path)
+
+          if (callback) {
+            pollIntervalId = setInterval(async () => {
+              try {
+                const info = await FileSystem.getInfoAsync(path) as any
+                if (info.exists && info.size > 0) {
+                  const progress = Math.min(info.size / (model.sizeMB * 1024 * 1024), 1.0)
+                  callback(Math.round(progress * 100) / 100)
+                }
+              } catch {}
+            }, 2000)
+          }
+
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('下载超时')), DOWNLOAD_TIMEOUT_MS)
+            timeoutId = setTimeout(() => reject(new Error('下载超时')), DOWNLOAD_TIMEOUT_MS)
           })
 
           const result = await Promise.race([downloadPromise, timeoutPromise])
@@ -257,12 +297,21 @@ export async function downloadModel(
           }
 
           const sizeMB = Math.round(verifyInfo.size / 1024 / 1024)
-          const expectedMinMB = model.sizeMB * 0.5
+          const expectedMinMB = model.sizeMB * 0.9
           if (sizeMB < expectedMinMB) {
-            throw new Error(`下载后验证失败：文件大小异常 (${sizeMB}MB < 预期 ${model.sizeMB}MB)，可能下载源返回了错误页面`)
+            throw new Error(`下载后验证失败：文件大小异常 (${sizeMB}MB < 预期最小 ${Math.round(expectedMinMB)}MB)，可能下载源返回了错误页面`)
+          }
+
+          const ggufValid = await verifyGgufHeader(path)
+          if (!ggufValid) {
+            throw new Error('下载后验证失败：文件头不是有效的 GGUF 格式，可能下载源返回了错误页面')
           }
 
           console.log(`[ModelManager] ✅ 模型下载完成: ${model.name} (${sizeMB}MB)`)
+
+          if (timeoutId) clearTimeout(timeoutId)
+          if (pollIntervalId) clearInterval(pollIntervalId)
+          if (callback) callback(1.0)
 
           _installedModels.set(modelId, {
             id: modelId,
@@ -274,6 +323,8 @@ export async function downloadModel(
 
           return path
         } catch (e: any) {
+          if (timeoutId) clearTimeout(timeoutId)
+          if (pollIntervalId) clearInterval(pollIntervalId)
           const isLastAttempt = attempt === MAX_RETRIES_PER_URL
           const isTimeout = e.message?.includes('超时') || e.message?.includes('timed out')
           const warnMsg = isLastAttempt
@@ -373,7 +424,7 @@ export async function autoUpgradeOnWifi(): Promise<string | null> {
     if (standardModel) {
       try {
         console.log(`[ModelManager] 📶 WiFi自动升级: ${standardModel.name}`)
-        const path = await downloadModel(standardModel.id)
+        await downloadModel(standardModel.id)
         return standardModel.id
       } catch (e: any) {
         console.warn(`[ModelManager] ⚠️ 自动升级失败: ${e.message}`)
