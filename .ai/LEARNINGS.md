@@ -260,3 +260,64 @@ final threshold = itemLists.length ~/ 2;
 5. **ImportanceEngine 权重重分配**: 新增 confirmationWeight=0.10 后，总权重需重新平衡
    - 旧: recency=0.15, frequency=0.15, emotional=0.20, surprise=0.15, entity=0.08, explicit=0.20
    - 新: recency=0.12, frequency=0.12, emotional=0.15, surprise=0.12, entity=0.06, explicit=0.18, confirmation=0.10
+
+---
+
+## 2026-04-28: "相"模块可插拔架构设计
+
+### 设计决策：零耦合 + 装饰器模式
+
+**需求**: 实现"相"（编码上下文增强）记忆模块，模拟人类模糊记忆特征——记忆随时间衰减变模糊，但在相似场景下可被触发回忆。
+
+**架构原则**:
+1. **完全自包含**: 所有"相"代码放在 `lib/features/xiang/`，不修改任何现有文件
+2. **装饰器模式**: `XiangRetrievalEngine` 包装现有 `RetrievalEngine`，而非修改它
+3. **元数据存储**: `XiangContext` 存储在 `memory.metadata['xiang']`，无需改 ObjectBox schema
+4. **抽象接口 + 默认实现**: 每个服务都可替换
+
+**文件结构**:
+```
+lib/features/xiang/
+├── xiang.dart                    # barrel export
+├── xiang_context.dart            # XiangContext + SensoryTag 实体
+├── xiang_profile.dart            # XiangProfile + ResonanceResult
+├── xiang_config.dart             # XiangConfig 配置
+├── xiang_capture_service.dart    # 相捕获（抽象+默认）
+├── xiang_decay_service.dart      # 相衰减（抽象+默认）
+├── xiang_matcher_service.dart    # 模糊匹配（抽象+默认+相似度矩阵）
+├── xiang_scene_trigger_service.dart # 场景触发（抽象+默认）
+└── xiang_plugin.dart             # XiangPlugin + XiangRetrievalEngine
+```
+
+### 核心算法
+
+**衰减公式**: `clarity = exp(-0.693 * ageDays / halfLifeDays)`
+- 天气半衰期: 7天（快速遗忘）
+- 活动半衰期: 14天
+- 地点半衰期: 30天（最持久）
+- 心情半衰期: 10天
+
+**模糊匹配创新**: 衰减后记忆获得"模糊度加成"——越模糊的记忆，对相似但不完全匹配的上下文越容易产生共鸣。这模拟了人类"似曾相识"的感觉。
+
+```dart
+// 模糊度加成公式
+final fuzzinessBoost = 1.0 + (1.0 - clarity) * 0.5;
+final score = similarity * fuzzinessBoost * weight;
+```
+
+**场景触发**: 当综合共鸣分数超过阈值（默认0.6），触发场景回忆，给予最高2.0x的检索增强。
+
+**相似度矩阵**: 预定义了天气/活动/地点/心情的中英文相似度矩阵，支持跨语言模糊匹配（如"雨"和"rainy"的相似度）。
+
+### 与现有系统的桥接
+
+- `XiangContext` 通过 `metadata['xiang']` 注入，不修改 ObjectBox schema
+- `XiangRetrievalEngine` 装饰 `RetrievalEngine`，先 over-retrieve 再 rescore
+- `EncodingContext.calculateMatchScore()` 作为 fallback，当无 XiangContext 时仍可用
+- `XiangPlugin` 实现 `MemoryScoringPlugin` 接口，可被其他插件系统复用
+
+### 教训
+1. **装饰器优于继承**: 不修改 RetrievalEngine 源码，用包装器扩展功能
+2. **元数据注入优于 schema 变更**: 避免数据库迁移风险
+3. **模糊度加成是反直觉的**: 衰减不是纯粹的"变差"，而是"变模糊"，模糊反而增加了对相似场景的敏感度
+4. **中英文相似度矩阵需要双语覆盖**: 单独的中文或英文矩阵不够，需要交叉映射
