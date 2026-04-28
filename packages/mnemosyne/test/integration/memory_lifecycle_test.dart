@@ -12,7 +12,7 @@ void main() {
   group('Integration: Memory Lifecycle', () {
     group('add → decay → prune lifecycle', () {
       test('memory should flow through full lifecycle', () {
-        final decayService = DecayService(decayRate: 0.1);
+        final decayService = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
 
         final memory = MemoryItem(
@@ -49,7 +49,7 @@ void main() {
 
     group('evolutionary stability (OpenMemory omnibus)', () {
       test('popular memory should survive while unpopular decays', () {
-        final decayService = DecayService(decayRate: 0.1);
+        final decayService = DecayService(forgettingHalfLifeDays: 30.0);
         final baseTime = DateTime(2025, 1, 1, 0, 0, 0);
         final futureTime = baseTime.add(const Duration(hours: 240));
 
@@ -78,7 +78,7 @@ void main() {
       });
 
       test('recently accessed memory should have higher strength than old access', () {
-        final decayService = DecayService(decayRate: 0.1);
+        final decayService = DecayService(forgettingHalfLifeDays: 30.0);
         final baseTime = DateTime(2025, 1, 1, 0, 0, 0);
         final futureTime = baseTime.add(const Duration(hours: 240));
 
@@ -330,7 +330,7 @@ void main() {
       });
 
       test('arousal gating should affect decay', () {
-        final decayService = DecayService(decayRate: 0.1);
+        final decayService = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
         final created = now.subtract(const Duration(hours: 10));
 

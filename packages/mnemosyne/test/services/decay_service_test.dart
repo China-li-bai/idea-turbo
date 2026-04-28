@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 import 'package:mnemosyne/features/memory/domain/entities/encoding_context.dart';
+import 'package:mnemosyne/core/constants.dart';
 import 'package:mnemosyne/services/decay_service.dart';
 
 MemoryItem _createMemory({
@@ -62,22 +63,37 @@ void main() {
         expect(result.timeElapsed, closeTo(0.0, 0.01));
       });
 
-      test('memory strength should decrease over time', () {
-        final service = DecayService(decayRate: 0.1);
+      test('memory strength should decrease over time (half-life model)', () {
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
         final created = now.subtract(const Duration(hours: 10));
         final memory = _createMemory(initialStrength: 1.0, createdAt: created);
 
         final result = service.calculateDecay(memory, now);
 
-        expect(result.decayedStrength, closeTo(0.368, 0.05));
+        final ageDays = 10.0 / 24.0;
+        final expectedFactor = exp(-0.693 * ageDays / 30.0);
+        expect(result.decayedStrength, closeTo(expectedFactor, 0.01));
+        expect(result.decayedStrength, lessThan(1.0));
+        expect(result.decayedStrength, greaterThan(0.9));
         expect(result.timeElapsed, closeTo(10.0, 0.1));
       });
 
-      test('strength should not fall below minStrength', () {
-        final service = DecayService(decayRate: 1.0, minStrength: 0.1);
+      test('memory should halve strength after one half-life', () {
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
-        final created = now.subtract(const Duration(hours: 100));
+        final created = now.subtract(const Duration(days: 30));
+        final memory = _createMemory(initialStrength: 1.0, createdAt: created);
+
+        final result = service.calculateDecay(memory, now);
+
+        expect(result.decayedStrength, closeTo(0.5, 0.05));
+      });
+
+      test('strength should not fall below minStrength', () {
+        final service = DecayService(minStrength: 0.1, forgettingHalfLifeDays: 0.001);
+        final now = DateTime.now();
+        final created = now.subtract(const Duration(days: 365));
         final memory = _createMemory(initialStrength: 1.0, createdAt: created);
 
         final result = service.calculateDecay(memory, now);
@@ -86,7 +102,7 @@ void main() {
       });
 
       test('pinned memory should not decay', () {
-        final service = DecayService(decayRate: 1.0);
+        final service = DecayService();
         final now = DateTime.now();
         final created = now.subtract(const Duration(hours: 100));
         final memory = _createMemory(
@@ -116,13 +132,36 @@ void main() {
         expect(result.decayFactor, lessThan(1));
         expect(result.decayFactor, greaterThan(0));
       });
+
+      test('semantic memories should decay slower (3x half-life)', () {
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
+        final now = DateTime.now();
+        final created = now.subtract(const Duration(days: 30));
+
+        final episodic = _createMemory(
+          initialStrength: 1.0,
+          createdAt: created,
+        );
+        final semantic = MemoryItem(
+          id: 'sem',
+          content: 'semantic fact',
+          type: MemoryType.semantic,
+          initialStrength: 1.0,
+          createdAt: created,
+        );
+
+        final episodicResult = service.calculateDecay(episodic, now);
+        final semanticResult = service.calculateDecay(semantic, now);
+
+        expect(semanticResult.decayedStrength, greaterThan(episodicResult.decayedStrength));
+      });
     });
 
     group('rehearsal effect', () {
       test('accessing a memory should increase its effective strength', () {
-        final service = DecayService(rehearsalBoost: 0.2);
+        final service = DecayService(rehearsalBoost: 0.2, forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
-        final created = now.subtract(const Duration(hours: 10));
+        final created = now.subtract(const Duration(days: 30));
 
         final memoryNoAccess = _createMemory(
           initialStrength: 1.0,
@@ -146,9 +185,9 @@ void main() {
       });
 
       test('rehearsal bonus should decay over time since last access', () {
-        final service = DecayService(rehearsalBoost: 0.2, rehearsalDecayRate: 0.1);
+        final service = DecayService(rehearsalBoost: 0.2, rehearsalDecayRate: 0.1, forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
-        final created = now.subtract(const Duration(hours: 20));
+        final created = now.subtract(const Duration(days: 30));
 
         final memoryRecent = _createMemory(
           initialStrength: 1.0,
@@ -173,14 +212,14 @@ void main() {
 
     group('estimateTimeToThreshold', () {
       test('should estimate time until strength falls below threshold', () {
-        final service = DecayService(decayRate: 0.1);
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
         final memory = _createMemory(initialStrength: 1.0, createdAt: now);
 
         final timeToHalf = service.estimateTimeToThreshold(memory, 0.5, now);
 
         expect(timeToHalf, isNotNull);
-        expect(timeToHalf, closeTo(6.93, 0.2));
+        expect(timeToHalf, closeTo(30.0 * 24.0, 5.0));
       });
 
       test('pinned memory should return null', () {
@@ -194,14 +233,33 @@ void main() {
       });
 
       test('already below threshold should return zero', () {
-        final service = DecayService(decayRate: 1.0);
+        final service = DecayService(forgettingHalfLifeDays: 0.01);
         final now = DateTime.now();
-        final created = now.subtract(const Duration(hours: 10));
+        final created = now.subtract(const Duration(days: 365));
         final memory = _createMemory(initialStrength: 1.0, createdAt: created);
 
         final result = service.estimateTimeToThreshold(memory, 0.9, now);
 
         expect(result, equals(0.0));
+      });
+
+      test('semantic memory should take longer to reach threshold', () {
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
+        final now = DateTime.now();
+
+        final episodic = _createMemory(initialStrength: 1.0, createdAt: now);
+        final semantic = MemoryItem(
+          id: 'sem',
+          content: 'semantic fact',
+          type: MemoryType.semantic,
+          initialStrength: 1.0,
+          createdAt: now,
+        );
+
+        final episodicTime = service.estimateTimeToThreshold(episodic, 0.5, now);
+        final semanticTime = service.estimateTimeToThreshold(semantic, 0.5, now);
+
+        expect(semanticTime!, greaterThan(episodicTime!));
       });
     });
 
@@ -226,14 +284,14 @@ void main() {
       });
 
       test('should filter memories by strength range', () {
-        final service = DecayService(decayRate: 0.1);
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
         final memories = List.generate(
           10,
           (i) => _createMemory(
             id: 'm$i',
             initialStrength: 1.0,
-            createdAt: now.subtract(Duration(hours: i * 5)),
+            createdAt: now.subtract(Duration(days: i * 30)),
           ),
         );
 
@@ -277,9 +335,9 @@ void main() {
 
     group('arousal gating', () {
       test('high arousal should boost decayed strength', () {
-        final service = DecayService(decayRate: 0.1);
+        final service = DecayService(forgettingHalfLifeDays: 30.0);
         final now = DateTime.now();
-        final created = now.subtract(const Duration(hours: 10));
+        final created = now.subtract(const Duration(days: 30));
 
         final memoryNoArousal = _createMemory(
           initialStrength: 1.0,

@@ -36,11 +36,13 @@ void main() {
     group('default values', () {
       test('should have sensible defaults', () {
         final engine = ImportanceEngine();
-        expect(engine.recencyWeight, equals(0.2));
+        expect(engine.recencyWeight, equals(0.15));
+        expect(engine.accessRecencyWeight, equals(0.05));
         expect(engine.frequencyWeight, equals(0.15));
         expect(engine.emotionalWeight, equals(0.2));
         expect(engine.surpriseWeight, equals(0.15));
-        expect(engine.entityWeight, equals(0.1));
+        expect(engine.entityWeight, equals(0.08));
+        expect(engine.topicWeight, equals(0.02));
         expect(engine.explicitWeight, equals(0.2));
       });
 
@@ -222,7 +224,7 @@ void main() {
 
         final result = engine.calculateImportance(memory, DateTime.now());
 
-        expect(result.sourceMultiplier, equals(1.5));
+        expect(result.sourceMultiplier, closeTo(1.3636, 0.01));
       });
 
       test('conversation source should have lower multiplier', () {
@@ -231,16 +233,16 @@ void main() {
 
         final result = engine.calculateImportance(memory, DateTime.now());
 
-        expect(result.sourceMultiplier, equals(0.8));
+        expect(result.sourceMultiplier, closeTo(0.4, 0.01));
       });
 
-      test('unknown source should use default multiplier of 1.0', () {
+      test('unknown source should use default base with trust weighting', () {
         final engine = ImportanceEngine(sourceWeights: {});
         final memory = _createMemory(source: MemorySource.conversation);
 
         final result = engine.calculateImportance(memory, DateTime.now());
 
-        expect(result.sourceMultiplier, equals(1.0));
+        expect(result.sourceMultiplier, closeTo(0.5, 0.01));
       });
     });
 

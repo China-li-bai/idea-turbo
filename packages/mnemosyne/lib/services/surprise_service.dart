@@ -5,15 +5,19 @@ class SurpriseResult {
   final double surprise;
   final double nearestDistance;
   final String? nearestId;
+  final List<String> nearestIds;
   final bool isDuplicate;
   final double importanceModifier;
+  final List<double> kDistances;
 
   SurpriseResult({
     required this.surprise,
     required this.nearestDistance,
     this.nearestId,
+    this.nearestIds = const [],
     required this.isDuplicate,
     required this.importanceModifier,
+    this.kDistances = const [],
   });
 }
 
@@ -35,8 +39,10 @@ class SurpriseService {
         surprise: 1.0,
         nearestDistance: 1.0,
         nearestId: null,
+        nearestIds: [],
         isDuplicate: false,
         importanceModifier: 0.15,
+        kDistances: [],
       );
     }
 
@@ -52,8 +58,10 @@ class SurpriseService {
         surprise: 1.0,
         nearestDistance: 1.0,
         nearestId: null,
+        nearestIds: [],
         isDuplicate: false,
         importanceModifier: 0.15,
+        kDistances: [],
       );
     }
 
@@ -63,6 +71,8 @@ class SurpriseService {
     final nearestId = kActual.first.id;
     final nearestDistance = kActual.first.distance;
     final nearestSimilarity = kActual.first.similarity;
+    final nearestIds = kActual.map((d) => d.id).toList();
+    final kDistances = kActual.map((d) => double.parse(d.distance.toStringAsFixed(4))).toList();
 
     final meanDistance = kActual.map((d) => d.distance).reduce((a, b) => a + b) / kActual.length;
 
@@ -71,16 +81,50 @@ class SurpriseService {
     final isDuplicate = nearestSimilarity >= dedupThreshold;
 
     return SurpriseResult(
-      surprise: surprise,
-      nearestDistance: nearestDistance,
+      surprise: double.parse(surprise.toStringAsFixed(4)),
+      nearestDistance: double.parse(nearestDistance.toStringAsFixed(4)),
       nearestId: nearestId,
+      nearestIds: nearestIds,
       isDuplicate: isDuplicate,
-      importanceModifier: importanceModifier,
+      importanceModifier: double.parse(importanceModifier.toStringAsFixed(4)),
+      kDistances: kDistances,
     );
   }
 
   double adjustImportance(double baseImportance, SurpriseResult surpriseResult) {
-    return (baseImportance + surpriseResult.importanceModifier).clamp(0.05, 1.0);
+    final adjusted = baseImportance + surpriseResult.importanceModifier;
+    return adjusted.clamp(0.05, 1.0);
+  }
+
+  List<({String id, double similarity})> findDuplicates(
+    List<MemoryItem> memories, {
+    double threshold = 0.92,
+    int limit = 500,
+  }) {
+    final duplicates = <({String id, double similarity})>[];
+    final checked = <String>{};
+
+    for (int i = 0; i < memories.length && i < limit; i++) {
+      final m1 = memories[i];
+      if (m1.embedding == null || m1.embedding!.isEmpty) continue;
+
+      for (int j = i + 1; j < memories.length && j < limit; j++) {
+        final m2 = memories[j];
+        if (m2.embedding == null || m2.embedding!.isEmpty) continue;
+
+        final pairKey = '${m1.id}:${m2.id}';
+        if (checked.contains(pairKey)) continue;
+        checked.add(pairKey);
+
+        final similarity = _cosineSimilarity(m1.embedding!, m2.embedding!);
+        if (similarity >= threshold) {
+          duplicates.add((id: m2.id, similarity: similarity));
+        }
+      }
+    }
+
+    duplicates.sort((a, b) => b.similarity.compareTo(a.similarity));
+    return duplicates;
   }
 
   double _cosineSimilarity(List<double> a, List<double> b) {

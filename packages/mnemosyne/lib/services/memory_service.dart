@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:mnemosyne/core/config.dart';
 import 'package:mnemosyne/features/memory/data/datasources/objectbox_memory_datasource.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
@@ -10,6 +11,7 @@ import 'package:mnemosyne/services/surprise_service.dart';
 import 'package:mnemosyne/services/retrieval_engine.dart';
 import 'package:mnemosyne/services/consolidation_engine.dart';
 import 'package:mnemosyne/services/keyword_extractor_service.dart';
+import 'package:crypto/crypto.dart';
 
 class MemoryService implements MemoryRepository {
   final MnemosyneConfig config;
@@ -50,6 +52,19 @@ class MemoryService implements MemoryRepository {
 
     var processedMemory = memory;
 
+    if (processedMemory.keywords.isEmpty) {
+      final extractedKeywords = _keywordExtractor.extractKeywords(processedMemory.content);
+      processedMemory = processedMemory.copyWith(keywords: extractedKeywords);
+    }
+
+    final contentHash = md5.convert(utf8.encode(processedMemory.content)).toString();
+    final existingByHash = await _findByContentHash(contentHash);
+    if (existingByHash != null) {
+      final updated = existingByHash.access();
+      await updateMemory(updated);
+      return existingByHash.id;
+    }
+
     if (memory.embedding != null && memory.embedding!.isNotEmpty) {
       final existingMemories = await _datasource.getMemoriesWithEmbeddings();
       final surpriseResult = _surpriseService.computeSurprise(
@@ -71,7 +86,7 @@ class MemoryService implements MemoryRepository {
         surpriseResult,
       );
 
-      processedMemory = memory.copyWith(
+      processedMemory = processedMemory.copyWith(
         importance: adjustedImportance,
         surpriseScore: surpriseResult.surprise,
       );
@@ -85,12 +100,40 @@ class MemoryService implements MemoryRepository {
       importance: importanceResult.finalScore,
     );
 
+    final metadataWithHash = <String, dynamic>{
+      ...?processedMemory.metadata,
+      'contentHash': contentHash,
+    };
+    processedMemory = processedMemory.copyWith(metadata: metadataWithHash);
+
     return await _datasource.insertMemory(processedMemory);
   }
 
   @override
   Future<void> updateMemory(MemoryItem memory) async {
-    await _datasource.updateMemory(memory);
+    final existing = await _datasource.getMemory(memory.id);
+    if (existing == null) {
+      await _datasource.updateMemory(memory);
+      return;
+    }
+
+    var updatedMemory = memory;
+
+    if (memory.content != existing.content) {
+      if (memory.keywords.isEmpty || memory.keywords == existing.keywords) {
+        final extractedKeywords = _keywordExtractor.extractKeywords(memory.content);
+        updatedMemory = updatedMemory.copyWith(keywords: extractedKeywords);
+      }
+
+      final newHash = md5.convert(utf8.encode(memory.content)).toString();
+      final metadataWithHash = <String, dynamic>{
+        ...?updatedMemory.metadata,
+        'contentHash': newHash,
+      };
+      updatedMemory = updatedMemory.copyWith(metadata: metadataWithHash);
+    }
+
+    await _datasource.updateMemory(updatedMemory);
   }
 
   @override
@@ -114,16 +157,18 @@ class MemoryService implements MemoryRepository {
       final keywordResults = await _datasource.keywordSearch(query, limit: limit);
       return keywordResults.map((m) {
         final decayed = _decayService.applyDecay(m, DateTime.now());
+        final importanceScore = _importanceEngine.getImportance(m, DateTime.now());
         return MemorySearchResult(
           memory: decayed,
-          totalScore: m.importance,
+          totalScore: importanceScore,
           semanticScore: 0.0,
           keywordScore: m.importance,
           recencyScore: _decayService.calculateRecencyScore(m, DateTime.now()),
-          importanceScore: m.importance,
+          importanceScore: importanceScore,
           contextMatchScore: 0.0,
         );
-      }).toList();
+      }).toList()
+        ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
     }
 
     return _retrievalEngine.retrieve(
@@ -148,7 +193,12 @@ class MemoryService implements MemoryRepository {
   Future<void> applyDecay(DateTime now) async {
     final allMemories = await _datasource.getAllMemories();
     final decayedMemories = allMemories.map((memory) {
-      return _decayService.applyDecay(memory, now);
+      final decayed = _decayService.applyDecay(memory, now);
+      final newImportance = _importanceEngine.getImportance(decayed, now);
+      return decayed.copyWith(
+        strength: decayed.strength,
+        importance: newImportance,
+      );
     }).toList();
 
     await _datasource.batchUpdateMemories(decayedMemories);
@@ -168,7 +218,16 @@ class MemoryService implements MemoryRepository {
     ConsolidationCandidate candidate,
     String Function(List<MemoryItem>) summarizeContent,
   ) async {
-    final result = _consolidationEngine.consolidate(candidate, summarizeContent);
+    final result = _consolidationEngine.consolidate(candidate, contentGenerator: summarizeContent);
+
+    List<double>? centroidEmbedding;
+    final embeddings = candidate.memories
+        .where((m) => m.embedding != null && m.embedding!.isNotEmpty)
+        .map((m) => m.embedding!)
+        .toList();
+    if (embeddings.isNotEmpty) {
+      centroidEmbedding = _consolidationEngine.calculateCentroid(embeddings);
+    }
 
     final consolidatedMemory = MemoryItem(
       id: result.consolidatedMemoryId,
@@ -178,6 +237,7 @@ class MemoryService implements MemoryRepository {
       importance: result.combinedImportance,
       entities: result.sharedEntities,
       topics: result.sharedTopics,
+      embedding: centroidEmbedding,
       isConsolidated: true,
     );
 
@@ -186,14 +246,76 @@ class MemoryService implements MemoryRepository {
     for (final sourceId in result.sourceMemoryIds) {
       final source = await getMemory(sourceId);
       if (source != null) {
+        final mergedEntities = <String>{
+          ...source.entities,
+          ...result.sharedEntities,
+        };
+        final mergedTopics = <String>{
+          ...source.topics,
+          ...result.sharedTopics,
+        };
+        final mergedKeywords = <String>{
+          ...source.keywords,
+        };
+        final mergedMetadata = <String, dynamic>{
+          ...?source.metadata,
+          'supersededBy': result.consolidatedMemoryId,
+          'supersededAt': DateTime.now().toIso8601String(),
+        };
         await updateMemory(source.copyWith(
+          status: MemoryStatus.superseded,
           isConsolidated: true,
           supersededById: result.consolidatedMemoryId,
+          entities: mergedEntities.toList(),
+          topics: mergedTopics.toList(),
+          keywords: mergedKeywords.toList(),
+          metadata: mergedMetadata,
         ));
       }
     }
 
     return result;
+  }
+
+  Future<Map<String, dynamic>> runLifecycle() async {
+    final now = DateTime.now();
+    final stats = <String, dynamic>{
+      'decayed': 0,
+      'pruned': 0,
+      'promoted': 0,
+    };
+
+    final allMemories = await _datasource.getAllMemories();
+    final updatedMemories = <MemoryItem>[];
+
+    for (final memory in allMemories) {
+      if (memory.isPinned || memory.isArchived) continue;
+
+      final decayed = _decayService.applyDecay(memory, now);
+      var updated = decayed;
+
+      if (memory.type == MemoryType.episodic &&
+          memory.importance >= 0.7 &&
+          memory.accessCount >= 3 &&
+          !memory.isConsolidated) {
+        updated = updated.copyWith(type: MemoryType.semantic);
+        stats['promoted'] = (stats['promoted'] as int) + 1;
+      }
+
+      updatedMemories.add(updated);
+      if (decayed.strength != memory.strength) {
+        stats['decayed'] = (stats['decayed'] as int) + 1;
+      }
+    }
+
+    await _datasource.batchUpdateMemories(updatedMemories);
+
+    final beforePrune = await _datasource.getAllMemories();
+    await pruneWeakMemories();
+    final afterPrune = await _datasource.getAllMemories();
+    stats['pruned'] = beforePrune.length - afterPrune.length;
+
+    return stats;
   }
 
   @override
@@ -205,5 +327,14 @@ class MemoryService implements MemoryRepository {
   Future<void> close() async {
     await _datasource.close();
     _isInitialized = false;
+  }
+
+  Future<MemoryItem?> _findByContentHash(String hash) async {
+    final allMemories = await _datasource.getAllMemories();
+    for (final memory in allMemories) {
+      final memHash = memory.metadata?['contentHash'];
+      if (memHash == hash) return memory;
+    }
+    return null;
   }
 }

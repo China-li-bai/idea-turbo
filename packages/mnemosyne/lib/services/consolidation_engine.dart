@@ -50,6 +50,7 @@ class ConsolidationEngine {
   final double minAgeHours;
   final int maxClusterSize;
   final bool preserveSourceMemories;
+  final Set<MemoryType> eligibleTypes;
   int _totalConsolidations = 0;
 
   ConsolidationEngine({
@@ -59,7 +60,8 @@ class ConsolidationEngine {
     this.minAgeHours = 24.0,
     this.maxClusterSize = 10,
     this.preserveSourceMemories = true,
-  });
+    Set<MemoryType>? eligibleTypes,
+  }) : eligibleTypes = eligibleTypes ?? {MemoryType.episodic, MemoryType.observation};
 
   List<ConsolidationCandidate> findConsolidationCandidates(
     List<MemoryItem> memories,
@@ -168,7 +170,8 @@ class ConsolidationEngine {
     final minAgeSeconds = minAgeHours * 3600;
     return memories.where((m) {
       if (m.isConsolidated) return false;
-      if (m.type != MemoryType.episodic) return false;
+      if (!eligibleTypes.contains(m.type)) return false;
+      if (m.status != MemoryStatus.active) return false;
       if (m.accessCount < minAccessCount) return false;
       final age = now.difference(m.createdAt).inSeconds.toDouble();
       if (age < minAgeSeconds) return false;

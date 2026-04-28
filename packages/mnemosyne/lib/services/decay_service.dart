@@ -1,6 +1,12 @@
 import 'dart:math';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 
+enum RetentionMode {
+  l2,
+  huber,
+  elastic,
+}
+
 class DecayResult {
   final double originalStrength;
   final double decayedStrength;
@@ -24,6 +30,10 @@ class DecayService {
   final double rehearsalDecayRate;
   final double recencyHalfLifeHours;
   final double forgettingHalfLifeDays;
+  final RetentionMode retentionMode;
+  final double huberDelta;
+  final double elasticL1Ratio;
+  final double trustKappa;
 
   DecayService({
     this.decayRate = 0.1,
@@ -32,6 +42,10 @@ class DecayService {
     this.rehearsalDecayRate = 0.05,
     this.recencyHalfLifeHours = 24.0,
     this.forgettingHalfLifeDays = 30.0,
+    this.retentionMode = RetentionMode.l2,
+    this.huberDelta = 0.5,
+    this.elasticL1Ratio = 0.3,
+    this.trustKappa = 2.0,
   });
 
   DecayResult calculateDecay(MemoryItem memory, DateTime now) {
@@ -47,16 +61,30 @@ class DecayService {
 
     final elapsedSeconds = now.difference(memory.createdAt).inSeconds.toDouble();
     final timeElapsedHours = elapsedSeconds / 3600.0;
+    final ageDays = elapsedSeconds / 86400.0;
 
-    final decayFactor = exp(-decayRate * timeElapsedHours);
+    final effectiveHalfLife = _computeEffectiveHalfLife(memory);
+
+    double decayFactor;
+    switch (retentionMode) {
+      case RetentionMode.l2:
+        decayFactor = _retentionL2(ageDays, effectiveHalfLife);
+      case RetentionMode.huber:
+        decayFactor = _retentionHuber(ageDays, effectiveHalfLife, huberDelta);
+      case RetentionMode.elastic:
+        decayFactor = _retentionElastic(ageDays, effectiveHalfLife, elasticL1Ratio);
+    }
+
     final baseStrength = memory.initialStrength * decayFactor;
 
     final rehearsalBonus = _calculateRehearsalBonus(memory, now);
 
+    final stabilityBonus = _calculateStabilityBonus(memory);
+
     final arousalLevel = memory.encodingContext?.arousalLevel ?? 0.0;
     final arousalGating = 1.0 + arousalLevel * 0.5;
 
-    var decayedStrength = (baseStrength + rehearsalBonus) * arousalGating;
+    var decayedStrength = (baseStrength + rehearsalBonus + stabilityBonus) * arousalGating;
     decayedStrength = decayedStrength.clamp(minStrength, 1.0);
 
     return DecayResult(
@@ -81,6 +109,73 @@ class DecayService {
     return baseBonus * bonusDecay;
   }
 
+  double _calculateStabilityBonus(MemoryItem memory) {
+    if (memory.accessCount <= 0) return 0.0;
+
+    final ageMs = DateTime.now().millisecondsSinceEpoch - memory.createdAt.millisecondsSinceEpoch;
+    final spanDays = ageMs / 86400000.0;
+    if (spanDays <= 0) return 0.0;
+
+    final stability = min(1.0, memory.accessCount / (spanDays + 1));
+    return stability * 0.05;
+  }
+
+  double _computeEffectiveHalfLife(MemoryItem memory) {
+    var halfLife = forgettingHalfLifeDays;
+
+    final trust = _getSourceTrust(memory.source);
+    halfLife = halfLife / (1.0 + trustKappa * (1.0 - trust));
+
+    if (memory.type == MemoryType.semantic) {
+      halfLife *= 3.0;
+    } else if (memory.type == MemoryType.instruction) {
+      halfLife *= 2.0;
+    } else if (memory.type == MemoryType.preference) {
+      halfLife *= 2.5;
+    }
+
+    return halfLife;
+  }
+
+  double _getSourceTrust(MemorySource source) {
+    switch (source) {
+      case MemorySource.userExplicit:
+        return 0.95;
+      case MemorySource.toolResult:
+        return 0.85;
+      case MemorySource.consolidation:
+        return 0.80;
+      case MemorySource.observation:
+        return 0.70;
+      case MemorySource.conversation:
+        return 0.60;
+      case MemorySource.external:
+        return 0.50;
+    }
+  }
+
+  double _retentionL2(double ageDays, double halfLife) {
+    return exp(-0.693 * ageDays / halfLife);
+  }
+
+  double _retentionHuber(double ageDays, double halfLife, double delta) {
+    final t = ageDays / halfLife;
+    if (t <= delta) {
+      return exp(-0.693 * ageDays / halfLife);
+    } else {
+      final transitionVal = exp(-0.693 * delta);
+      final slope = 0.693 * transitionVal;
+      final linear = transitionVal - slope * (t - delta);
+      return max(0.0, linear);
+    }
+  }
+
+  double _retentionElastic(double ageDays, double halfLife, double l1Ratio) {
+    final l2Component = exp(-0.693 * ageDays / halfLife);
+    final l1Component = max(0.0, 1.0 - (ageDays / (2.0 * halfLife)));
+    return l1Ratio * l1Component + (1.0 - l1Ratio) * l2Component;
+  }
+
   double calculateRecencyScore(MemoryItem memory, DateTime now) {
     final hoursElapsed = now.difference(memory.accessedAt).inSeconds / 3600.0;
     if (hoursElapsed <= 0) return 1.0;
@@ -89,7 +184,8 @@ class DecayService {
 
   double calculateTemporalDecay(MemoryItem memory, DateTime now) {
     final ageDays = now.difference(memory.createdAt).inSeconds / 86400.0;
-    return exp(-0.693 * ageDays / forgettingHalfLifeDays);
+    final effectiveHalfLife = _computeEffectiveHalfLife(memory);
+    return exp(-0.693 * ageDays / effectiveHalfLife);
   }
 
   MemoryItem applyDecay(MemoryItem memory, DateTime now) {
@@ -111,9 +207,10 @@ class DecayService {
     final currentStrength = calculateDecay(memory, now).decayedStrength;
     if (currentStrength <= threshold) return 0.0;
     if (threshold / memory.initialStrength >= 1.0) return null;
+    final effectiveHalfLife = _computeEffectiveHalfLife(memory);
     final targetDecayFactor = threshold / memory.initialStrength;
-    final timeInHours = -log(targetDecayFactor) / decayRate;
-    return timeInHours;
+    final timeInDays = -log(targetDecayFactor) * effectiveHalfLife / 0.693;
+    return timeInDays * 24.0;
   }
 
   List<MapEntry<MemoryItem, DecayResult>> batchCalculateDecay(
@@ -145,5 +242,24 @@ class DecayService {
       accessedAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
+  }
+
+  bool shouldForget(MemoryItem memory, DateTime now, {
+    double retentionThreshold = 0.15,
+    double minImportance = 0.1,
+    int minAccessCount = 1,
+    double minAgeDays = 30.0,
+  }) {
+    if (memory.isPinned) return false;
+    if (memory.type == MemoryType.semantic) return false;
+    if (memory.type == MemoryType.instruction) return false;
+
+    final ageDays = now.difference(memory.createdAt).inSeconds / 86400.0;
+    if (ageDays < minAgeDays) return false;
+
+    final retention = calculateDecay(memory, now).decayFactor;
+    return retention < retentionThreshold &&
+        memory.importance < minImportance &&
+        memory.accessCount < minAccessCount;
   }
 }

@@ -22,12 +22,16 @@ class RetrievalEngine {
   final DecayService decayService;
   final KeywordExtractorService keywordExtractor;
   final int rrfK;
+  final double minConfidence;
+  final double exactMatchBoost;
 
   RetrievalEngine({
     required this.datasource,
     required this.decayService,
     required this.keywordExtractor,
     this.rrfK = 60,
+    this.minConfidence = 0.0,
+    this.exactMatchBoost = 1.5,
   });
 
   static QueryIntent classifyIntent(String query) {
@@ -64,6 +68,7 @@ class RetrievalEngine {
     now ??= DateTime.now();
     final intent = classifyIntent(query);
     final intentWeights = getIntentWeights(intent);
+    final queryTokens = _tokenize(query);
 
     final denseResults = await _denseSearch(queryEmbedding, limit * 3);
     final keywordResults = await _keywordSearch(query, limit * 3);
@@ -85,7 +90,6 @@ class RetrievalEngine {
       ],
     );
 
-    final results = <MemorySearchResult>[];
     final sortedRrf = rrfScores.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -101,21 +105,49 @@ class RetrievalEngine {
       memoryMap[m.id] = m;
     }
 
-    for (final entry in sortedRrf.take(limit)) {
+    final boosted = <MapEntry<String, double>>[];
+    for (final entry in sortedRrf) {
       final memory = memoryMap[entry.key];
       if (memory == null) continue;
 
-      final decayedMemory = decayService.applyDecay(memory, now);
+      var score = entry.value;
 
-      var boostedScore = entry.value;
-      boostedScore *= (0.8 + 0.4 * memory.importance);
+      score *= (0.8 + 0.4 * memory.importance);
+
+      final temporalSignal = _detectTemporal(query);
+      if (temporalSignal != null && memory.encodingContext?.capturedAt != null) {
+        final memDate = _formatDate(memory.encodingContext!.capturedAt!);
+        if (memDate.contains(temporalSignal)) {
+          score *= 2.0;
+        }
+      }
+
+      final exactSignal = _exactMatchSignal(queryTokens, memory);
+      if (exactSignal > 0) {
+        score *= (1.0 + exactSignal * (exactMatchBoost - 1.0));
+      }
+
       if (memory.type == MemoryType.episodic) {
         final temporalDecay = decayService.calculateTemporalDecay(memory, now);
-        boostedScore *= (0.5 + 0.5 * temporalDecay);
+        score *= (0.5 + 0.5 * temporalDecay);
       }
       if (memory.accessCount > 0) {
-        boostedScore *= (1.0 + 0.1 * log(1 + memory.accessCount));
+        score *= (1.0 + 0.1 * log(1 + memory.accessCount));
       }
+
+      boosted.add(MapEntry(entry.key, score));
+    }
+
+    boosted.sort((a, b) => b.value.compareTo(a.value));
+
+    final results = <MemorySearchResult>[];
+    for (final entry in boosted.take(limit)) {
+      final memory = memoryMap[entry.key];
+      if (memory == null) continue;
+
+      if (minConfidence > 0 && entry.value < minConfidence) continue;
+
+      final decayedMemory = decayService.applyDecay(memory, now);
 
       final contextMatchScore = currentContext != null && memory.encodingContext != null
           ? memory.encodingContext!.calculateMatchScore(currentContext)
@@ -123,7 +155,7 @@ class RetrievalEngine {
 
       results.add(MemorySearchResult(
         memory: decayedMemory,
-        totalScore: boostedScore,
+        totalScore: entry.value,
         semanticScore: _getScore(denseRanking, memory.id),
         keywordScore: _getScore(keywordRanking, memory.id),
         recencyScore: decayService.calculateRecencyScore(memory, now),
@@ -132,8 +164,7 @@ class RetrievalEngine {
       ));
     }
 
-    results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
-    return results.take(limit).toList();
+    return results;
   }
 
   Future<List<ObjectWithScore<MemoryEntity>>> _denseSearch(
@@ -149,8 +180,18 @@ class RetrievalEngine {
 
   Future<List<MemoryItem>> _keywordSearch(String query, int limit) async {
     final keywords = keywordExtractor.extractKeywords(query);
-    if (keywords.isEmpty) return [];
-    return await datasource.keywordSearch(keywords.first, limit: limit);
+    if (keywords.isEmpty) {
+      return await datasource.keywordSearch(query, limit: limit);
+    }
+    final results = <String, MemoryItem>{};
+    for (final keyword in keywords) {
+      final matches = await datasource.keywordSearch(keyword, limit: limit);
+      for (final m in matches) {
+        results[m.id] = m;
+      }
+      if (results.length >= limit) break;
+    }
+    return results.values.toList();
   }
 
   List<_RankEntry> _rankByContext(List<MemoryItem> memories, EncodingContext? currentContext) {
@@ -188,6 +229,67 @@ class RetrievalEngine {
       if (entry.id == id) return entry.score;
     }
     return 0.0;
+  }
+
+  List<String> _tokenize(String query) {
+    return query
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\w\s\u4e00-\u9fa5]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length > 1)
+        .toList();
+  }
+
+  double _exactMatchSignal(List<String> queryTokens, MemoryItem memory) {
+    final content = memory.content.toLowerCase();
+    final keywords = memory.keywords.map((k) => k.toLowerCase()).toList();
+    double score = 0.0;
+
+    int tokenHits = 0;
+    for (final token in queryTokens.take(8)) {
+      if (token.length > 2 && content.contains(token)) {
+        tokenHits++;
+      }
+    }
+    score += min(0.6, tokenHits * 0.12);
+
+    for (final keyword in keywords) {
+      if (queryTokens.contains(keyword)) {
+        score += 0.2;
+        break;
+      }
+    }
+
+    return min(1.0, score);
+  }
+
+  String? _detectTemporal(String query) {
+    final datePattern = RegExp(r'\b(\d{4}-\d{2}-\d{2})\b');
+    final match = datePattern.firstMatch(query);
+    if (match != null) return match.group(1);
+
+    final monthPattern = RegExp(r'\b(\d{4}-\d{2})\b');
+    final monthMatch = monthPattern.firstMatch(query);
+    if (monthMatch != null) return monthMatch.group(1);
+
+    return null;
+  }
+
+  String _formatDate(DateTime dt) {
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  static double normalizeBm25Score(double rawScore, double midpoint, double steepness) {
+    final z = (steepness * (rawScore - midpoint)).clamp(-20.0, 20.0);
+    return 1.0 / (1.0 + exp(-z));
+  }
+
+  static (double midpoint, double steepness) getBm25Params(int queryTermCount) {
+    if (queryTermCount <= 3) return (5.0, 0.7);
+    if (queryTermCount <= 6) return (7.0, 0.6);
+    if (queryTermCount <= 9) return (9.0, 0.5);
+    if (queryTermCount <= 15) return (10.0, 0.5);
+    return (12.0, 0.5);
   }
 }
 
