@@ -65,6 +65,7 @@ class MemoryItem {
   final String? agentId; final String? userId; final List<String> relatedMemoryIds;
   final String? parentMemoryId; final String? supersededById;
   final bool isPinned; final bool isArchived; final bool isConsolidated;
+  final int confirmationCount;
   MemoryItem({required this.id, required this.content, this.type = MemoryType.episodic,
       this.source = MemorySource.conversation, this.status = MemoryStatus.active,
       this.importance = 0.5, this.initialStrength = 1.0, this.strength = 1.0,
@@ -73,7 +74,8 @@ class MemoryItem {
       this.metadata, DateTime? createdAt, DateTime? accessedAt, DateTime? updatedAt,
       this.accessCount = 0, this.sourceId, this.agentId, this.userId,
       this.relatedMemoryIds = const [], this.parentMemoryId, this.supersededById,
-      this.isPinned = false, this.isArchived = false, this.isConsolidated = false})
+      this.isPinned = false, this.isArchived = false, this.isConsolidated = false,
+      this.confirmationCount = 0})
       : createdAt = createdAt ?? DateTime.now(), accessedAt = accessedAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
   MemoryItem copyWith({String? id, String? content, MemoryType? type, MemorySource? source,
@@ -84,7 +86,7 @@ class MemoryItem {
       DateTime? createdAt, DateTime? accessedAt, DateTime? updatedAt,
       int? accessCount, String? sourceId, String? agentId, String? userId,
       List<String>? relatedMemoryIds, String? parentMemoryId, String? supersededById,
-      bool? isPinned, bool? isArchived, bool? isConsolidated}) {
+      bool? isPinned, bool? isArchived, bool? isConsolidated, int? confirmationCount}) {
     return MemoryItem(id: id ?? this.id, content: content ?? this.content,
         type: type ?? this.type, source: source ?? this.source, status: status ?? this.status,
         importance: importance ?? this.importance, initialStrength: initialStrength ?? this.initialStrength,
@@ -99,7 +101,8 @@ class MemoryItem {
         relatedMemoryIds: relatedMemoryIds ?? this.relatedMemoryIds,
         parentMemoryId: parentMemoryId ?? this.parentMemoryId, supersededById: supersededById ?? this.supersededById,
         isPinned: isPinned ?? this.isPinned, isArchived: isArchived ?? this.isArchived,
-        isConsolidated: isConsolidated ?? this.isConsolidated);
+        isConsolidated: isConsolidated ?? this.isConsolidated,
+        confirmationCount: confirmationCount ?? this.confirmationCount);
   }
 }
 
@@ -164,6 +167,10 @@ class DecayService {
     if (memory.type == MemoryType.semantic) halfLife *= 3.0;
     else if (memory.type == MemoryType.instruction) halfLife *= 2.0;
     else if (memory.type == MemoryType.preference) halfLife *= 2.5;
+    if (memory.accessCount > 0) {
+      final repetitionMultiplier = 1.0 + 0.3 * log(1 + memory.accessCount);
+      halfLife *= repetitionMultiplier;
+    }
     return halfLife;
   }
   double _getSourceTrust(MemorySource source) => switch (source) {
@@ -209,6 +216,7 @@ class DecayService {
       double minImportance = 0.1, int minAccessCount = 1, double minAgeDays = 30.0}) {
     if (memory.isPinned) return false;
     if (memory.type == MemoryType.semantic || memory.type == MemoryType.instruction) return false;
+    if (memory.status == MemoryStatus.superseded || memory.status == MemoryStatus.invalidated) return true;
     final ageDays = now.difference(memory.createdAt).inSeconds / 86400.0;
     if (ageDays < minAgeDays) return false;
     final retention = calculateDecay(memory, now).decayFactor;
@@ -219,13 +227,14 @@ class DecayService {
 class ImportanceResult {
   final double finalScore, recencyScore, accessRecencyScore, frequencyScore,
       emotionalScore, surpriseScore, entityScore, topicScore, explicitScore,
-      typeBonus, stabilityBonus, sourceMultiplier;
+      typeBonus, stabilityBonus, confirmationScore, sourceMultiplier;
   final Map<String, double> breakdown;
   ImportanceResult({required this.finalScore, required this.recencyScore,
       required this.accessRecencyScore, required this.frequencyScore,
       required this.emotionalScore, required this.surpriseScore,
       required this.entityScore, required this.topicScore, required this.explicitScore,
-      required this.typeBonus, required this.stabilityBonus, required this.sourceMultiplier,
+      required this.typeBonus, required this.stabilityBonus, required this.confirmationScore,
+      required this.sourceMultiplier,
       Map<String, double>? breakdown}) : breakdown = breakdown ?? {};
 }
 
@@ -236,20 +245,22 @@ class ImportanceHistoryEntry {
 
 class ImportanceEngine {
   final double recencyWeight, accessRecencyWeight, frequencyWeight, emotionalWeight,
-      surpriseWeight, entityWeight, topicWeight, explicitWeight;
+      surpriseWeight, entityWeight, topicWeight, explicitWeight, confirmationWeight;
   final double recencyHalfLifeHours, accessRecencyHalfLifeHours;
-  final int frequencySaturation, entitySaturation, topicSaturation;
+  final int frequencySaturation, entitySaturation, topicSaturation, confirmationSaturation;
   final Map<MemorySource, double> sourceWeights;
   final Map<MemoryType, double> typeBonuses;
   final double trustKappa;
   final int maxHistoryPerMemory;
   final Map<String, List<ImportanceHistoryEntry>> _history = {};
-  ImportanceEngine({this.recencyWeight = 0.15, this.accessRecencyWeight = 0.05,
-      this.frequencyWeight = 0.15, this.emotionalWeight = 0.2,
-      this.surpriseWeight = 0.15, this.entityWeight = 0.08,
-      this.topicWeight = 0.02, this.explicitWeight = 0.2,
+  ImportanceEngine({this.recencyWeight = 0.12, this.accessRecencyWeight = 0.05,
+      this.frequencyWeight = 0.12, this.emotionalWeight = 0.15,
+      this.surpriseWeight = 0.12, this.entityWeight = 0.06,
+      this.topicWeight = 0.02, this.explicitWeight = 0.18,
+      this.confirmationWeight = 0.10,
       this.recencyHalfLifeHours = 24.0, this.accessRecencyHalfLifeHours = 48.0,
       this.frequencySaturation = 10, this.entitySaturation = 5, this.topicSaturation = 5,
+      this.confirmationSaturation = 10,
       Map<MemorySource, double>? sourceWeights, Map<MemoryType, double>? typeBonuses,
       this.trustKappa = 2.0, this.maxHistoryPerMemory = 50})
       : sourceWeights = sourceWeights ?? const {MemorySource.userExplicit: 1.5, MemorySource.toolResult: 1.2,
@@ -267,11 +278,13 @@ class ImportanceEngine {
     final explicitScore = _calcExplicit(memory, explicitImportance);
     final typeBonus = typeBonuses[memory.type] ?? 0.0;
     final stabilityBonus = _calcStability(memory);
+    final confirmationScore = _calcConfirmation(memory);
     final sourceMultiplier = _getSourceMultiplier(memory);
     final weightedSum = recencyWeight * recencyScore + accessRecencyWeight * accessRecencyScore +
         frequencyWeight * frequencyScore + emotionalWeight * emotionalScore +
         surpriseWeight * surpriseScore + entityWeight * entityScore +
-        topicWeight * topicScore + explicitWeight * explicitScore;
+        topicWeight * topicScore + explicitWeight * explicitScore +
+        confirmationWeight * confirmationScore;
     final preMultiplier = weightedSum + typeBonus + stabilityBonus;
     final finalScore = (preMultiplier * sourceMultiplier).clamp(0.0, 1.0);
     recordImportance(memory.id, finalScore);
@@ -279,11 +292,13 @@ class ImportanceEngine {
         accessRecencyScore: accessRecencyScore, frequencyScore: frequencyScore,
         emotionalScore: emotionalScore, surpriseScore: surpriseScore,
         entityScore: entityScore, topicScore: topicScore, explicitScore: explicitScore,
-        typeBonus: typeBonus, stabilityBonus: stabilityBonus, sourceMultiplier: sourceMultiplier,
+        typeBonus: typeBonus, stabilityBonus: stabilityBonus, confirmationScore: confirmationScore,
+        sourceMultiplier: sourceMultiplier,
         breakdown: {'recency': recencyScore, 'accessRecency': accessRecencyScore,
             'frequency': frequencyScore, 'emotional': emotionalScore, 'surprise': surpriseScore,
             'entity': entityScore, 'topic': topicScore, 'explicit': explicitScore,
-            'typeBonus': typeBonus, 'stabilityBonus': stabilityBonus, 'sourceMultiplier': sourceMultiplier});
+            'typeBonus': typeBonus, 'stabilityBonus': stabilityBonus,
+            'confirmation': confirmationScore, 'sourceMultiplier': sourceMultiplier});
   }
   double _calcRecency(MemoryItem m, DateTime now) {
     final h = now.difference(m.createdAt).inSeconds / 3600.0;
@@ -309,6 +324,10 @@ class ImportanceEngine {
     final spanDays = ageMs / 86400000.0;
     if (spanDays <= 0) return 0.0;
     return min(1.0, m.accessCount / (spanDays + 1)) * 0.05;
+  }
+  double _calcConfirmation(MemoryItem m) {
+    if (m.confirmationCount <= 0) return 0.0;
+    return min(1.0, log(1 + m.confirmationCount) / log(1 + confirmationSaturation));
   }
   double _getSourceMultiplier(MemoryItem m) {
     final base = sourceWeights[m.source] ?? 1.0;
@@ -367,6 +386,99 @@ class SurpriseService {
 }
 class _ND { final String id; final double dist, sim; _ND(this.id, this.dist, this.sim); }
 
+const Map<String, List<String>> _queryExpansions = {
+  'auth': ['authentication', 'login', 'oauth', 'token', '认证', '登录'],
+  'bug': ['issue', 'error', 'failure', '缺陷', '错误'],
+  'deploy': ['deployment', 'release', 'ship', '部署', '发布'],
+  'memory': ['recall', 'context', 'history', '记忆', '回忆'],
+  'graph': ['entity', 'relationship', '图', '关系'],
+  'code': ['function', 'class', 'file', '代码', '函数'],
+  'config': ['configuration', 'settings', '配置', '设置'],
+  'api': ['endpoint', 'route', '接口'],
+  'db': ['database', 'storage', '数据库', '存储'],
+  'ai': ['artificial intelligence', 'ml', 'model', '人工智能', '模型'],
+  '安全': ['security', 'vulnerability', '漏洞'],
+  '性能': ['performance', 'optimization', '优化'],
+  '架构': ['architecture', 'design', '设计'],
+};
+
+enum RetrievalProfile { factsOnly, factsPlusRules, fullContext }
+
+class RetrievalEngine {
+  final _MockDataSource datasource;
+  final DecayService decayService;
+  final _MockKeywordExtractor keywordExtractor;
+  final int rrfK;
+  final double minConfidence;
+  final double exactMatchBoost;
+  final bool enableQueryExpansion;
+  final RetrievalProfile retrievalProfile;
+
+  RetrievalEngine({required this.datasource, required this.decayService,
+      required this.keywordExtractor, this.rrfK = 60, this.minConfidence = 0.0,
+      this.exactMatchBoost = 1.5, this.enableQueryExpansion = true,
+      this.retrievalProfile = RetrievalProfile.fullContext});
+
+  String? detectTemporal(String query) {
+    final datePattern = RegExp(r'\b(\d{4}-\d{2}-\d{2})\b');
+    final match = datePattern.firstMatch(query);
+    if (match != null) return match.group(1);
+    final monthPattern = RegExp(r'\b(\d{4}-\d{2})\b');
+    final monthMatch = monthPattern.firstMatch(query);
+    if (monthMatch != null) return monthMatch.group(1);
+    final chineseDatePattern = RegExp(r'(\d{4})年(\d{1,2})月(\d{1,2})日');
+    final cnMatch = chineseDatePattern.firstMatch(query);
+    if (cnMatch != null) {
+      final y = cnMatch.group(1);
+      final m = cnMatch.group(2)!.padLeft(2, '0');
+      final d = cnMatch.group(3)!.padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+    final chineseMonthPattern = RegExp(r'(\d{4})年(\d{1,2})月');
+    final cnMonthMatch = chineseMonthPattern.firstMatch(query);
+    if (cnMonthMatch != null) {
+      final y = cnMonthMatch.group(1);
+      final m = cnMonthMatch.group(2)!.padLeft(2, '0');
+      return '$y-$m';
+    }
+    final relativePattern = RegExp(r'(昨天|前天|上周|上个月|去年|今天)');
+    final relMatch = relativePattern.firstMatch(query);
+    if (relMatch != null) return relMatch.group(1);
+    return null;
+  }
+
+  List<String> expandQuery(List<String> tokens) {
+    final expanded = <String>[];
+    final seen = <String>{};
+    for (final token in tokens) {
+      final lower = token.toLowerCase();
+      if (seen.contains(lower)) continue;
+      seen.add(lower);
+      final expansions = _queryExpansions[lower];
+      if (expansions != null) {
+        for (final exp in expansions) {
+          if (!seen.contains(exp.toLowerCase())) {
+            expanded.add(exp);
+            seen.add(exp.toLowerCase());
+          }
+        }
+      }
+    }
+    return expanded;
+  }
+
+  Set<MemoryType> getAllowedTypes(RetrievalProfile profile) {
+    switch (profile) {
+      case RetrievalProfile.factsOnly: return {MemoryType.semantic};
+      case RetrievalProfile.factsPlusRules: return {MemoryType.semantic, MemoryType.instruction};
+      case RetrievalProfile.fullContext: return MemoryType.values.toSet();
+    }
+  }
+}
+
+class _MockDataSource {}
+class _MockKeywordExtractor {}
+
 class ConsolidationCandidate {
   final List<MemoryItem> memories; final List<double> centroid;
   final double similarityScore, combinedImportance;
@@ -386,11 +498,16 @@ class ConsolidationEngine {
   final int minMemories, minAccessCount, maxClusterSize;
   final double similarityThreshold, minAgeHours;
   final bool preserveSourceMemories;
+  final Set<MemoryType> eligibleTypes;
   int _totalConsolidations = 0;
   ConsolidationEngine({this.minMemories = 3, this.similarityThreshold = 0.75, this.minAccessCount = 2,
-      this.minAgeHours = 24.0, this.maxClusterSize = 10, this.preserveSourceMemories = true});
+      this.minAgeHours = 24.0, this.maxClusterSize = 10, this.preserveSourceMemories = true,
+      Set<MemoryType>? eligibleTypes})
+      : eligibleTypes = eligibleTypes ?? {MemoryType.episodic};
   List<ConsolidationCandidate> findConsolidationCandidates(List<MemoryItem> memories, DateTime now) {
-    final eligible = memories.where((m) => !m.isConsolidated && m.type == MemoryType.episodic &&
+    final eligible = memories.where((m) => !m.isConsolidated &&
+        eligibleTypes.contains(m.type) &&
+        m.status == MemoryStatus.active &&
         m.accessCount >= minAccessCount && now.difference(m.createdAt).inSeconds >= minAgeHours * 3600 &&
         m.embedding != null && m.embedding!.isNotEmpty).toList();
     if (eligible.length < minMemories) return [];
@@ -563,19 +680,19 @@ class _StartsWith { final String value; _StartsWith(this.value); }
 MemoryItem mkMem({String id = 'test-id', double initialStrength = 1.0, double strength = 1.0,
     DateTime? createdAt, DateTime? accessedAt, int accessCount = 0, bool isPinned = false,
     EncodingContext? encodingContext, MemoryType type = MemoryType.episodic,
-    MemorySource source = MemorySource.conversation, double importance = 0.5,
-    double emotionalValence = 0.0, double surpriseScore = 0.0,
+    MemorySource source = MemorySource.conversation, MemoryStatus status = MemoryStatus.active,
+    double importance = 0.5, double emotionalValence = 0.0, double surpriseScore = 0.0,
     List<String> entities = const [], List<String> topics = const [],
     List<double> embedding = const [], Map<String, dynamic>? metadata,
-    bool isConsolidated = false, String content = 'test content'}) {
+    bool isConsolidated = false, int confirmationCount = 0, String content = 'test content'}) {
   final now = DateTime.now();
-  return MemoryItem(id: id, content: content, type: type, source: source,
+  return MemoryItem(id: id, content: content, type: type, source: source, status: status,
       initialStrength: initialStrength, strength: strength,
       createdAt: createdAt ?? now, accessedAt: accessedAt ?? createdAt ?? now,
       accessCount: accessCount, isPinned: isPinned, encodingContext: encodingContext,
       importance: importance, emotionalValence: emotionalValence, surpriseScore: surpriseScore,
       entities: entities, topics: topics, embedding: embedding.isEmpty ? null : embedding,
-      metadata: metadata, isConsolidated: isConsolidated);
+      metadata: metadata, isConsolidated: isConsolidated, confirmationCount: confirmationCount);
 }
 
 void main() {
@@ -672,10 +789,11 @@ void main() {
 
   group('ImportanceEngine', () {
     group('defaults', () { test('correct defaults', () { final e = ImportanceEngine();
-      expect(e.recencyWeight, equals(0.15)); expect(e.accessRecencyWeight, equals(0.05));
-      expect(e.frequencyWeight, equals(0.15)); expect(e.emotionalWeight, equals(0.2));
-      expect(e.surpriseWeight, equals(0.15)); expect(e.entityWeight, equals(0.08));
-      expect(e.topicWeight, equals(0.02)); expect(e.explicitWeight, equals(0.2)); }); });
+      expect(e.recencyWeight, equals(0.12)); expect(e.accessRecencyWeight, equals(0.05));
+      expect(e.frequencyWeight, equals(0.12)); expect(e.emotionalWeight, equals(0.15));
+      expect(e.surpriseWeight, equals(0.12)); expect(e.entityWeight, equals(0.06));
+      expect(e.topicWeight, equals(0.02)); expect(e.explicitWeight, equals(0.18));
+      expect(e.confirmationWeight, equals(0.10)); }); });
     group('recency', () {
       test('recent high', () { final e = ImportanceEngine(); final now = DateTime.now();
         expect(e.calculateImportance(mkMem(createdAt: now), now).recencyScore, closeTo(1.0, 0.01)); });
@@ -800,6 +918,96 @@ void main() {
       final pop = mkMem(id: 'pop', initialStrength: 1.0, createdAt: base, accessedAt: future.subtract(Duration(hours: 1)), accessCount: 10);
       final unpop = mkMem(id: 'unpop', initialStrength: 1.0, createdAt: base, accessedAt: base, accessCount: 0);
       expect(s.calculateDecay(pop, future).decayedStrength, greaterThan(s.calculateDecay(unpop, future).decayedStrength)); });
+  });
+
+  group('DEFECT-4: ConfirmationScore', () {
+    test('zero confirmations = 0', () { final e = ImportanceEngine(); final now = DateTime.now();
+      expect(e.calculateImportance(mkMem(confirmationCount: 0), now).confirmationScore, equals(0.0)); });
+    test('more confirmations > fewer', () { final e = ImportanceEngine(); final now = DateTime.now();
+      final r0 = e.calculateImportance(mkMem(confirmationCount: 0), now);
+      final r5 = e.calculateImportance(mkMem(confirmationCount: 5), now);
+      final r20 = e.calculateImportance(mkMem(confirmationCount: 20), now);
+      expect(r5.confirmationScore, greaterThan(r0.confirmationScore));
+      expect(r20.confirmationScore, greaterThan(r5.confirmationScore)); });
+    test('saturates at 1', () { final e = ImportanceEngine(confirmationSaturation: 10);
+      expect(e.calculateImportance(mkMem(confirmationCount: 1000), DateTime.now()).confirmationScore, equals(1.0)); });
+    test('confirmation boosts final importance', () { final e = ImportanceEngine(); final now = DateTime.now();
+      final rNo = e.calculateImportance(mkMem(confirmationCount: 0), now);
+      final rYes = e.calculateImportance(mkMem(confirmationCount: 10), now);
+      expect(rYes.finalScore, greaterThan(rNo.finalScore)); });
+  });
+
+  group('DEFECT-8: Spaced repetition', () {
+    test('more accesses = longer half-life', () { final s = DecayService(forgettingHalfLifeDays: 30.0, trustKappa: 0.0);
+      final now = DateTime.now(); final c = now.subtract(Duration(days: 30));
+      final r0 = s.calculateDecay(mkMem(initialStrength: 1.0, createdAt: c, accessCount: 0), now);
+      final r5 = s.calculateDecay(mkMem(initialStrength: 1.0, createdAt: c, accessCount: 5), now);
+      final r20 = s.calculateDecay(mkMem(initialStrength: 1.0, createdAt: c, accessCount: 20), now);
+      expect(r5.decayedStrength, greaterThan(r0.decayedStrength));
+      expect(r20.decayedStrength, greaterThan(r5.decayedStrength)); });
+  });
+
+  group('DEFECT-3: MemoryStatus filtering', () {
+    test('superseded shouldForget = true', () { final s = DecayService(); final now = DateTime.now();
+      expect(s.shouldForget(mkMem(status: MemoryStatus.superseded, createdAt: now.subtract(Duration(days: 60))), now), isTrue); });
+    test('invalidated shouldForget = true', () { final s = DecayService(); final now = DateTime.now();
+      expect(s.shouldForget(mkMem(status: MemoryStatus.invalidated, createdAt: now.subtract(Duration(days: 60))), now), isTrue); });
+    test('active normal rules', () { final s = DecayService(forgettingHalfLifeDays: 0.01); final now = DateTime.now();
+      expect(s.shouldForget(mkMem(type: MemoryType.episodic, importance: 0.05, accessCount: 0, createdAt: now.subtract(Duration(days: 60))), now), isTrue); });
+  });
+
+  group('DEFECT-1: Consolidation eligibleTypes', () {
+    test('default includes episodic', () { final e = ConsolidationEngine(minMemories: 2);
+      expect(e.eligibleTypes.contains(MemoryType.episodic), isTrue); });
+    test('custom eligibleTypes', () { final e = ConsolidationEngine(minMemories: 2, eligibleTypes: {MemoryType.semantic});
+      expect(e.eligibleTypes.contains(MemoryType.semantic), isTrue);
+      expect(e.eligibleTypes.contains(MemoryType.episodic), isFalse); });
+    test('non-eligible type excluded from candidates', () { final e = ConsolidationEngine(minMemories: 2, similarityThreshold: 0.9, eligibleTypes: {MemoryType.semantic});
+      final now = DateTime.now(); final c = now.subtract(Duration(hours: 48));
+      final mems = [mkMem(id: 'm1', type: MemoryType.episodic, embedding: [1.0, 0.0, 0.0], createdAt: c, accessCount: 5),
+          mkMem(id: 'm2', type: MemoryType.episodic, embedding: [0.99, 0.01, 0.0], createdAt: c, accessCount: 3)];
+      expect(e.findConsolidationCandidates(mems, now), isEmpty); });
+  });
+
+  group('RetrievalEngine: query expansion', () {
+    test('expansion map has entries', () { expect(_queryExpansions.isNotEmpty, isTrue); });
+    test('auth expands to authentication', () { expect(_queryExpansions['auth'], contains('authentication')); });
+    test('memory expands to Chinese', () { expect(_queryExpansions['memory'], contains('记忆')); });
+    test('expandQuery works', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final expanded = re.expandQuery(['auth', 'memory']);
+      expect(expanded.contains('authentication'), isTrue);
+      expect(expanded.contains('记忆'), isTrue); });
+  });
+
+  group('RetrievalEngine: Chinese temporal', () {
+    test('detects Chinese date', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final r = re.detectTemporal('2025年3月15日的事情');
+      expect(r, equals('2025-03-15')); });
+    test('detects Chinese month', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final r = re.detectTemporal('2025年6月的记录');
+      expect(r, equals('2025-06')); });
+    test('detects relative Chinese time', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final r = re.detectTemporal('昨天发生了什么');
+      expect(r, equals('昨天')); });
+  });
+
+  group('RetrievalEngine: retrieval profile', () {
+    test('factsOnly = semantic only', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final types = re.getAllowedTypes(RetrievalProfile.factsOnly);
+      expect(types.length, equals(1)); expect(types.contains(MemoryType.semantic), isTrue); });
+    test('factsPlusRules = semantic + instruction', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final types = re.getAllowedTypes(RetrievalProfile.factsPlusRules);
+      expect(types.length, equals(2)); expect(types.contains(MemoryType.semantic), isTrue); expect(types.contains(MemoryType.instruction), isTrue); });
+    test('fullContext = all types', () {
+      final re = RetrievalEngine(datasource: _MockDataSource(), decayService: DecayService(), keywordExtractor: _MockKeywordExtractor());
+      final types = re.getAllowedTypes(RetrievalProfile.fullContext);
+      expect(types.length, equals(MemoryType.values.length)); });
   });
 
   print('\n═══════════════════════════════════════════════');

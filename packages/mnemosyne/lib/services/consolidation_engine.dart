@@ -61,7 +61,7 @@ class ConsolidationEngine {
     this.maxClusterSize = 10,
     this.preserveSourceMemories = true,
     Set<MemoryType>? eligibleTypes,
-  }) : eligibleTypes = eligibleTypes ?? {MemoryType.episodic, MemoryType.observation};
+  }) : eligibleTypes = eligibleTypes ?? {MemoryType.episodic};
 
   List<ConsolidationCandidate> findConsolidationCandidates(
     List<MemoryItem> memories,

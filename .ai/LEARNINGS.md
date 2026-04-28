@@ -217,3 +217,46 @@ final threshold = itemLists.length ~/ 2;
 - 内联定义应保持与项目代码完全一致（字段、方法签名、默认值）
 - 修改 ConsolidationEngine/DecayService/ImportanceEngine 后立即同步
 - 运行 `dart run test_runner/run_tests.dart` 验证同步状态
+
+---
+
+## 2026-04-28: 10 大缺陷修复 — 社区框架对照迭代
+
+### 发现：对照 engram/mem0/OpenMemory 源码发现 10 个实现缺陷
+
+**缺陷清单与修复**:
+
+| DEFECT | 问题 | 参考源 | 修复方案 |
+|--------|------|--------|----------|
+| DEFECT-1 | ConsolidationEngine 只允许 episodic 类型 | engram consolidator.py | 添加 `eligibleTypes` 配置，默认 `{episodic}` |
+| DEFECT-2 | 合并后源记忆未 soft-forget | engram `_merge_cluster` | 设置 `MemoryStatus.superseded` + 合并元数据 |
+| DEFECT-3 | MemoryStatus 枚举定义但未使用 | engram 状态机 | RetrievalEngine 过滤 superseded/invalidated，DecayService shouldForget 优先遗忘 |
+| DEFECT-4 | ImportanceEngine 缺少 confirmation count | engram `compute_importance` | 添加 `confirmationCount` 字段 + `_calculateConfirmationScore` 对数递增 |
+| DEFECT-5 | RetrievalEngine 缺少查询扩展 | engram `QUERY_EXPANSIONS` | 添加 `_queryExpansions` 映射（中英双语） |
+| DEFECT-6 | RetrievalEngine 缺少检索模式过滤 | mem0 retrieval profile | 添加 `RetrievalProfile` 枚举（factsOnly/factsPlusRules/fullContext） |
+| DEFECT-7 | RetrievalEngine 缺少中文时间识别 | 本地化需求 | `_detectTemporal` 添加中文日期/月份/相对时间正则 |
+| DEFECT-8 | DecayService 缺少间隔重复 | engram `compute_retention` | `_computeEffectiveHalfLife` 添加 `1.0 + 0.3 * log(1 + accessCount)` 乘数 |
+| DEFECT-9 | addMemory 重复检测未合并元数据 | engram `merge_duplicate_pair` | `_mergeDuplicate` 合并 entities/topics/keywords/confirmationCount |
+| DEFECT-10 | runLifecycle 缺少去重和信念质疑 | engram `consolidate` 步骤 | 添加 `_deduplicateMemories` + `_challengeContradictions` |
+
+### 关键教训
+
+1. **confirmationCount 必须用对数递增**: `log(1 + count) / log(1 + saturation)` 而非线性递增
+   - engram: `min(0.2, 0.05 * math.log(1 + confirmations))`
+   - 线性递增会导致高确认数记忆的重要性无限膨胀
+
+2. **间隔重复 = 半衰期延长**: 不是增加 bonus，而是延长有效半衰期
+   - `halfLife *= 1.0 + 0.3 * log(1 + accessCount)` 
+   - 这确保了访问越多，衰减越慢（符合 Ebbinghaus 遗忘曲线的间隔重复效应）
+
+3. **信念质疑(Challenge)需要双重条件**: 共享话题 + 低余弦相似度
+   - 仅共享话题不够（可能只是相关但不同的事实）
+   - 仅低相似度不够（可能完全不相关）
+   - 两者同时满足才标记为 challenged
+
+4. **MemoryType.observation 不存在**: 项目中 MemoryType 只有 episodic/semantic/preference/instruction
+   - ConsolidationEngine 默认 eligibleTypes 应为 `{MemoryType.episodic}` 而非包含不存在的 observation
+
+5. **ImportanceEngine 权重重分配**: 新增 confirmationWeight=0.10 后，总权重需重新平衡
+   - 旧: recency=0.15, frequency=0.15, emotional=0.20, surprise=0.15, entity=0.08, explicit=0.20
+   - 新: recency=0.12, frequency=0.12, emotional=0.15, surprise=0.12, entity=0.06, explicit=0.18, confirmation=0.10
