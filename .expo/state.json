@@ -1,0 +1,9 @@
+{
+  "uuid": "2479c0bb-2429-46b5-b779-25e0225698a5",
+  "auth": {
+    "sessionSecret": "{\"id\":\"54e32829-2f58-4018-9a3f-33888d9a1c32\",\"version\":2}",
+    "userId": "c6fe4c57-3566-4bd1-861f-648f3b1d2f1c",
+    "username": "weigh",
+    "currentConnection": "Username-Password-Authentication"
+  }
+}

@@ -1,0 +1,30 @@
+name: mnemosyne
+description: A cognitive memory system for Flutter applications, inspired by human memory architecture. Features decay, rehearsal, importance-based retention, and hybrid retrieval with ObjectBox vector search.
+version: 0.2.0
+homepage: https://github.com/your-repo/mnemosyne
+repository: https://github.com/your-repo/mnemosyne
+issue_tracker: https://github.com/your-repo/mnemosyne/issues
+publish_to: https://pub.dev
+
+environment:
+  sdk: ^3.5.0
+  flutter: ^3.24.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  objectbox: ^5.2.0
+  objectbox_flutter_libs: ^5.2.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+  meta: ^1.10.0
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  test: ^1.24.0
+  mocktail: ^1.0.0
+  build_runner: ^2.4.0
+  objectbox_generator: ^5.2.0

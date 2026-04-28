@@ -1,0 +1,13 @@
+{
+  "cli": {
+    "version": ">= 3.0.0"
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "path/to/your-service-account-key.json",
+        "track": "internal"
+      }
+    }
+  }
+}

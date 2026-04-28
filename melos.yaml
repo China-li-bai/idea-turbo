@@ -1,0 +1,8 @@
+name: mnemosyne
+packages:
+  - packages/*
+  - packages/*/example
+command:
+  bootstrap:
+    hooks:
+      post: flutter pub get

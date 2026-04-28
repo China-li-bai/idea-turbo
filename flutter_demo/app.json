@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Flutter LLM",
+    "slug": "flutter-llm",
+    "version": "1.0.0",
+    "owner": "weigh",
+    "android": {
+      "package": "com.example.flutter_demo"
+    }
+  }
+}

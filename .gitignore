@@ -1,121 +1,15 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# Dependencies
-node_modules/
-.pnp/
-.pnp.js
-
-# Local env files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Testing
-coverage/
-
-# Turbo
-.turbo/
-
-# Vercel
-.vercel/
-
-# Build Outputs
-.next/
-out/
-build/
-dist/
-
-# Debug
-npm-debug.log*
-pnpm-debug.log*
-pnpm-error.log*
-
-# Misc
-.DS_Store
-*.pem
-
-# Android SDK (use wildcard instead of specific paths)
-.android-sdk/
-!.android-sdk/README.md
-
-# Android/Flutter cache
-.android/
-.cache/
-
-# Expo cache
-.expo/
-
-# Config
-.config/
-
-# Dart/Flutter toolchain
 .dart_tool/
-.dart-tool/
-.flutter
-.flutter/
-flutter/
-
-# Logs
-*.log
-analytics.settings
-
-# Scripts
-noSLEEP.sh
-
-# Projects
-flutter_demo/
-app.json
-.gradle/
-!.gradle/**/README.md
-
-# Flutter
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
 .packages
-.pub-cache/
-.pub/
-.flutter/
-
-# NPM cache (use wildcard)
-.npm/
-
-# Android build outputs
-android/app/build/
-android/build/
-android/.gradle/
-*.apk
-*.aab
-*.dex
-*.class
-*.jar
-
-# iOS build outputs
-ios/Pods/
-ios/build/
-DerivedData/
-*.ipa
-*.xcarchive
-
-# IDE
-.idea/
+pubspec.lock
 *.iml
+*.ipr
+*.iws
+.idea/
 .vscode/
-*.swp
-*.swo
-
-# Logs
-*.log
-logs/
-
-# Core dumps
-core
-core.*
-
-# Temp files
-*.tmp
-*.temp
-.tmp/
-temp/
+.DS_Store
+Thumbs.db
+build/
+.android-sdk/
+.android/
+.npm/*
+.pub-cache/

@@ -1,0 +1,219 @@
+# 🧠 LEARNINGS.md - 开发经验沉淀
+
+> 每次解决复杂 Bug、踩框架坑、或引入新最佳实践后，必须追加到此文件。
+
+---
+
+## 2026-04-27: DecayService 排练增强公式严重缺陷（已修复）
+
+### Bug：排练增强随访问次数递减，与社区标准相反
+
+**问题**: `_calculateRehearsalBonus` 使用 `perAccessBoost = rehearsalBoost / max(1, accessCount)`，
+导致访问次数越多，每次排练增强越小，总增强 = `rehearsalBoost * rehearsalDecay`（与 accessCount 无关！）。
+这导致"热门记忆"和"冷门记忆"在长时间后强度相同，违反间隔重复效应。
+
+**根因**: 未参照社区源码，自行设计公式时直觉错误。
+
+**社区标准**:
+- cognitive-memory: `access_multiplier = math.log1p(access_count)` → 对数递增
+- engram: `reinforcement = min(0.3, 0.05 * math.log(1 + access_count))` → 对数递增
+
+**修复**: 
+```dart
+// ❌ 旧代码（错误）
+final perAccessBoost = rehearsalBoost / max(1, memory.accessCount);
+final rehearsalDecay = exp(-rehearsalDecayRate * timeSinceAccessHours);
+return perAccessBoost * memory.accessCount * rehearsalDecay;
+
+// ✅ 新代码（与 cognitive-memory 一致）
+final accessMultiplier = log(1 + memory.accessCount);
+final baseBonus = rehearsalBoost * accessMultiplier;
+final bonusDecay = exp(-rehearsalDecayRate * timeSinceAccessHours);
+return baseBonus * bonusDecay;
+```
+
+**教训**: 
+1. **必须参照社区源码**：核心算法不能凭直觉设计，必须对照成熟框架验证
+2. **对数递增 vs 线性递减**：间隔重复效应的核心是"对数递增"——访问越多，记忆越牢固，但边际效益递减
+3. **测试暴露缺陷**：evolutionary stability 测试直接暴露了此 Bug
+
+---
+
+## 2026-04-27: DecayService.calculateDecay 不使用 memory.strength 字段
+
+### 发现：calculateDecay 基于 initialStrength 而非 strength
+
+**问题**: `calculateDecay` 使用 `initialStrength * decayFactor + rehearsalBonus` 计算，
+完全忽略 `memory.strength` 字段。这意味着 `copyWith(strength: ...)` 不会影响后续衰减计算。
+
+**社区对照**: cognitive-memory 的 `DecayEngine.calculate_decay` 也是基于 `initial_strength`，
+不使用中间 `strength` 字段。这是**设计意图**，不是 Bug。
+
+**影响**: 
+- 测试中不能用 `copyWith(strength: decayedStrength)` 模拟多轮衰减进程
+- 正确的测试方式是直接设置 `accessCount` 和 `accessedAt` 来模拟排练历史
+- `applyDecay()` 方法应该用于持久化更新，而非模拟
+
+**最佳实践**: 测试衰减效果时，直接构造具有不同 `accessCount`/`accessedAt` 的 MemoryItem，
+而非模拟多轮衰减循环。
+
+---
+
+## 2026-04-27: 记忆系统测试套件设计
+
+### 踩坑：测试设计需参照社区标准
+
+**问题**: 初始测试设计随意，缺乏对社区标准测试场景的覆盖。
+
+**解决方案**: 
+- 参照 cognitive-memory 的 `tests/unit/` 测试套件（475-553行/文件，9-12个测试组）
+- 参照 OpenMemory 的 `test_omnibus.py`（进化稳定性/布尔过滤/内容鲁棒性）
+- 参照 mem0 的 `test_main.py`（CRUD 单元测试）
+
+**最佳实践**:
+- 每个 Service 至少覆盖：默认值、核心计算、边界条件、批量操作、便捷方法
+- 集成测试覆盖完整生命周期：add → decay → prune → consolidate
+- 内容鲁棒性测试：HTML/JSON/Markdown/中文内容
+- 进化稳定性测试：热门记忆存活，冷门记忆衰减
+
+---
+
+## 2026-04-27: Flutter 记忆系统 vs 参考框架差距分析
+
+### 发现：三个独有创新点
+
+**mnemosyne 独有**（参考框架均未实现）:
+1. **情绪门控回忆 (Arousal Gating)**: 基于情绪唤醒度调节记忆持久性
+2. **编码上下文 (相/EncodingContext)**: 存储记忆时的上下文信息（情绪/社交/时间/物理/活动）
+3. **三路 RRF 融合检索 + 意图路由**: 根据查询意图动态调整检索策略
+
+### 发现：三个待补齐功能
+
+**参考框架有但 mnemosyne 缺失**:
+1. **SimHash 去重**: mem0 和 OpenMemory 均实现了 SimHash 去重
+2. **MMR 多样性检索**: cognitive-memory 实现了 MMR (Maximal Marginal Relevance)
+3. **跨扇区共振**: OpenMemory 的 CrossSectorResonance 机制
+
+---
+
+## 2026-04-27: ObjectBox 替换 sqflite/FTS5
+
+### 踩坑：sqflite + FTS5 向量搜索不可行
+
+**问题**: sqflite 不原生支持向量搜索，FTS5 仅支持全文搜索。
+
+**解决方案**: 
+- 使用 ObjectBox（支持 HNSW 向量索引）替换 sqflite
+- ObjectBox 原生支持 Flutter，无需 MethodChannel 桥接
+- HNSW 算法提供高效近似最近邻搜索
+
+**最佳实践**:
+- 保留核心领域逻辑（DecayService、ImportanceEngine 等），仅替换基础设施层
+- MemoryEntity 使用 JSON 序列化处理复杂字段（encodingContext、metadata）
+- ObjectBox Store 需要正确管理生命周期（open/close）
+
+---
+
+## 2026-04-27: 记忆状态机设计
+
+### 发现：engram 的状态机模型
+
+**参考**: engram 实现了 `active → challenged → invalidated/merged` 状态机
+
+**mnemosyne 实现**: 
+- `MemoryStatus` 枚举：`active`, `challenged`, `invalidated`, `merged`, `archived`
+- 状态转换逻辑在 MemoryService 中管理
+- 挑战(challenged)状态：当新记忆与旧记忆矛盾时，旧记忆进入 challenged 状态
+
+---
+
+## 2026-04-27: 编码特异性原理 (相)
+
+### 概念：编码上下文决定回忆效率
+
+**来源**: `/root/idea-turbo/anima-rn/study.md` 中的"相"概念
+
+**核心思想**: 记忆的存储和提取依赖于编码时的上下文。当回忆时的上下文与编码时相似，回忆效率更高。
+
+**Flutter 实现**: `EncodingContext` 类
+- `emotionalState`: 情绪状态 (happy/sad/neutral)
+- `arousalLevel`: 唤醒度 (0.0-1.0)，影响记忆持久性
+- `valence`: 效价 (正/负)
+- `socialContext`: 社交情境
+- `physicalContext`: 物理环境
+- `temporalContext`: 时间上下文
+- `activityContext`: 活动上下文
+
+**匹配算法**: `calculateMatchScore()` 计算当前上下文与存储上下文的匹配度
+
+---
+
+## 2026-04-27: Flutter/Dart 现成包评估
+
+### 验证结果
+
+| 包名 | 真实性 | 适用性 | 推荐度 |
+|------|--------|--------|--------|
+| mobile_rag_engine | ✅ 真实 | Flutter 完整 RAG | ⭐⭐⭐⭐⭐ |
+| objectbox | ✅ 真实 | 数据库+向量搜索 | ⭐⭐⭐⭐ |
+| sqlite_vector | ✅ 真实 | SQLite 向量扩展 | ⭐⭐⭐⭐ |
+| chromadb | ✅ 真实 | 云端客户端 | ⭐⭐ |
+
+### 选择决策
+- **存储层**: ObjectBox（成熟、支持向量搜索、Flutter 原生）
+- **向量搜索**: ObjectBox HNSW（内建，无需额外包）
+- **关键词搜索**: 自实现（基于 keyword_extractor_service）
+- **RAG**: 暂不引入 mobile_rag_engine，自建更可控
+
+---
+
+## 2026-04-28: ConsolidationEngine 核心缺陷修复（已同步社区标准）
+
+### 缺陷1: 候选者缺少聚类质量指标
+**问题**: `ConsolidationCandidate` 缺少 `centroid` 和 `similarityScore`，无法评估聚类质量。
+**修复**: 新增这两个字段，在 `_createCandidate` 中计算聚类中心和平均相似度。
+
+### 缺陷2: 整合结果不完整
+**问题**: `ConsolidationResult` 缺少记忆类型、聚类中心嵌入和整合时间戳。
+**修复**: 新增 `memoryType: 'semantic'`、`centroidEmbedding` 和 `consolidationTimestamp`。
+
+### 缺陷3: 共享实体/主题阈值错误
+**问题**: `findSharedItems` 使用 `e.value >= 2`，社区标准是 `> itemLists.length // 2`。
+**修复**: 
+```dart
+// ❌ 旧代码
+.where((e) => e.value >= 2)
+
+// ✅ 新代码（与 cognitive-memory 一致）
+final threshold = itemLists.length ~/ 2;
+.where((e) => e.value > threshold)
+```
+
+### 缺陷4: shouldConsolidate 缺少相似度检查
+**问题**: `shouldConsolidate` 只检查记忆数量和重要性，不检查聚类相似度。
+**修复**: 新增 `similarityScore < effectiveMinSimilarity` 检查。
+
+### 缺陷5: consolidate 不递增计数器
+**问题**: 整合操作不记录统计信息，无法追踪整合历史。
+**修复**: 新增 `_totalConsolidations` 计数器和 `getConsolidationStats()` 方法。
+
+### 缺陷6: 缺少默认内容摘要
+**问题**: consolidate 强制要求外部提供摘要生成器，无默认实现。
+**修复**: 新增 `_defaultContentSummary` 方法，当不提供 `contentGenerator` 时自动使用。
+
+**教训**: 对照社区源码时必须逐字段、逐方法对比，不能只看大致逻辑。
+
+---
+
+## 2026-04-28: Standalone Test Runner 维护
+
+### 踩坑：内联类定义与项目代码不同步
+**问题**: standalone test runner 复制了项目中的类定义，当项目代码更新时，内联定义未同步更新，
+导致编译错误（缺少字段、方法签名不匹配等）。
+
+**解决方案**: 每次修改项目核心类后，必须同步更新 `test_runner/run_tests.dart` 中的内联定义。
+
+**最佳实践**: 
+- 内联定义应保持与项目代码完全一致（字段、方法签名、默认值）
+- 修改 ConsolidationEngine/DecayService/ImportanceEngine 后立即同步
+- 运行 `dart run test_runner/run_tests.dart` 验证同步状态
