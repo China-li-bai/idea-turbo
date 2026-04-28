@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
+import 'package:mnemosyne/core/constants.dart';
 
 class ImportanceResult {
   final double finalScore;

@@ -16,8 +16,8 @@ class DatabaseException extends MnemosyneException {
 class MemoryNotFoundException extends MnemosyneException {
   final String? memoryId;
 
-  MemoryNotFoundException(this.memoryId, [super.originalError, super.stackTrace])
-      : super('Memory not found: $memoryId');
+  MemoryNotFoundException(this.memoryId, [Object? originalError, StackTrace? stackTrace])
+      : super('Memory not found: $memoryId', originalError, stackTrace);
 }
 
 class EncodingException extends MnemosyneException {

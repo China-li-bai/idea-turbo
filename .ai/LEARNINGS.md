@@ -321,3 +321,72 @@ final score = similarity * fuzzinessBoost * weight;
 2. **元数据注入优于 schema 变更**: 避免数据库迁移风险
 3. **模糊度加成是反直觉的**: 衰减不是纯粹的"变差"，而是"变模糊"，模糊反而增加了对相似场景的敏感度
 4. **中英文相似度矩阵需要双语覆盖**: 单独的中文或英文矩阵不够，需要交叉映射
+
+---
+
+## 2026-04-28: 宠物记忆系统 (Pet Memory) — 相模块的应用层
+
+### 设计决策：PetMemoryBridge 作为宠物系统的统一入口
+
+**需求**: 将"相"模块的能力暴露给宠物系统，让宠物拥有场景感知记忆和情绪门控回忆。
+
+**架构原则**:
+1. **PetMemoryBridge 封装 Mnemosyne**: 宠物应用只与 PetMemoryBridge 交互，不直接使用 Mnemosyne
+2. **PetContext → XiangContext 自动转换**: 宠物上下文自动映射为"相"上下文
+3. **情绪门控 (Emotional Gating)**: 高唤醒度记忆持久化更强，负效价记忆编码更深
+4. **场景触发回忆 (Scene-triggered Recall)**: 宠物在相似场景下主动浮现记忆
+
+**文件结构**:
+```
+lib/features/pet/
+├── pet.dart                    # barrel export
+├── pet_context.dart            # PetMood/PetState/PetContext + TimeOfDayPet extension
+├── pet_emotional_gating.dart   # PetEmotionalGating 情绪门控
+├── pet_scene_recall.dart       # PetSceneRecall 场景触发回忆
+└── pet_memory_bridge.dart      # PetMemoryBridge 桥接层
+```
+
+### 核心概念映射
+
+| 宠物概念 | 记忆系统概念 | 映射方式 |
+|---------|------------|---------|
+| PetMood.happy | emotionalValence=0.7, arousalLevel=0.6 | 自动转换 |
+| PetState.playing | activity='玩耍' | activityDescription |
+| TimeOfDay.night | location='卧室' | locationDescription |
+| PetMood + PetState | XiangContext | petContextToXiang() |
+| 情绪门控 | importance boost + decay resistance | evaluateEncoding() |
+| 场景触发 | ProactiveMemory + recallReason | evaluate() |
+
+### 情绪门控算法
+
+**编码增强**: 高唤醒度 → importance boost, 负效价 → 更深编码
+```dart
+if (arousal >= 0.7) importanceBoost += 0.15 * arousal;
+if (valence < 0) importanceBoost += 0.15 * valence.abs();  // 负面记忆编码更深
+```
+
+**衰减抵抗**: 高唤醒度记忆衰减更慢
+```dart
+if (arousal >= 0.7) resistance *= 1.5;  // 高唤醒记忆半衰期延长50%
+```
+
+**心境一致性回忆**: 相似心境更容易回忆起相关记忆
+```dart
+congruency = valenceSimilarity * 0.6 + arousalSimilarity * 0.4;
+```
+
+### 场景触发回忆流程
+
+1. 宠物进入新场景 → `PetContext.capture()`
+2. `getProactiveMemories()` → 检索候选记忆
+3. `_computeSceneScore()` → 计算场景匹配分
+4. `computeMoodCongruency()` → 计算心境一致性
+5. 综合评分超过阈值 → 生成 `ProactiveMemory` + `recallReason`
+6. 宠物主动说出："现在的天气让我想起了..."
+
+### 踩坑记录
+
+1. **TimeOfDay 命名冲突**: `core/constants.dart` 已定义 `TimeOfDay`，pet_context 不能重复定义。解决方案：用 `import ... show TimeOfDay` 复用核心定义，通过 `extension TimeOfDayPet` 添加宠物特有方法。
+2. **PetSceneRecall.config 不可访问**: 抽象接口 `PetSceneRecall` 没有 `config` getter，而 `PetMemoryBridge` 需要访问 `minIntervalBetweenProactive`。解决方案：在抽象接口上添加 `SceneRecallConfig get sceneConfig`。
+3. **xiangPlugin 可空访问**: `XiangPlugin?` 在 null check 后仍不能直接调用方法（Dart non-promotion）。解决方案：用 `final plugin = xiangPlugin;` 局部变量提升。
+4. **const 构造函数 + DateTime.now()**: `PetContext` 不能是 const class 因为 `DateTime.now()` 不是编译时常量。

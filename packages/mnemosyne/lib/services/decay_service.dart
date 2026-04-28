@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
+import 'package:mnemosyne/core/constants.dart';
 
 enum RetentionMode {
   l2,
@@ -222,9 +223,9 @@ class DecayService {
     List<MemoryItem> memories, [
     DateTime? now,
   ]) {
-    now ??= DateTime.now();
+    final effectiveNow = now ?? DateTime.now();
     return memories
-        .map((m) => MapEntry(m, calculateDecay(m, now)))
+        .map((m) => MapEntry(m, calculateDecay(m, effectiveNow)))
         .toList();
   }
 
@@ -234,9 +235,9 @@ class DecayService {
     double maxStrength, [
     DateTime? now,
   ]) {
-    now ??= DateTime.now();
+    final effectiveNow = now ?? DateTime.now();
     return memories.where((m) {
-      final strength = calculateDecay(m, now).decayedStrength;
+      final strength = calculateDecay(m, effectiveNow).decayedStrength;
       return strength >= minStrength && strength <= maxStrength;
     }).toList();
   }

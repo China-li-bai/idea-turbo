@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:mnemosyne/core/config.dart';
+import 'package:mnemosyne/core/constants.dart';
 import 'package:mnemosyne/features/memory/data/datasources/objectbox_memory_datasource.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 import 'package:mnemosyne/features/memory/domain/entities/encoding_context.dart';
@@ -24,6 +25,8 @@ class MemoryService implements MemoryRepository {
   final ConsolidationEngine _consolidationEngine;
   final KeywordExtractorService _keywordExtractor;
   bool _isInitialized = false;
+
+  RetrievalEngine get retrievalEngine => _retrievalEngine;
 
   MemoryService.withDatasource({
     required this.config,

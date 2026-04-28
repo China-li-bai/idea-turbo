@@ -1,0 +1,179 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:6773016212286002508",
+      "lastPropertyId": "30:3123191238083601791",
+      "name": "MemoryEntity",
+      "properties": [
+        {
+          "id": "1:7860537377876441270",
+          "name": "obId",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5608004516034708122",
+          "name": "uid",
+          "type": 9
+        },
+        {
+          "id": "3:8275118142972320538",
+          "name": "content",
+          "type": 9
+        },
+        {
+          "id": "4:6047110506003149805",
+          "name": "type",
+          "type": 9
+        },
+        {
+          "id": "5:1615238610660549487",
+          "name": "source",
+          "type": 9
+        },
+        {
+          "id": "6:1159477362323884685",
+          "name": "status",
+          "type": 9
+        },
+        {
+          "id": "7:525981671725958866",
+          "name": "importance",
+          "type": 8
+        },
+        {
+          "id": "8:6525819981020484175",
+          "name": "initialStrength",
+          "type": 8
+        },
+        {
+          "id": "9:6692574338693279432",
+          "name": "strength",
+          "type": 8
+        },
+        {
+          "id": "10:8124716462966942285",
+          "name": "emotionalValence",
+          "type": 8
+        },
+        {
+          "id": "11:1413589855659152124",
+          "name": "surpriseScore",
+          "type": 8
+        },
+        {
+          "id": "12:5710334732155726874",
+          "name": "keywords",
+          "type": 9
+        },
+        {
+          "id": "13:7031219149373610550",
+          "name": "entities",
+          "type": 9
+        },
+        {
+          "id": "14:1290277123948259923",
+          "name": "topics",
+          "type": 9
+        },
+        {
+          "id": "15:962553004115099221",
+          "name": "embedding",
+          "indexId": "1:2265069103966236129",
+          "type": 28,
+          "flags": 8
+        },
+        {
+          "id": "16:6627265153757843114",
+          "name": "encodingContextJson",
+          "type": 9
+        },
+        {
+          "id": "17:5235178805540701843",
+          "name": "metadataJson",
+          "type": 9
+        },
+        {
+          "id": "18:7546869244955577918",
+          "name": "createdAtMs",
+          "type": 6
+        },
+        {
+          "id": "19:8343550066181587773",
+          "name": "accessedAtMs",
+          "type": 6
+        },
+        {
+          "id": "20:1004751646879406897",
+          "name": "updatedAtMs",
+          "type": 6
+        },
+        {
+          "id": "21:6994319811856671112",
+          "name": "accessCount",
+          "type": 6
+        },
+        {
+          "id": "22:713412593410834180",
+          "name": "sourceId",
+          "type": 9
+        },
+        {
+          "id": "23:6681987079002186102",
+          "name": "agentId",
+          "type": 9
+        },
+        {
+          "id": "24:9056798442643977851",
+          "name": "userId",
+          "type": 9
+        },
+        {
+          "id": "25:2178225195617115824",
+          "name": "relatedMemoryIds",
+          "type": 9
+        },
+        {
+          "id": "26:2977965179277978222",
+          "name": "parentMemoryId",
+          "type": 9
+        },
+        {
+          "id": "27:4241367483222164983",
+          "name": "supersededById",
+          "type": 9
+        },
+        {
+          "id": "28:3984403962985037102",
+          "name": "isPinned",
+          "type": 1
+        },
+        {
+          "id": "29:4655172616666341158",
+          "name": "isArchived",
+          "type": 1
+        },
+        {
+          "id": "30:3123191238083601791",
+          "name": "isConsolidated",
+          "type": 1
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "1:6773016212286002508",
+  "lastIndexId": "1:2265069103966236129",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}

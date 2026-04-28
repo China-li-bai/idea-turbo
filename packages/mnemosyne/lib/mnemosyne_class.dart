@@ -4,6 +4,7 @@ import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 import 'package:mnemosyne/features/memory/domain/entities/encoding_context.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_search_result.dart';
 import 'package:mnemosyne/features/memory/data/datasources/objectbox_memory_datasource.dart';
+import 'package:mnemosyne/features/xiang/xiang.dart';
 import 'package:mnemosyne/services/memory_service.dart';
 import 'package:mnemosyne/services/keyword_extractor_service.dart';
 import 'package:mnemosyne/services/consolidation_engine.dart';
@@ -13,16 +14,23 @@ class Mnemosyne {
   final MnemosyneConfig config;
   final MemoryService _memoryService;
   final KeywordExtractorService _keywordExtractor;
+  final XiangPlugin? _xiangPlugin;
+  XiangRetrievalEngine? _xiangRetrievalEngine;
   bool _isInitialized = false;
 
   Mnemosyne._internal({
     required this.config,
     required MemoryService memoryService,
     required KeywordExtractorService keywordExtractor,
+    XiangPlugin? xiangPlugin,
   })  : _memoryService = memoryService,
-        _keywordExtractor = keywordExtractor;
+        _keywordExtractor = keywordExtractor,
+        _xiangPlugin = xiangPlugin;
 
-  factory Mnemosyne({MnemosyneConfig config = const MnemosyneConfig()}) {
+  factory Mnemosyne({
+    MnemosyneConfig config = const MnemosyneConfig(),
+    XiangPlugin? xiangPlugin,
+  }) {
     final datasource = ObjectBoxMemoryDataSource(config);
     return Mnemosyne._internal(
       config: config,
@@ -31,12 +39,21 @@ class Mnemosyne {
         datasource: datasource,
       ),
       keywordExtractor: KeywordExtractorService(),
+      xiangPlugin: xiangPlugin,
     );
   }
+
+  XiangPlugin? get xiang => _xiangPlugin;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
     await _memoryService.initialize();
+    if (_xiangPlugin != null) {
+      _xiangRetrievalEngine = XiangRetrievalEngine(
+        inner: _memoryService.retrievalEngine,
+        plugin: _xiangPlugin,
+      );
+    }
     _isInitialized = true;
   }
 
@@ -55,9 +72,44 @@ class Mnemosyne {
     String? sourceId,
     String? agentId,
     String? userId,
+    XiangContext? xiangContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
+    List<SensoryTag>? sensoryTags,
   }) async {
     _ensureInitialized();
     final extractedKeywords = keywords ?? _keywordExtractor.extractKeywords(content);
+
+    XiangContext? effectiveXiang = xiangContext;
+    if (effectiveXiang == null && _xiangPlugin != null) {
+      final hasAnyContext = weather != null ||
+          temperature != null ||
+          activity != null ||
+          location != null ||
+          ambientMood != null ||
+          (sensoryTags != null && sensoryTags.isNotEmpty);
+      if (hasAnyContext) {
+        effectiveXiang = _xiangPlugin.captureContext(
+          weather: weather,
+          temperature: temperature,
+          activity: activity,
+          location: location,
+          ambientMood: ambientMood,
+          sensoryTags: sensoryTags,
+        );
+      }
+    }
+
+    Map<String, dynamic>? effectiveMetadata = metadata;
+    if (effectiveXiang != null) {
+      effectiveMetadata = XiangContext.injectIntoMetadata(
+        effectiveMetadata,
+        effectiveXiang,
+      );
+    }
 
     final memory = MemoryItem(
       id: IdGenerator.generate(),
@@ -71,7 +123,7 @@ class Mnemosyne {
       topics: topics ?? [],
       embedding: embedding,
       encodingContext: encodingContext ?? EncodingContext.capture(),
-      metadata: metadata,
+      metadata: effectiveMetadata,
       sourceId: sourceId,
       agentId: agentId,
       userId: userId,
@@ -84,13 +136,60 @@ class Mnemosyne {
     required String query,
     List<double>? queryEmbedding,
     EncodingContext? currentContext,
+    XiangContext? currentXiangContext,
     int limit = 10,
   }) async {
     _ensureInitialized();
+
+    if (_xiangRetrievalEngine != null && queryEmbedding != null && queryEmbedding.isNotEmpty) {
+      return await _xiangRetrievalEngine!.retrieve(
+        query: query,
+        queryEmbedding: queryEmbedding,
+        currentContext: currentContext ?? EncodingContext.capture(),
+        currentXiangContext: currentXiangContext,
+        limit: limit,
+      );
+    }
+
     return await _memoryService.searchMemories(
       query: query,
       queryEmbedding: queryEmbedding,
       currentContext: currentContext ?? EncodingContext.capture(),
+      limit: limit,
+    );
+  }
+
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
+    List<SensoryTag>? sensoryTags,
+    int limit = 10,
+  }) async {
+    _ensureInitialized();
+
+    XiangContext? xiangCtx;
+    if (_xiangPlugin != null) {
+      xiangCtx = _xiangPlugin.captureContext(
+        weather: weather,
+        temperature: temperature,
+        activity: activity,
+        location: location,
+        ambientMood: ambientMood,
+        sensoryTags: sensoryTags,
+      );
+    }
+
+    return await recall(
+      query: query,
+      queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
+      currentXiangContext: xiangCtx,
       limit: limit,
     );
   }

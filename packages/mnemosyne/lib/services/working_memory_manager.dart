@@ -21,7 +21,7 @@ class WorkingMemorySlot {
   }) {
     return WorkingMemorySlot(
       memory: memory ?? this.memory,
-      activation: activation,
+      activation: activation ?? this.activation,
       refreshCount: refreshCount ?? this.refreshCount,
       addedAt: addedAt ?? this.addedAt,
     );

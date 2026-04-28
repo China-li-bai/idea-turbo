@@ -1,4 +1,4 @@
-import 'package:objectbox/objectbox.dart';
+import 'package:mnemosyne/objectbox.g.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mnemosyne/features/memory/data/models/memory_entity.dart';
@@ -34,7 +34,7 @@ class ObjectBoxMemoryDataSource {
     try {
       final b = await box;
       final entity = MemoryEntity.fromDomain(memory);
-      final id = b.put(entity);
+      b.put(entity);
       return memory.id;
     } catch (e, s) {
       throw DatabaseException('Failed to insert memory', e, s);
@@ -88,10 +88,11 @@ class ObjectBoxMemoryDataSource {
   Future<List<MemoryItem>> getRecentMemories({int limit = 20}) async {
     try {
       final s = await store;
-      final query = s.box<MemoryEntity>().query()
-        ..order(MemoryEntity_.createdAtMs, flags: Order.descending)
-        ..limit = limit;
-      final results = query.build().find();
+      final qb = s.box<MemoryEntity>().query()
+        ..order(MemoryEntity_.createdAtMs, flags: Order.descending);
+      final query = qb.build();
+      query.limit = limit;
+      final results = query.find();
       query.close();
       return results.map((e) => e.toDomain()).toList();
     } catch (e, s) {
@@ -102,10 +103,11 @@ class ObjectBoxMemoryDataSource {
   Future<List<MemoryItem>> getImportantMemories({int limit = 20}) async {
     try {
       final s = await store;
-      final query = s.box<MemoryEntity>().query()
-        ..order(MemoryEntity_.importance, flags: Order.descending)
-        ..limit = limit;
-      final results = query.build().find();
+      final qb = s.box<MemoryEntity>().query()
+        ..order(MemoryEntity_.importance, flags: Order.descending);
+      final query = qb.build();
+      query.limit = limit;
+      final results = query.find();
       query.close();
       return results.map((e) => e.toDomain()).toList();
     } catch (e, s) {
@@ -119,8 +121,8 @@ class ObjectBoxMemoryDataSource {
       final query = s.box<MemoryEntity>().query(
         MemoryEntity_.status.equals('active') &
         MemoryEntity_.isArchived.equals(false),
-      );
-      final results = query.build().find();
+      ).build();
+      final results = query.find();
       query.close();
       return results.map((e) => e.toDomain()).toList();
     } catch (e, s) {
@@ -133,8 +135,8 @@ class ObjectBoxMemoryDataSource {
       final s = await store;
       final query = s.box<MemoryEntity>().query(
         MemoryEntity_.embedding.notNull(),
-      );
-      final results = query.build().find();
+      ).build();
+      final results = query.find();
       query.close();
       return results.map((e) => e.toDomain()).toList();
     } catch (e, s) {
@@ -164,12 +166,14 @@ class ObjectBoxMemoryDataSource {
   Future<List<MemoryItem>> keywordSearch(String keyword, {int limit = 50}) async {
     try {
       final s = await store;
-      final query = s.box<MemoryEntity>().query(
+      final qb = s.box<MemoryEntity>().query(
         MemoryEntity_.keywords.contains(keyword) |
         MemoryEntity_.content.contains(keyword) |
         MemoryEntity_.topics.contains(keyword),
-      )..limit = limit;
-      final results = query.build().find();
+      );
+      final query = qb.build();
+      query.limit = limit;
+      final results = query.find();
       query.close();
       return results.map((e) => e.toDomain()).toList();
     } catch (e, s) {
@@ -201,8 +205,8 @@ class ObjectBoxMemoryDataSource {
       final query = s.box<MemoryEntity>().query(
         MemoryEntity_.strength.lessThan(threshold) &
         MemoryEntity_.isPinned.equals(false),
-      );
-      final results = query.build().find();
+      ).build();
+      final results = query.find();
       query.close();
       final ids = results.map((e) => e.obId).toList();
       if (ids.isNotEmpty) {
