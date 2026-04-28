@@ -134,6 +134,11 @@ class DecayService {
       halfLife *= 2.5;
     }
 
+    if (memory.accessCount > 0) {
+      final repetitionMultiplier = 1.0 + 0.3 * log(1 + memory.accessCount);
+      halfLife *= repetitionMultiplier;
+    }
+
     return halfLife;
   }
 
@@ -253,6 +258,8 @@ class DecayService {
     if (memory.isPinned) return false;
     if (memory.type == MemoryType.semantic) return false;
     if (memory.type == MemoryType.instruction) return false;
+    if (memory.status == MemoryStatus.superseded) return true;
+    if (memory.status == MemoryStatus.invalidated) return true;
 
     final ageDays = now.difference(memory.createdAt).inSeconds / 86400.0;
     if (ageDays < minAgeDays) return false;

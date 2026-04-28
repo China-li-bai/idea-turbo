@@ -13,6 +13,7 @@ class ImportanceResult {
   final double explicitScore;
   final double typeBonus;
   final double stabilityBonus;
+  final double confirmationScore;
   final double sourceMultiplier;
   final Map<String, double> breakdown;
 
@@ -28,6 +29,7 @@ class ImportanceResult {
     required this.explicitScore,
     required this.typeBonus,
     required this.stabilityBonus,
+    required this.confirmationScore,
     required this.sourceMultiplier,
     Map<String, double>? breakdown,
   }) : breakdown = breakdown ?? {};
@@ -54,11 +56,13 @@ class ImportanceEngine {
   final double entityWeight;
   final double topicWeight;
   final double explicitWeight;
+  final double confirmationWeight;
   final double recencyHalfLifeHours;
   final double accessRecencyHalfLifeHours;
   final int frequencySaturation;
   final int entitySaturation;
   final int topicSaturation;
+  final int confirmationSaturation;
   final Map<MemorySource, double> sourceWeights;
   final Map<MemoryType, double> typeBonuses;
   final double trustKappa;
@@ -67,19 +71,21 @@ class ImportanceEngine {
   final Map<String, List<ImportanceHistoryEntry>> _history = {};
 
   ImportanceEngine({
-    this.recencyWeight = 0.15,
+    this.recencyWeight = 0.12,
     this.accessRecencyWeight = 0.05,
-    this.frequencyWeight = 0.15,
-    this.emotionalWeight = 0.2,
-    this.surpriseWeight = 0.15,
-    this.entityWeight = 0.08,
+    this.frequencyWeight = 0.12,
+    this.emotionalWeight = 0.15,
+    this.surpriseWeight = 0.12,
+    this.entityWeight = 0.06,
     this.topicWeight = 0.02,
-    this.explicitWeight = 0.2,
+    this.explicitWeight = 0.18,
+    this.confirmationWeight = 0.10,
     this.recencyHalfLifeHours = 24.0,
     this.accessRecencyHalfLifeHours = 48.0,
     this.frequencySaturation = 10,
     this.entitySaturation = 5,
     this.topicSaturation = 5,
+    this.confirmationSaturation = 10,
     Map<MemorySource, double>? sourceWeights,
     Map<MemoryType, double>? typeBonuses,
     this.trustKappa = 2.0,
@@ -116,6 +122,7 @@ class ImportanceEngine {
     final explicitScore = _calculateExplicitScore(memory, explicitImportance);
     final typeBonus = _getTypeBonus(memory);
     final stabilityBonus = _calculateStabilityBonus(memory);
+    final confirmationScore = _calculateConfirmationScore(memory);
     final sourceMultiplier = _getSourceMultiplier(memory);
 
     final weightedSum = (recencyWeight * recencyScore +
@@ -125,7 +132,8 @@ class ImportanceEngine {
         surpriseWeight * surpriseScore +
         entityWeight * entityScore +
         topicWeight * topicScore +
-        explicitWeight * explicitScore);
+        explicitWeight * explicitScore +
+        confirmationWeight * confirmationScore);
 
     final preMultiplier = weightedSum + typeBonus + stabilityBonus;
     final finalScore = (preMultiplier * sourceMultiplier).clamp(0.0, 1.0);
@@ -142,6 +150,7 @@ class ImportanceEngine {
       explicitScore: explicitScore,
       typeBonus: typeBonus,
       stabilityBonus: stabilityBonus,
+      confirmationScore: confirmationScore,
       sourceMultiplier: sourceMultiplier,
       breakdown: {
         'recency': recencyScore,
@@ -154,6 +163,7 @@ class ImportanceEngine {
         'explicit': explicitScore,
         'typeBonus': typeBonus,
         'stabilityBonus': stabilityBonus,
+        'confirmation': confirmationScore,
         'sourceMultiplier': sourceMultiplier,
       },
     );
@@ -221,6 +231,11 @@ class ImportanceEngine {
     if (spanDays <= 0) return 0.0;
     final stability = min(1.0, memory.accessCount / (spanDays + 1));
     return stability * 0.05;
+  }
+
+  double _calculateConfirmationScore(MemoryItem memory) {
+    if (memory.confirmationCount <= 0) return 0.0;
+    return min(1.0, log(1 + memory.confirmationCount) / log(1 + confirmationSaturation));
   }
 
   double _getSourceMultiplier(MemoryItem memory) {

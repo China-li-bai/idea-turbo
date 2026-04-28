@@ -48,6 +48,7 @@ class MemoryItem {
   final bool isPinned;
   final bool isArchived;
   final bool isConsolidated;
+  final int confirmationCount;
 
   MemoryItem({
     required this.id,
@@ -79,6 +80,7 @@ class MemoryItem {
     this.isPinned = false,
     this.isArchived = false,
     this.isConsolidated = false,
+    this.confirmationCount = 0,
   })  : createdAt = createdAt ?? DateTime.now(),
         accessedAt = accessedAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -120,6 +122,7 @@ class MemoryItem {
     bool? isPinned,
     bool? isArchived,
     bool? isConsolidated,
+    int? confirmationCount,
   }) {
     return MemoryItem(
       id: id ?? this.id,
@@ -151,6 +154,7 @@ class MemoryItem {
       isPinned: isPinned ?? this.isPinned,
       isArchived: isArchived ?? this.isArchived,
       isConsolidated: isConsolidated ?? this.isConsolidated,
+      confirmationCount: confirmationCount ?? this.confirmationCount,
     );
   }
 
@@ -194,6 +198,7 @@ class MemoryItem {
       'isPinned': isPinned ? 1 : 0,
       'isArchived': isArchived ? 1 : 0,
       'isConsolidated': isConsolidated ? 1 : 0,
+      'confirmationCount': confirmationCount,
     };
   }
 
@@ -228,6 +233,7 @@ class MemoryItem {
       isPinned: (json['isPinned'] as int?) == 1,
       isArchived: (json['isArchived'] as int?) == 1,
       isConsolidated: (json['isConsolidated'] as int?) == 1,
+      confirmationCount: json['confirmationCount'] as int? ?? 0,
     );
   }
 }

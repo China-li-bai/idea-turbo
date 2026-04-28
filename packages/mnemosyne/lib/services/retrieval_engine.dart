@@ -17,6 +17,28 @@ class IntentWeights {
   const IntentWeights({required this.dense, required this.keyword, required this.context});
 }
 
+const Map<String, List<String>> _queryExpansions = {
+  'auth': ['authentication', 'login', 'oauth', 'token', '认证', '登录'],
+  'bug': ['issue', 'error', 'failure', '缺陷', '错误'],
+  'deploy': ['deployment', 'release', 'ship', '部署', '发布'],
+  'memory': ['recall', 'context', 'history', '记忆', '回忆'],
+  'graph': ['entity', 'relationship', '图', '关系'],
+  'code': ['function', 'class', 'file', '代码', '函数'],
+  'config': ['configuration', 'settings', '配置', '设置'],
+  'api': ['endpoint', 'route', '接口'],
+  'db': ['database', 'storage', '数据库', '存储'],
+  'ai': ['artificial intelligence', 'ml', 'model', '人工智能', '模型'],
+  '安全': ['security', 'vulnerability', '漏洞'],
+  '性能': ['performance', 'optimization', '优化'],
+  '架构': ['architecture', 'design', '设计'],
+};
+
+enum RetrievalProfile {
+  factsOnly,
+  factsPlusRules,
+  fullContext,
+}
+
 class RetrievalEngine {
   final ObjectBoxMemoryDataSource datasource;
   final DecayService decayService;
@@ -24,6 +46,8 @@ class RetrievalEngine {
   final int rrfK;
   final double minConfidence;
   final double exactMatchBoost;
+  final bool enableQueryExpansion;
+  final RetrievalProfile retrievalProfile;
 
   RetrievalEngine({
     required this.datasource,
@@ -32,6 +56,8 @@ class RetrievalEngine {
     this.rrfK = 60,
     this.minConfidence = 0.0,
     this.exactMatchBoost = 1.5,
+    this.enableQueryExpansion = true,
+    this.retrievalProfile = RetrievalProfile.fullContext,
   });
 
   static QueryIntent classifyIntent(String query) {
@@ -70,9 +96,16 @@ class RetrievalEngine {
     final intentWeights = getIntentWeights(intent);
     final queryTokens = _tokenize(query);
 
+    final expandedTerms = enableQueryExpansion ? _expandQuery(queryTokens) : <String>[];
+    final expandedQuery = expandedTerms.isNotEmpty
+        ? '$query ${expandedTerms.take(8).join(' ')}'
+        : query;
+
     final denseResults = await _denseSearch(queryEmbedding, limit * 3);
-    final keywordResults = await _keywordSearch(query, limit * 3);
+    final keywordResults = await _keywordSearch(expandedQuery, limit * 3);
     final allActive = await datasource.getActiveMemories();
+
+    final allowedTypes = _getAllowedTypes(retrievalProfile);
 
     final denseRanking = denseResults.map((r) => _RankEntry(r.object.uid, 1.0 / (1.0 + r.score))).toList();
     final keywordRanking = keywordResults.asMap().entries.map((e) {
@@ -110,7 +143,16 @@ class RetrievalEngine {
       final memory = memoryMap[entry.key];
       if (memory == null) continue;
 
+      if (memory.status == MemoryStatus.superseded ||
+          memory.status == MemoryStatus.invalidated) continue;
+
+      if (!allowedTypes.contains(memory.type)) continue;
+
       var score = entry.value;
+
+      if (memory.status == MemoryStatus.challenged) {
+        score *= 0.7;
+      }
 
       score *= (0.8 + 0.4 * memory.importance);
 
@@ -272,6 +314,27 @@ class RetrievalEngine {
     final monthMatch = monthPattern.firstMatch(query);
     if (monthMatch != null) return monthMatch.group(1);
 
+    final chineseDatePattern = RegExp(r'(\d{4})年(\d{1,2})月(\d{1,2})日');
+    final cnMatch = chineseDatePattern.firstMatch(query);
+    if (cnMatch != null) {
+      final y = cnMatch.group(1);
+      final m = cnMatch.group(2)!.padLeft(2, '0');
+      final d = cnMatch.group(3)!.padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    final chineseMonthPattern = RegExp(r'(\d{4})年(\d{1,2})月');
+    final cnMonthMatch = chineseMonthPattern.firstMatch(query);
+    if (cnMonthMatch != null) {
+      final y = cnMonthMatch.group(1);
+      final m = cnMonthMatch.group(2)!.padLeft(2, '0');
+      return '$y-$m';
+    }
+
+    final relativePattern = RegExp(r'(昨天|前天|上周|上个月|去年|今天)');
+    final relMatch = relativePattern.firstMatch(query);
+    if (relMatch != null) return relMatch.group(1);
+
     return null;
   }
 
@@ -290,6 +353,37 @@ class RetrievalEngine {
     if (queryTermCount <= 9) return (9.0, 0.5);
     if (queryTermCount <= 15) return (10.0, 0.5);
     return (12.0, 0.5);
+  }
+
+  List<String> _expandQuery(List<String> tokens) {
+    final expanded = <String>[];
+    final seen = <String>{};
+    for (final token in tokens) {
+      final lower = token.toLowerCase();
+      if (seen.contains(lower)) continue;
+      seen.add(lower);
+      final expansions = _queryExpansions[lower];
+      if (expansions != null) {
+        for (final exp in expansions) {
+          if (!seen.contains(exp.toLowerCase())) {
+            expanded.add(exp);
+            seen.add(exp.toLowerCase());
+          }
+        }
+      }
+    }
+    return expanded;
+  }
+
+  Set<MemoryType> _getAllowedTypes(RetrievalProfile profile) {
+    switch (profile) {
+      case RetrievalProfile.factsOnly:
+        return {MemoryType.semantic};
+      case RetrievalProfile.factsPlusRules:
+        return {MemoryType.semantic, MemoryType.instruction};
+      case RetrievalProfile.fullContext:
+        return MemoryType.values.toSet();
+    }
   }
 }
 

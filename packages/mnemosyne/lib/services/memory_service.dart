@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:mnemosyne/core/config.dart';
 import 'package:mnemosyne/features/memory/data/datasources/objectbox_memory_datasource.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
@@ -60,8 +61,8 @@ class MemoryService implements MemoryRepository {
     final contentHash = md5.convert(utf8.encode(processedMemory.content)).toString();
     final existingByHash = await _findByContentHash(contentHash);
     if (existingByHash != null) {
-      final updated = existingByHash.access();
-      await updateMemory(updated);
+      final merged = _mergeDuplicate(existingByHash, processedMemory);
+      await updateMemory(merged);
       return existingByHash.id;
     }
 
@@ -75,8 +76,8 @@ class MemoryService implements MemoryRepository {
       if (surpriseResult.isDuplicate && surpriseResult.nearestId != null) {
         final existing = await getMemory(surpriseResult.nearestId!);
         if (existing != null) {
-          final updated = existing.access();
-          await updateMemory(updated);
+          final merged = _mergeDuplicate(existing, processedMemory);
+          await updateMemory(merged);
           return existing.id;
         }
       }
@@ -283,6 +284,8 @@ class MemoryService implements MemoryRepository {
       'decayed': 0,
       'pruned': 0,
       'promoted': 0,
+      'deduplicated': 0,
+      'challenged': 0,
     };
 
     final allMemories = await _datasource.getAllMemories();
@@ -290,6 +293,8 @@ class MemoryService implements MemoryRepository {
 
     for (final memory in allMemories) {
       if (memory.isPinned || memory.isArchived) continue;
+      if (memory.status == MemoryStatus.superseded ||
+          memory.status == MemoryStatus.invalidated) continue;
 
       final decayed = _decayService.applyDecay(memory, now);
       var updated = decayed;
@@ -309,6 +314,12 @@ class MemoryService implements MemoryRepository {
     }
 
     await _datasource.batchUpdateMemories(updatedMemories);
+
+    final dedupStats = await _deduplicateMemories();
+    stats['deduplicated'] = dedupStats;
+
+    final challengeStats = await _challengeContradictions();
+    stats['challenged'] = challengeStats;
 
     final beforePrune = await _datasource.getAllMemories();
     await pruneWeakMemories();
@@ -336,5 +347,131 @@ class MemoryService implements MemoryRepository {
       if (memHash == hash) return memory;
     }
     return null;
+  }
+
+  MemoryItem _mergeDuplicate(MemoryItem existing, MemoryItem incoming) {
+    final mergedEntities = <String>{...existing.entities, ...incoming.entities};
+    final mergedTopics = <String>{...existing.topics, ...incoming.topics};
+    final mergedKeywords = <String>{...existing.keywords, ...incoming.keywords};
+    final mergedRelatedIds = <String>{...existing.relatedMemoryIds, incoming.id};
+    final mergedMetadata = <String, dynamic>{
+      ...?existing.metadata,
+      ...?incoming.metadata,
+      'confirmations': (existing.confirmationCount + 1),
+      'lastConfirmed': DateTime.now().toIso8601String(),
+    };
+
+    final newImportance = max(existing.importance, incoming.importance);
+
+    return existing.copyWith(
+      accessCount: existing.accessCount + 1,
+      accessedAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      importance: newImportance,
+      entities: mergedEntities.toList(),
+      topics: mergedTopics.toList(),
+      keywords: mergedKeywords.toList(),
+      relatedMemoryIds: mergedRelatedIds.toList(),
+      confirmationCount: existing.confirmationCount + 1,
+      metadata: mergedMetadata,
+    );
+  }
+
+  Future<int> _deduplicateMemories() async {
+    final allMemories = await _datasource.getAllMemories();
+    final activeMemories = allMemories
+        .where((m) => m.status == MemoryStatus.active)
+        .toList();
+    if (activeMemories.length < 2) return 0;
+
+    final seen = <String, MemoryItem>{};
+    final duplicates = <String, String>{};
+    int count = 0;
+
+    for (final memory in activeMemories) {
+      final hash = memory.metadata?['contentHash'] as String?;
+      if (hash == null) continue;
+
+      if (seen.containsKey(hash)) {
+        duplicates[memory.id] = seen[hash]!.id;
+        count++;
+      } else {
+        seen[hash] = memory;
+      }
+    }
+
+    for (final entry in duplicates.entries) {
+      final duplicate = await _datasource.getMemory(entry.key);
+      if (duplicate != null) {
+        await updateMemory(duplicate.copyWith(
+          status: MemoryStatus.superseded,
+          supersededById: entry.value,
+          metadata: {
+            ...?duplicate.metadata,
+            'supersededBy': entry.value,
+            'supersededAt': DateTime.now().toIso8601String(),
+            'dedupReason': 'exact_hash_match',
+          },
+        ));
+      }
+    }
+
+    return count;
+  }
+
+  Future<int> _challengeContradictions() async {
+    final allMemories = await _datasource.getAllMemories();
+    final activeMemories = allMemories
+        .where((m) =>
+            m.status == MemoryStatus.active &&
+            m.type == MemoryType.semantic &&
+            m.embedding != null &&
+            m.embedding!.isNotEmpty)
+        .toList();
+    if (activeMemories.length < 2) return 0;
+
+    int challenged = 0;
+    final contradictionThreshold = 0.85;
+
+    for (int i = 0; i < activeMemories.length && challenged < 5; i++) {
+      for (int j = i + 1; j < activeMemories.length && challenged < 5; j++) {
+        final a = activeMemories[i];
+        final b = activeMemories[j];
+
+        final sharedTopics = a.topics.toSet().intersection(b.topics.toSet());
+        if (sharedTopics.isEmpty) continue;
+
+        final similarity = _cosineSimilarity(a.embedding!, b.embedding!);
+        if (similarity > contradictionThreshold) continue;
+
+        final lower = a.importance <= b.importance ? a : b;
+        await updateMemory(lower.copyWith(
+          status: MemoryStatus.challenged,
+          metadata: {
+            ...?lower.metadata,
+            'challengedAt': DateTime.now().toIso8601String(),
+            'challengeReason': 'contradiction_detected',
+            'contradictingMemoryId': a.importance <= b.importance ? b.id : a.id,
+          },
+        ));
+        challenged++;
+      }
+    }
+
+    return challenged;
+  }
+
+  double _cosineSimilarity(List<double> a, List<double> b) {
+    if (a.length != b.length || a.isEmpty) return 0.0;
+    double dotProduct = 0.0;
+    double normA = 0.0;
+    double normB = 0.0;
+    for (int i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    if (normA == 0.0 || normB == 0.0) return 0.0;
+    return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 }
