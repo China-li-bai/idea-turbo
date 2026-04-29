@@ -13,3 +13,5 @@ build/
 .android/
 .npm/*
 .pub-cache/
+.dartServer/
+zip/

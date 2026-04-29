@@ -8,6 +8,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'pet/pet_app_shell.dart';
 
 void main() {
   runApp(const MyApp());
@@ -504,7 +505,7 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ChatPage(modelPath: _modelPath!),
+          builder: (context) => PetAppShell(modelPath: _modelPath!),
         ),
       );
     }
@@ -604,8 +605,8 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
             if (_modelPath != null)
               ElevatedButton.icon(
                 onPressed: _goToChat,
-                icon: const Icon(Icons.chat),
-                label: const Text('开始对话'),
+                icon: const Icon(Icons.pets),
+                label: const Text('唤醒镇岳'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
