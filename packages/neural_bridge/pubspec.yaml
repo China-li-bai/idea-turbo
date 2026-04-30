@@ -13,6 +13,8 @@ dependencies:
   meta: ^1.10.0
   collection: ^1.18.0
   uuid: ^4.5.0
+  mnemosyne:
+    path: ../mnemosyne
 
 dev_dependencies:
   flutter_test:
