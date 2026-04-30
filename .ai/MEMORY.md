@@ -42,6 +42,13 @@
 - ObjectBox 数据源
 - 完整测试套件（58 个测试全部通过，参照社区标准）
 - DecayService 排练增强公式修复（与 cognitive-memory/engram 一致）
+- **五大非技术性设计维度落地（2026-04-30）**：
+  - NPC 冷启动系统（NpcEntity + NpcPoolService + SoloPlayService）
+  - 情绪/电量机制（VitalityService 四维状态机）
+  - 性格觉醒盲盒（PersonalityAwakeningService 7种原型）
+  - 每日破冰战报（DailyReportService + ShareCard）
+  - 社交防火墙（PromptInjectionDefense 11种模式 + SocialShield 4种护盾）
+  - 商业化分层（SubscriptionService 3层订阅 + VirtualGoodsService 虚拟商品）
 
 ### ⚠️ 待实现
 - SimHash 去重

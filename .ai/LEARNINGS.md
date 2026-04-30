@@ -148,6 +148,51 @@ return baseBonus * bonusDecay;
 
 ---
 
+## 2026-04-30: 五大非技术性设计维度落地
+
+### 教训：技术牛逼 ≠ 商业成功
+
+**核心洞察**: 过去几年死掉的 AI 社交产品，大多只做了"好用的工具"，没有打造"会上瘾的社会化产品"。
+
+**五大生死要素**:
+1. **冷启动救星**：地图 NPC + 单机好玩闭环 → 解决初期没人玩的尴尬
+2. **脆弱感羁绊**：情绪/电量机制 + 性格觉醒盲盒 → 解决留存率和次登率
+3. **炫耀切片**：每日破冰战报 + 一键分享 → 解决裂变与获客
+4. **安全护城河**：Prompt 注入防御 + 一键护盾 → 解决下架风险
+5. **商业化后路**：分层订阅 + 虚拟道具 → 解决活下去的成本
+
+### 设计决策：Prompt 注入防御必须硬编码
+
+**问题**: 大模型驱动的宠物在开放社交环境中，必然遭遇恶意用户的 Prompt 注入攻击。
+
+**关键决策**: 
+- 注入检测必须用**正则模式匹配 + 语义分析**双保险，不能仅依赖 LLM 自身判断
+- 11种注入模式覆盖中英文（忽略指令/角色扮演/隐私提取/越狱关键词等）
+- 检测到高危攻击时**自动拉黑**，不依赖用户手动操作
+- 敏感信息过滤（电话/邮箱/地址/密码）必须在返回给用户前执行
+
+### 设计决策：性格觉醒是"聊出来的"，不是"选出来的"
+
+**问题**: 传统表单式性格选择缺乏惊喜感和成就感。
+
+**关键决策**:
+- 用户每天投喂语料，系统通过关键词检测积累特质分数
+- 7天+50次交互后触发"性格觉醒"事件
+- 7种性格原型（赛博朋克毒舌猫/禅意哲学家/社交蝴蝶/内敛诗人/混沌使者/怀旧长者/科技布道者）
+- 觉醒时生成专属觉醒对话+视觉特效，制造"开盲盒"的成就感
+
+### 设计决策：护盾模式必须为女性/社恐用户设计
+
+**问题**: 女性往往是社交产品初期最核心的受众，安全感是她们留存的关键。
+
+**关键决策**:
+- 4种护盾模式：开放/安静/隐身(社恐)/严格
+- 社恐模式：仅允许90%匹配度以上的同城同性搭讪，每日上限5次
+- 自动拉黑可疑用户，无需手动操作
+- 所有安全决策在服务端执行，客户端不可绕过
+
+---
+
 ## 2026-04-27: Flutter/Dart 现成包评估
 
 ### 验证结果
@@ -499,3 +544,120 @@ export LD_LIBRARY_PATH=/root/idea-turbo/packages/mnemosyne/lib:$LD_LIBRARY_PATH
 ```
 
 **教训**: ObjectBox Flutter 包在 Linux 桌面测试时需要手动下载原生库。CI/CD 环境需要预先配置。
+
+---
+
+## 2026-04-30: 三层胶水调研 — Embedding/LLM/对话管理开源方案
+
+### Embedding 模型选型
+
+**核心结论**: EmbeddingGemma 300M 是 2026 年端侧中英文双语最优解
+
+| 模型 | 维度 | 中文 | 英文 | 端侧 | 关键特性 |
+|---|---|---|---|---|---|
+| EmbeddingGemma 300M | 768 | 89.3% | MTEB<500M第一 | <200MB | **MRL截断**: 768→512/256/128 |
+| BGE-small-zh-v1.5 | 384 | 最强 | ❌弱 | ~130MB | 中文专用，英文差 |
+| BGE-M3 | 1024 | 优秀 | 优秀 | ~1.2GB太大 | 多语言最强，但不适合移动端 |
+| Jina-v3 | 1024 | 优秀 | 优秀 | ~1.1GB太大 | 570M参数，移动端不可行 |
+
+**MRL (Matryoshka Representation Learning)**: EmbeddingGemma 训练时使用了 MRL，允许将 768 维输出截断到 256 维，保留 ~95% 语义信息。这是解决 ObjectBox HNSW 维度硬编码的银弹。
+
+**参考**: https://github.com/huggingface/blog/blob/main/embeddinggemma.md
+
+### ObjectBox HNSW 维度硬编码问题
+
+**问题**: `@HnswIndex(dimensions: 384)` 是编译期常量，修改需重建 schema + 迁移数据
+
+**ObjectBox 规则** (来自官方文档):
+1. dimensions 是编译期常量，不能运行时修改
+2. 可插入更高维度的向量（只用前 N 维建索引）
+3. 插入更低维度的向量 → 该记录被完全忽略
+4. 修改维度 → 重新 build_runner → 存量数据需迁移
+
+**解决方案**: MRL截断(768→256) + 独立向量索引实体
+
+1. EmbeddingGemma 输出 768 维 → MRL 截断到 256 维 → 存入 ObjectBox HnswIndex(256)
+2. 向量索引从 MemoryEntity 拆离为独立 MemoryVectorIndex 实体
+3. 换模型时：新建 MemoryVectorIndexV2，双写过渡，最后删旧表
+
+**维度选择**: 256 是 MRL 官方截断点，10万条仅 96MB，搜索快，语义保留 ~95%
+
+### LLM 桥接选型
+
+| 方案 | 端侧/云端 | Tool Calling | 关键特性 |
+|---|---|---|---|
+| Llamafu | 端侧 | ✅ | 基于 llama.cpp FFI，支持 Gemma3Nano/Phi-4/DeepSeek |
+| flutter_llama | 端侧 | ❌ | GPU加速(Metal 3-10x)，性能最强 |
+| flutter_local_ai | 端侧 | ❌ | 统一API(ML Kit/Apple Foundation Models) |
+| llm_toolkit | 端侧 | ❌ | 全栈本地AI SDK，较新(0.0.4) |
+
+**推荐**: Llamafu（支持 Tool Calling，对宠物代聊场景关键）
+
+### 对话管理选型
+
+| 方案 | 特性 | 与mnemosyne兼容性 |
+|---|---|---|
+| chat_memory (Dart) | 语义检索+混合记忆+自动System Prompt | ⚠️ 自有存储后端，数据分裂 |
+| flutter_ai_toolkit | 多轮对话+流式+Provider抽象 | ⚠️ 偏UI层 |
+
+**推荐**: 自建对话管理层，参考 chat_memory 设计，直接基于 mnemosyne
+
+### 跨语言社区最先进记忆架构
+
+1. **Zep/Graphiti**: 4节点5边时序知识图谱，事实演化+社区检测+混合检索，LongMemEval +18.5%
+2. **Mem0/Mem0ᵍ**: 25k+ Star，图增强版支持实体链接+多信号检索，LoCoMo 91.6分
+3. **LangMem**: 三层记忆(Semantic/Episodic/Procedural)，Background Manager 后台自动提取
+
+**关键决策**: 不直接引入 Python SDK（依赖 Neo4j/PostgreSQL），借鉴架构设计用 Dart 在 mnemosyne 内部重写
+
+### 新 SDK 命名: neural-bridge
+
+**设计原则**:
+- 独立于 mnemosyne 的 SDK，零耦合
+- 三层: EmbeddingProvider → LLMProvider → ConversationManager
+- App 层通过依赖注入将 neural-bridge 与 mnemosyne 组合
+
+---
+
+## 2026-04-30: neural-bridge SDK 实现踩坑
+
+### 踩坑1: Dart `implements` vs `extends` 对 abstract class default method 的影响
+
+**问题**: `EmbeddingProvider` 和 `LLMProvider` 是 abstract class，内含带默认实现的方法（如 `truncate()`、`generateStream()`、`initialize()`、`dispose()`）。子类使用 `implements` 时，Dart 要求子类必须实现接口的所有方法，包括已有默认实现的方法。
+
+**根因**: Dart 中 `implements` 仅继承接口签名，不继承实现；`extends` 才继承实现。
+
+**修复**: 所有 Provider 子类从 `implements` 改为 `extends`。
+
+**教训**:
+- `implements` = 纯接口契约，不继承任何实现
+- `extends` = 继承实现 + 可选 override
+- 当 abstract class 有 default method 实现时，子类应使用 `extends`
+
+### 踩坑2: Exception 类定义位置导致跨文件不可见
+
+**问题**: `EmbeddingProviderException` 最初定义在 `gemma_embedding_provider.dart` 中，但 `cloud_embedding_provider.dart` 也需要使用，导致编译错误。
+
+**修复**: 将 Exception 类移到基类文件（`embedding_provider.dart` / `llm_provider.dart`），所有子类通过 import 基类获得。
+
+**教训**: 异常类应定义在抽象层，与接口一起暴露，而非放在具体实现中。
+
+### 踩坑3: ObjectBox HNSW 维度硬编码的解耦方案
+
+**问题**: `MemoryEntity` 的 `@HnswIndex(dimensions: 384)` 是编译期常量，换模型必须重建 schema。
+
+**解决方案**: 
+1. 创建独立 `MemoryVectorIndex` 实体，维度设为 256（EmbeddingGemma MRL 截断点）
+2. 从 `MemoryEntity` 移除 `@HnswIndex` 注解，保留 `embedding` 字段作为普通属性（向后兼容）
+3. 向量搜索通过 `MemoryVectorIndex` 执行，通过 `memoryUid` 关联回 `MemoryEntity`
+4. 换模型时：新建 `MemoryVectorIndexV2`，双写过渡，最后删旧表
+
+**关键设计**: `MemoryVectorIndex` 记录 `modelName`、`rawDimensions`、`outputDimensions`、`isTruncated` 元数据，支持未来模型切换审计。
+
+### 踩坑4: `_sessions[sessionId]!.copyWith(...)` 返回类型推断
+
+**问题**: `_sessions[sessionId]!.copyWith(...)` 返回 `ConversationSession`（非 nullable），但 `session?.copyWith(...)` 返回 `ConversationSession?`。当 Map 的 value 类型是 `ConversationSession` 时，`_sessions[sessionId]` 返回 `ConversationSession?`，需要先 null check 再赋值。
+
+**修复**: 使用 `final session = _sessions[sessionId]; if (session != null) { _sessions[sessionId] = session.copyWith(...); }` 模式。
+
+**教训**: Dart Map 的 `[]` 操作符永远返回 `V?`，即使 key 刚刚被验证存在。不要用 `!` 操作符绕过，用 null check 更安全。

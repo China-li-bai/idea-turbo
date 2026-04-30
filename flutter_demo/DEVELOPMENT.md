@@ -467,7 +467,109 @@ echo "=== 完成! ==="
 | `eas.json` | EAS Submit 配置 |
 | `pubspec.yaml` | Flutter 依赖配置 |
 | `android/app/build.gradle.kts` | Android 构建配置 |
+| `lib/pet/pet_store.dart` | 宠物状态管理 (Zero-UI 核心) |
+| `lib/pet/pet_app_shell.dart` | 宠物应用外壳 |
+| `lib/pet/layers/*.dart` | 五层渲染架构实现 |
 
 ---
 
-*最后更新: 2026-04-27*
+## 7. Zero-UI 宠物系统 (2026-04-29 新增)
+
+### 7.1 设计理念
+
+**核心问题**: 传统聊天应用的对话框模式太死板，如何让 AI 交互更像"人与宠物"的自然互动？
+
+**解决方案**: Zero-UI 范式 — 取消所有传统 UI 控件（输入框、发送按钮、消息列表），用空间化的视觉元素替代：
+
+| 传统 UI | Zero-UI 替代方案 |
+|----------|------------------|
+| 消息列表 | 浮动字幕（像电影字幕一样消散） |
+| 输入框 | 底部极简 HUD（按需展开） |
+| 发送按钮 | 手势触发（长按=抚摸） |
+| 加载动画 | 宠物表情变化（思考/聆听） |
+| 错误提示 | 宠物眩晕状态 |
+
+### 7.2 状态管理设计
+
+```dart
+// PetStore - 单一状态源
+class PetStore extends ChangeNotifier {
+  PetMood _mood;           // 当前情绪状态
+  Offset _lookAt;          // 视线追踪目标
+  List<Subtitle> _subtitles; // 浮动字幕队列
+  List<Particle> _particles; // 粒子特效队列
+  
+  // 自动清理机制（Timer 定时过期）
+  // 字幕 6 秒后自动移除
+  // 粒子 3 秒后自动移除
+}
+```
+
+### 7.3 动画系统
+
+EntityLayer 使用 4 个独立 AnimationController：
+
+| 控制器 | 周期 | 效果 |
+|--------|------|------|
+| `_breathController` | 2500ms (往返) | 身体呼吸起伏 (±2%) |
+| `_blinkController` | 150ms (单次) | 眨眼（随机间隔 2-5 秒） |
+| `_earController` | 400ms (单次) | 耳朵抖动（随机） |
+| `_tailController` | 600ms (往返) | 尾巴摇摆（开心时加速） |
+
+### 7.4 llamadart API 正确用法
+
+⚠️ **重要**: llamadart 的 API 与网上文档可能有出入，以下为验证可用的写法：
+
+```dart
+// 1. 创建引擎
+_engine = LlamaEngine(LlamaBackend());
+
+// 2. 加载模型
+await _engine!.loadModel(
+  modelPath,
+  modelParams: const ModelParams(
+    contextSize: 4096,
+    gpuLayers: 0,
+  ),
+);
+
+// 3. 流式生成
+final stream = _engine!.create(
+  messages,  // List<LlamaChatMessage>
+  params: const GenerationParams(
+    maxTokens: 256,
+    temp: 0.7,
+  ),
+);
+
+// 4. 读取文本
+await for (final chunk in stream) {
+  final text = chunk.choices.firstOrNull?.delta.content ?? '';
+}
+```
+
+### 7.5 构建检查清单
+
+打包前确保通过以下检查：
+
+```bash
+# 1. 静态分析（零 error/warning）
+flutter analyze lib/pet/
+
+# 2. 常见修复项
+# - import 'package:flutter/material.dart'; (Offset, ChangeNotifier)
+# - DateTime? 需要 ! 断言（在 null check 后）
+# - mounted 检查（async gap 中使用 context 前）
+# - 未使用变量/方法删除
+```
+
+### 7.6 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| **1.1.0** | 2026-04-29 | ✅ Zero-UI 宠物系统（五层架构、手势交互、浮动字幕） |
+| **1.0.0** | 2026-04-27 | 初始版本（聊天界面 + 模型下载 + OTA 更新） |
+
+---
+
+*最后更新: 2026-04-29*

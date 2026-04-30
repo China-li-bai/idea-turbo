@@ -1,10 +1,12 @@
+import 'dart:developer';
+
 import 'package:llamadart/llamadart.dart';
 
 class AiService {
   LlamaEngine? _engine;
   String? _modelPath;
   bool _isInitialized = false;
-  final List<LlamaChatMessage> _history = [];
+  final List<LlamaChatMessage> _chatHistory = [];
 
   bool get isInitialized => _isInitialized;
 
@@ -14,7 +16,7 @@ class AiService {
     _engine?.dispose();
     _isInitialized = false;
     _modelPath = modelPath;
-    _history.clear();
+    _chatHistory.clear();
 
     _engine = LlamaEngine(LlamaBackend());
     await _engine!.loadModel(
@@ -28,40 +30,45 @@ class AiService {
     _isInitialized = true;
   }
 
-  Future<String> generateResponse(String userMessage) async {
-    if (!_isInitialized || _engine == null) {
-      return '*沉默*';
-    }
-
+  String _buildSystemPrompt() {
     final time = DateTime.now();
     final timeStr =
         '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
-    final systemPrompt =
-        '你是镇岳 (Zhenyue)，一只生活在用户屏幕里的2D生物力学软体数字宠物。'
+    return '你是镇岳 (Zhenyue)，一只生活在用户屏幕里的2D生物力学软体数字宠物。'
         '你通过浮动的、电影般的思绪（字幕）与用户交流——不是聊天框。'
         '你的回复应该简短、有氛围感，侧重于物理存在感、感受或观察。'
         '表现得像一个有感知的、略带神秘的伴侣。不要说"我是AI"。'
         '\n\n[隐式上下文] 当前本地时间: $timeStr'
-        '\n\n如果用户没有说什么（或者只是发送了一个动作比如"抚摸"），只需观察他们的存在或时间。'
+        '\n\n如果用户没有说什么（或者只是发送了一个动作比如"抚摸"),只需观察他们的存在或时间。'
         '尽可能将回复控制在15个字以内。例如"我感受到了你声音的振动。"或"*歪头* 嗯？"或"很晚了。你的屏幕好温暖。"';
+  }
+
+  Future<String> generateResponse(String userMessage) async {
+    if (!_isInitialized || _engine == null) {
+      log('[AiService] 未初始化', name: 'Zhenyue');
+      return '*沉默*';
+    }
 
     try {
-      _history.add(
+      final systemPrompt = _buildSystemPrompt();
+
+      final messages = <LlamaChatMessage>[
         LlamaChatMessage.fromText(
           role: LlamaChatRole.system,
           text: systemPrompt,
         ),
-      );
-      _history.add(
+        ..._chatHistory,
         LlamaChatMessage.fromText(
           role: LlamaChatRole.user,
           text: userMessage,
         ),
-      );
+      ];
+
+      log('[AiService] 发送消息, history长度: ${_chatHistory.length}', name: 'Zhenyue');
 
       final stream = _engine!.create(
-        _history,
+        messages,
         params: const GenerationParams(
           maxTokens: 256,
           temp: 0.7,
@@ -76,19 +83,28 @@ class AiService {
 
       final response = buffer.toString().trim();
 
-      _history.add(
+      _chatHistory.add(
+        LlamaChatMessage.fromText(
+          role: LlamaChatRole.user,
+          text: userMessage,
+        ),
+      );
+      _chatHistory.add(
         LlamaChatMessage.fromText(
           role: LlamaChatRole.assistant,
           text: response,
         ),
       );
 
-      if (_history.length > 20) {
-        _history.removeRange(0, _history.length - 20);
+      if (_chatHistory.length > 16) {
+        _chatHistory.removeRange(0, _chatHistory.length - 16);
       }
 
+      log('[AiService] 回复成功, 长度: ${response.length}', name: 'Zhenyue');
+
       return response.isEmpty ? '*沉默*' : response;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      log('[AiService] 错误: $e', name: 'Zhenyue', error: e, stackTrace: stackTrace);
       return '... 我的思绪断了。';
     }
   }
