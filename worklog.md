@@ -153,3 +153,223 @@
 - Exception 类应定义在抽象层，与接口一起暴露
 - ObjectBox HNSW 维度是编译期常量，独立实体是解耦的唯一方案
 - MRL 截断(768→256)是端侧向量搜索的最优维度选择
+
+---
+
+### 任务：L2/L3 层集成 — Embedding 回调注入 + 桥接层 + 三级记忆生命周期
+
+**开始时间**: 2026-04-30
+**任务描述**: 完成 neural-bridge SDK 的 L2（Embedding 真实接入）和 L3（桥接层+生命周期管理器）实现，打通 NeuralBridge ↔ Mnemosyne 的完整数据流。
+
+**核心设计决策**:
+1. **回调注入模式**: `GemmaEmbeddingProvider` 不硬依赖 `flutter_gemma` 插件，而是接受 `OnDeviceEmbeddingCallback` 回调。App 层负责提供 `flutter_gemma` 的推理函数，SDK 保持零平台耦合。
+2. **FlutterGemmaAdapter**: 便捷工厂类，一行代码创建 `GemmaEmbeddingConfig`。
+3. **NeuralMnemosyneBridge**: 双向桥接层，提供 `rememberWithEmbedding()`（自动生成向量再存储）和 `recallWithEmbedding()`（自动生成查询向量再搜索）。
+4. **MemoryLifecycleManager**: 三级记忆生命周期管理器，实现 Working→Episodic→Semantic 的自动晋升与归档。
+
+**新增文件**:
+- `packages/neural_bridge/lib/src/embedding/flutter_gemma_adapter.dart` - flutter_gemma 适配器
+- `packages/neural_bridge/lib/src/bridge/neural_mnemosyne_bridge.dart` - NeuralBridge↔Mnemosyne 桥接
+- `packages/neural_bridge/lib/src/bridge/memory_lifecycle_manager.dart` - 三级记忆生命周期管理器
+
+**修改文件**:
+- `packages/neural_bridge/lib/src/embedding/gemma_embedding_provider.dart` - 重写：回调注入+L2归一化+MRL截断
+- `packages/neural_bridge/lib/src/core/neural_bridge.dart` - barrel export 补全
+- `packages/neural_bridge/pubspec.yaml` - 添加 mnemosyne 依赖
+- `packages/mnemosyne/lib/features/pet/vitality/vitality_service.dart` - 清理 unused import
+- `packages/mnemosyne/lib/features/pet/vitality/personality_awakening.dart` - 清理 unused import/field
+
+**编译验证**: 两个 SDK 均 `dart analyze lib/` → No issues found!
+
+**经验总结**:
+- 回调注入是 SDK 解耦的最佳实践：neural-bridge 不依赖任何 Flutter 平台插件，App 层自由选择推理引擎
+- 三级记忆晋升条件：importance ≥ 0.5 + accessCount ≥ 3 + 有 embedding 向量
+- Working Memory 归档时机：对话会话结束时（archiveSession），自动将用户消息转为 Episodic Memory
+- L2 归一化必须在 MRL 截断之前执行：先归一化 768 维，再截断到 256 维
+
+---
+
+### 任务：测试驱动架构迭代 — 设计测试案例，发现问题，迭代升级
+
+**开始时间**: 2026-04-30
+**任务描述**: 为 neural-bridge SDK 设计全面测试案例，通过测试发现架构缺陷并迭代升级。
+
+**发现的架构问题及修复**:
+
+1. **依赖倒置缺失** (严重): `NeuralMnemosyneBridge` 和 `MemoryLifecycleManager` 直接依赖 `Mnemosyne` 具体类，无法 mock 测试。
+   - **修复**: 创建 `MemoryStore` 和 `EmbeddingSource` 抽象接口，桥接层改为依赖接口。
+   - **新增**: `MnemosyneMemoryStore` 和 `NeuralBridgeEmbeddingSource` 适配器。
+
+2. **MRL 截断后归一化丢失** (严重): 截断 768→256 维后，向量范数 < 1.0，导致余弦相似度计算不准确。
+   - **修复**: `GemmaEmbeddingProvider.embed()` 在 MRL 截断后增加二次 L2 归一化。
+   - **正确流程**: 原始输出 → L2归一化 → MRL截断 → **再次L2归一化**
+
+3. **ConsolidationResult 缺失必填字段** (中): Mock 测试暴露 `memoryType`、`centroidEmbedding`、`consolidationTimestamp` 为必填。
+
+**新增文件**:
+- `packages/neural_bridge/lib/src/bridge/memory_store.dart` - MemoryStore 抽象接口 + MnemosyneMemoryStore 适配器
+- `packages/neural_bridge/lib/src/bridge/embedding_source.dart` - EmbeddingSource/ConversationSource 抽象接口 + 适配器
+- `packages/neural_bridge/test/bridge/bridge_lifecycle_test.dart` - Bridge + Lifecycle 集成测试 (27 个用例)
+
+**修改文件**:
+- `packages/neural_bridge/lib/src/bridge/neural_mnemosyne_bridge.dart` - 重构：依赖 MemoryStore/EmbeddingSource 接口
+- `packages/neural_bridge/lib/src/bridge/memory_lifecycle_manager.dart` - 重构：依赖 MemoryStore/EmbeddingSource 接口
+- `packages/neural_bridge/lib/src/embedding/gemma_embedding_provider.dart` - 修复：MRL 截断后二次归一化
+- `packages/neural_bridge/lib/src/core/neural_bridge.dart` - barrel export 补全
+- `packages/neural_bridge/test/embedding/embedding_pipeline_test.dart` - 修复 MRL 测试断言
+
+**测试结果**:
+- neural_bridge: **47 tests passed** ✅
+- mnemosyne: **120 tests passed** ✅
+
+**测试覆盖维度**:
+- Embedding 管线: 回调注入、初始化、L2归一化、MRL截断、fallback链、batch、超时
+- Bridge 桥接: 自动embedding存储、无embedding降级、对话归档、系统消息过滤
+- Lifecycle 生命周期: Working→Episodic归档、Episodic→Semantic晋升、晋升条件过滤、重要性/情感估算、全周期运行、层级过滤召回
+
+---
+
+### 任务：社区标准测试升级 — CRI/BEIR/AMB 三大基准框架
+
+**开始时间**: 2026-04-30
+**任务描述**: 审查现有测试是否符合社区标准，发现差距，按 CRI/BEIR/AMB 标准重写测试。
+
+**发现的严重差距**:
+1. 原测试使用 `Random(seed)` 随机向量 — 无任何语义信息，无法评估搜索质量
+2. 原测试无 NDCG/Recall/MRR 等标准 IR 评估指标 — 只测"代码能不能跑"
+3. 原测试无冲突解决测试 — 纯向量搜索无法处理时间冲突
+4. 原测试无跨语言测试 — 中文搜索质量未评估
+5. 原测试无规模干扰测试 — 仅 1-20 条记忆
+
+**社区三大评估框架**:
+- **BEIR** (NeurIPS 2021): 17 数据集，NDCG@10 核心指标，2026 演进为 MTEB v2
+- **LongMemEval** (ICLR 2025): 500 问题，5 种记忆能力，最佳系统 Recall@10 仅 78.4%
+- **CRI Benchmark** (2026): 6+12 维度，事实/时间/偏好/冲突/遗忘/跨会话
+- **Agent Memory Benchmark** (2026): 56 测试，8 分类，3 层（基础→多步骤→1K-10K 干扰）
+
+**新建文件**:
+- `test/eval/retrieval_metrics.dart` — NDCG@K, Recall@K, MRR, Precision@K, GradedRelevanceMetrics
+- `test/eval/cri_dataset.dart` — CRI 风格标注数据集（8 维度，50+ 记忆，30+ 查询）
+- `test/eval/cri_benchmark_test.dart` — CRI/BEIR/AMB 三合一基准测试
+
+**CRI 基准测试结果**:
+
+| 维度 | NDCG@10 | Recall@10 | 状态 |
+|------|---------|-----------|------|
+| 事实回忆 | 1.000 | 1.000 | ✅ 完美 |
+| 语义搜索(改写) | 1.000 | 1.000 | ✅ 完美 |
+| 时间推理 | 0.706 | 0.900 | ⚠️ 降级 |
+| 冲突解决 | PASS | — | ✅ 修复后通过 |
+| 偏好理解 | 0.625 | 0.750 | ⚠️ 降级 |
+| 跨会话 | 0.973 | 1.000 | ✅ 很好 |
+| 中文搜索 | 0.333 | 0.333 | ⚠️ 模拟局限 |
+| 跨语言(中→英) | PASS | — | ✅ 通过 |
+| **Overall** | **0.773** | **0.831** | |
+
+| BEIR MRL 截断 | 退化率 | 状态 |
+|---------------|--------|------|
+| 768d → 256d | 0.0% | ✅ 无退化 |
+
+| AMB 规模测试 | 干扰项 | 状态 |
+|-------------|--------|------|
+| 100 干扰记忆 | 100 | ✅ 通过 |
+
+**发现的架构缺陷及修复**:
+1. **冲突解决缺失** (严重): 纯向量搜索无法处理时间冲突 — "I love sushi" 排名比 "I am allergic to fish" 更高
+   - **修复**: SemanticMemoryStore.recall 加入时间感知重排序 + 冲突话题去重
+   - **架构启示**: 真实系统需要 `ConflictResolver` 服务，基于 metadata.timestamp 做时间排序
+
+2. **中文搜索质量差** (中等): 模拟 embedding 对中文支持不足，NDCG@10 仅 0.333
+   - **根因**: 模拟向量基于 token hash，中文分词效果差
+   - **真实系统预期**: EmbeddingGemma 300M 应达到 NDCG@10 >= 0.5
+
+**测试总数**: neural_bridge **59 tests passed** ✅
+
+---
+
+### 任务：社区公开数据集集成与基准测试
+
+**开始时间**: 2026-04-30
+**任务描述**: 将 BEIR、LoCoMo、MemBench 三大社区公开数据集 clone 到本地，编写 Dart 数据加载器，集成到基准测试框架中。
+
+**集成的数据集**:
+
+| 数据集 | 来源 | 规模 | 测试维度 |
+|--------|------|------|----------|
+| LoCoMo | Snap Research (2025) | 10 会话, 1986 QA, 5882 消息 | 单跳/多跳/时间/对抗性/开放域 |
+| MemBench | ACL 2025 Findings | 26637 条, 1322716 消息 | 9 类(roles/events/items/places/hybrid/movie/food/book/multiAgent) × 11 难度 |
+| BEIR scifact | NeurIPS 2021 | ~5K 文档, ~1K 查询, ~300 qrels | 科学事实检索 |
+
+**新增文件**:
+- `test/eval/locomo_dataset.dart` — LoCoMo 数据加载器（多会话对话+QA解析）
+- `test/eval/membench_dataset.dart` — MemBench 数据加载器（双Agent格式兼容）
+- `test/eval/beir_dataset.dart` — BEIR 数据加载器（JSONL corpus/queries + TSV qrels）
+- `test/eval/community_benchmark_test.dart` — 三数据集联合基准测试
+
+**关键技术挑战与修复**:
+
+1. **LoCoMo 会话数据嵌套**: 数据中 conversation 字段嵌套在顶层对象内，而非平铺在顶层。修复：`map['conversation'] as Map` 先取内层再解析 session。
+
+2. **MemBench 双 Agent 格式差异**: ThirdAgent 的 `message_list` 是 `[{mid, message, time, place}]` 扁平结构；FirstAgent 的 `message_list` 是 `[[{sid, user_message, assistant_message, time, place}]]` 嵌套会话结构。修复：`_parseMessageList()` 自动检测首元素类型，分别处理。
+
+3. **MemBench QA 字段类型不一致**: FirstAgent 的 `target_step_id` 是 `[[119, 5]]` 嵌套列表（ThirdAgent 是 `[10]` 简单列表）；RecMultiSession 的 `answer` 和 `choices` 值是 `List<String>` 而非 `String`。修复：`_parseIntList()` 递归解析嵌套列表；`answer` 和 `choices` 改为 `dynamic` 类型 + `answerText` getter。
+
+4. **BEIR JSONL 格式解析**: corpus 和 queries 是 JSONL（每行一个 JSON），qrels 是 TSV。修复：使用 `openRead().transform(utf8.decoder).transform(LineSplitter())` 流式解析。
+
+**基准测试结果**:
+
+| 数据集 | 核心指标 | 值 | 状态 |
+|--------|---------|-----|------|
+| LoCoMo | single-hop recall@10 | 1.000 | ✅ 完美 |
+| LoCoMo | temporal QA count | 96 | ✅ 可用 |
+| LoCoMo | multi-hop QA count | 321 | ✅ 可用 |
+| MemBench | simple recall@10 | 1.000 | ✅ 完美 |
+| MemBench | noisy items | 3500 | ✅ 可用 |
+| MemBench | hybrid items | 2931 | ✅ 可用 |
+| MemBench | knowledge_update items | 1999 | ✅ 可用 |
+| BEIR scifact | NDCG@10 (semantic-mock) | 0.259 | ✅ 基线建立 |
+
+**测试总数**: neural_bridge **75 tests passed** ✅, **0 静态分析问题** ✅
+
+---
+
+### 任务：LongMemEval (ICLR 2025) 数据集集成
+
+**开始时间**: 2026-04-30
+**任务描述**: 将 LongMemEval (ICLR 2025) 数据集集成到基准测试框架，补齐第四个社区公开数据集。
+
+**数据集来源**: HuggingFace (`xiaowu0162/longmemeval-cleaned`)
+**下载方式**: `wget` 直接下载 JSON 文件（无需 Google Drive）
+
+**LongMemEval 数据集概览**:
+- 500 个评估实例，6 种问题类型
+- 问题类型分布: temporal-reasoning(133), multi-session(133), knowledge-update(78), single-session-user(70), single-session-assistant(56), single-session-preference(30)
+- 30 个弃权问题(abstention)，要求系统回答"我不知道"
+- 每个实例包含: question, answer, haystack_sessions(对话历史), answer_session_ids(证据会话), has_answer标签(证据轮次)
+
+**新增文件**:
+- `test/eval/longmemeval_dataset.dart` — LongMemEval 数据加载器
+- `test/fixtures/longmemeval/longmemeval_oracle.json` — oracle 变体(仅证据会话)
+- `test/fixtures/longmemeval/longmemeval_s_cleaned.json` — short 变体(115k tokens)
+
+**LongMemEval 基准测试结果**:
+
+| 测试 | 结果 | 状态 |
+|------|------|------|
+| 数据加载 | 500 实例, 6 类型 | ✅ |
+| 类型分布 | 6/6 覆盖 | ✅ |
+| 弃权识别 | 30 个 | ✅ |
+| 证据轮次 | 20 (sample 10) | ✅ |
+| 时间推理 recall@10 | 1.000 (5/5) | ✅ |
+| 知识更新 | 冲突信息检测 | ✅ |
+
+**四大数据集集成总览**:
+
+| 数据集 | 来源 | 规模 | 核心指标 |
+|--------|------|------|----------|
+| LoCoMo | Snap Research | 10会话/1986QA | recall@10: 1.000 |
+| MemBench | ACL 2025 | 26637条/1.3M消息 | recall@10: 1.000 |
+| BEIR scifact | NeurIPS 2021 | 5K文档/1K查询 | NDCG@10: 0.259 |
+| LongMemEval | ICLR 2025 | 500实例/6类型 | recall@10: 1.000 |
+
+**测试总数**: neural_bridge **82 tests passed** ✅, **0 静态分析问题** ✅

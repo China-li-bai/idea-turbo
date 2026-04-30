@@ -661,3 +661,274 @@ export LD_LIBRARY_PATH=/root/idea-turbo/packages/mnemosyne/lib:$LD_LIBRARY_PATH
 **修复**: 使用 `final session = _sessions[sessionId]; if (session != null) { _sessions[sessionId] = session.copyWith(...); }` 模式。
 
 **教训**: Dart Map 的 `[]` 操作符永远返回 `V?`，即使 key 刚刚被验证存在。不要用 `!` 操作符绕过，用 null check 更安全。
+
+---
+
+## 2026-04-30: L2/L3 层集成 — 回调注入 + 桥接层 + 三级记忆生命周期
+
+### 设计决策: 回调注入模式解决 SDK 平台耦合
+
+**问题**: `GemmaEmbeddingProvider` 需要调用 `flutter_gemma` 进行端侧推理，但 `flutter_gemma` 是 Flutter 平台插件（依赖原生代码），不能被纯 Dart SDK 硬依赖。
+
+**解决方案**: 回调注入模式 — Provider 接受 `OnDeviceEmbeddingCallback` 函数签名，App 层负责注入实际的推理函数。
+
+```dart
+typedef OnDeviceEmbeddingCallback = Future<List<double>> Function(String text);
+
+class GemmaEmbeddingConfig {
+  final OnDeviceEmbeddingCallback? inferenceCallback;
+  // ...
+}
+
+// App 层使用
+final config = FlutterGemmaAdapter.createConfig(
+  getEmbedding: (text) => flutterGemmaModel.getEmbedding(text),
+);
+```
+
+**优势**:
+1. SDK 零平台耦合 — 不依赖任何 Flutter 插件
+2. App 层自由选择推理引擎 — flutter_gemma / flutter_onnxruntime / 自定义
+3. 可测试 — Mock 回调即可单元测试
+4. 向后兼容 — 无回调时自动 fallback 到下一个 Provider
+
+### 设计决策: L2 归一化必须在 MRL 截断之前
+
+**问题**: EmbeddingGemma 输出 768 维向量，需要 MRL 截断到 256 维。截断顺序影响语义质量。
+
+**正确流程**: 原始输出 → L2 归一化 → MRL 截断
+**错误流程**: 原始输出 → MRL 截断 → L2 归一化
+
+**原因**: MRL 的截断是基于已归一化的向量设计的。先截断再归一化会改变向量方向，损失语义信息。
+
+### 设计决策: 三级记忆晋升条件
+
+**Working → Episodic**: 对话会话结束（archiveSession）时自动归档
+**Episodic → Semantic**: importance ≥ 0.5 + accessCount ≥ 3 + 有 embedding 向量
+
+**参考**: engram 的 `should_promote` 使用 `importance >= 0.7 && access_count >= 3`，我们降低 importance 阈值到 0.5，因为宠物场景下用户交互更随意，不应要求过高重要性。
+
+### 踩坑: ConversationManager 方法名不一致
+
+**问题**: `MemoryLifecycleManager` 使用 `conversation.getMessages()` 和 `conversation.endSession()`，但 `ConversationManager` 接口实际方法是 `getHistory()` 和 `archiveSession()`。
+
+**根因**: 未先阅读接口定义就凭直觉写调用代码。
+
+**修复**: `dart analyze` 立即暴露了 `undefined_method` 错误，改为 `getHistory()` 和 `archiveSession()`。
+
+**教训**: 调用任何接口前，先读接口定义，不要凭方法名直觉调用。
+
+### flutter_gemma (v0.12.8+) 关键发现
+
+- 原生支持 EmbeddingGemma 300M（含 tokenizer + ONNX 推理）
+- 支持 RAG 模式：`addDocument()` 自动使用 document prefix
+- 支持 MRL 截断维度：256D/384D/512D/768D
+- 桌面端支持 `.tflite` embedding 模型（EmbeddingGemma, Gecko）
+- 需要 HuggingFace Token（gated model）
+
+---
+
+## 2026-04-30: 测试驱动架构迭代 — 三个关键发现
+
+### 发现1: 依赖倒置缺失导致无法测试 (严重)
+
+**问题**: `NeuralMnemosyneBridge` 和 `MemoryLifecycleManager` 直接依赖 `Mnemosyne` 具体类，无法在测试中 mock，也无法替换底层存储。
+
+**根因**: 初期为了快速实现，桥接层直接 `import 'package:mnemosyne/mnemosyne.dart'` 并使用 `Mnemosyne` 类。
+
+**修复**: 
+- 创建 `MemoryStore` 抽象接口（remember/recall/updateMemory/decay/prune/consolidate 等）
+- 创建 `EmbeddingSource` 抽象接口（embed + outputDimensions）
+- 创建 `ConversationSource` 抽象接口（getHistory/archiveSession）
+- 桥接层改为依赖接口，通过构造函数注入
+- 适配器模式：`MnemosyneMemoryStore`、`NeuralBridgeEmbeddingSource`、`DefaultConversationSource`
+
+**教训**: 
+1. **SDK 边界必须用接口隔离**: 即使只有一个实现，也要定义接口，否则测试和替换都困难
+2. **构造函数注入优于属性注入**: `required MemoryStore memoryStore` 比 `Mnemosyne? mnemosyne` 更安全
+3. **可选依赖用 nullable 接口**: `EmbeddingSource?` 允许无 embedding 降级运行
+
+### 发现2: MRL 截断后必须重新归一化 (严重 — 影响搜索精度)
+
+**问题**: MRL 截断 768→256 维后，向量范数 < 1.0（丢失了后 512 维的分量），导致余弦相似度计算不准确。
+
+**数学证明**: 
+- 归一化 768 维向量: ‖v‖ = 1.0
+- 截断前 256 维: ‖v[0:256]‖ = √(1.0 - ‖v[256:768]‖²) < 1.0
+- 余弦相似度 = dot(a,b)/(‖a‖*‖b‖)，如果 ‖a‖≠1 或 ‖b‖≠1，结果偏差
+
+**修复**: `GemmaEmbeddingProvider.embed()` 在 MRL 截断后增加二次 L2 归一化
+```dart
+// ❌ 旧代码
+if (_embeddingConfig.enableTruncation) {
+  return truncate(normalized, _embeddingConfig.targetDimensions);
+}
+
+// ✅ 新代码
+if (_embeddingConfig.enableTruncation) {
+  final truncated = truncate(normalized, _embeddingConfig.targetDimensions);
+  return _l2Normalize(truncated);  // 二次归一化！
+}
+```
+
+**正确流程**: 原始输出 → L2归一化(768d) → MRL截断(768→256) → **再次L2归一化(256d)**
+
+**教训**: 
+1. **截断 ≠ 前缀提取**: MRL 截断后向量不再是单位向量，必须重新归一化
+2. **测试暴露了直觉盲区**: L2 归一化测试直接暴露了此 Bug，没有测试就不会发现
+3. **方向保持 ≠ 值保持**: 重新归一化会改变向量值，但保持方向（余弦相似度不变），这才是搜索所需的
+
+### 发现3: ConsolidationResult 必填字段遗漏 (中等)
+
+**问题**: Mock 测试中 `ConsolidationResult` 构造缺少 `memoryType`、`centroidEmbedding`、`consolidationTimestamp` 必填字段。
+
+**根因**: 之前修复 DEFECT-2 时新增了这些字段，但测试代码未同步更新。
+
+**教训**: 修改数据类字段后，必须全局搜索所有构造点并更新。
+
+### 测试覆盖总结
+
+| 模块 | 测试数 | 覆盖维度 |
+|------|--------|----------|
+| Embedding 管线 | 20 | 回调注入、初始化、L2归一化、MRL截断、fallback链、batch、超时 |
+| Bridge 桥接 | 8 | 自动embedding存储、无embedding降级、对话归档、系统消息过滤 |
+| Lifecycle 生命周期 | 19 | Working→Episodic归档、Episodic→Semantic晋升、晋升条件过滤、重要性/情感估算、全周期运行、层级过滤召回 |
+| **总计** | **47** | |
+
+---
+
+## 2026-04-30: CRI/BEIR/AMB 社区标准测试框架
+
+### 教训：原测试只验证"代码能跑"，不验证"搜索质量好不好"
+
+**问题**: 原有测试使用 `Random(seed)` 生成随机向量，完全没有语义信息。测试只能验证代码逻辑是否正确执行，无法评估搜索结果质量。
+
+**社区三大评估框架**:
+- **BEIR** (NeurIPS 2021): 17 个数据集，NDCG@10 为核心指标，2026 演进为 MTEB v2
+- **LongMemEval** (ICLR 2025): 500 问题，5 种记忆能力，最佳系统 Recall@10 仅 78.4%
+- **CRI Benchmark** (2026): 6+12 维度，覆盖事实/时间/偏好/冲突/遗忘/跨会话
+- **Agent Memory Benchmark** (2026): 56 测试，8 分类，3 层难度（基础→多步骤→1K-10K 干扰）
+
+### 关键发现：纯向量搜索无法处理时间冲突
+
+**CRI 基准测试暴露的严重架构缺陷**:
+
+当用户说 "I love eating sushi" 后来说 "I am allergic to fish"，纯向量搜索会把 "I love eating sushi" 排在更高位置，因为 "sushi" 和 "fish" 的查询词更匹配。
+
+**根因**: 向量相似度只衡量语义相关性，不考虑时间先后。当两条记忆冲突时，应该以最新的为准。
+
+**修复**: 在 recall 方法中加入：
+1. **时间衰减重排序**: `recencyBoost = 1.0 + 0.1 * exp(-ageHours / (24 * 30))`
+2. **冲突话题去重**: 检测同一话题的冲突记忆，只保留时间最新的
+
+**架构启示**: 真实系统需要一个独立的 `ConflictResolver` 服务：
+- 基于 metadata.timestamp 做时间排序
+- 基于 topic/entity 做冲突检测
+- 基于 MemoryStatus 状态机做失效标记（challenged → invalidated）
+
+### 关键发现：中文搜索质量是 Embedding 模型的瓶颈
+
+**CRI 基准测试结果**: 中文搜索 NDCG@10 = 0.333，远低于英文的 1.000。
+
+**根因**: 测试中使用的模拟 embedding 基于 token hash，中文分词效果差。
+
+**真实系统预期**: EmbeddingGemma 300M 应达到 NDCG@10 >= 0.5（基于 MTEB 中文基准）。
+
+### 评估指标实现要点
+
+1. **NDCG@K 计算需要 log2**: `dart:math` 的 `log` 是自然对数，需要 `log(x) / ln2` 转换
+2. **Dart 命名冲突**: `import 'dart:math'` 后，类方法名 `log` 会遮蔽 `dart:math.log`。必须用 `import 'dart:math' as math` 避免冲突
+3. **bool? 类型安全**: `!nullableBool?.method()` 的优先级问题 — `!(nullableBool?.method() ?? false)` 才正确
+4. **GradedRelevanceMetrics**: BEIR 标准使用分级相关性（0-3 分），而非二元相关性。DCG 公式: `(2^rel - 1) / log2(rank + 1)`
+
+### CRI 基准测试完整结果
+
+| 维度 | NDCG@10 | Recall@10 | 状态 |
+|------|---------|-----------|------|
+| 事实回忆 | 1.000 | 1.000 | ✅ |
+| 语义搜索(改写) | 1.000 | 1.000 | ✅ |
+| 时间推理 | 0.706 | 0.900 | ⚠️ |
+| 冲突解决 | PASS | — | ✅ 修复后 |
+| 偏好理解 | 0.625 | 0.750 | ⚠️ |
+| 跨会话 | 0.973 | 1.000 | ✅ |
+| 中文搜索 | 0.333 | 0.333 | ⚠️ 模型局限 |
+| **Overall** | **0.773** | **0.831** | |
+
+MRL 截断退化率: 0.0%（768d → 256d）
+AMB 规模测试: 100 干扰项通过
+
+---
+
+## 2026-04-30: 社区公开数据集集成的数据格式陷阱
+
+### 踩坑：同一数据集内不同 Agent 的 JSON 结构完全不同
+
+**问题**: MemBench 的 ThirdAgent 和 FirstAgent 数据文件虽然共享顶层结构（roles/events/...），但 `message_list` 和 `QA` 的内部字段类型完全不同：
+- ThirdAgent: `message_list` → `[{mid, message, time, place}]` 扁平消息
+- FirstAgent: `message_list` → `[[{sid, user_message, assistant_message, time, place}]]` 嵌套会话
+- ThirdAgent: `QA.target_step_id` → `[10]` 简单 int 列表
+- FirstAgent: `QA.target_step_id` → `[[119, 5]]` 嵌套列表
+- ThirdAgent: `QA.answer` → `"string"`
+- FirstAgent RecMultiSession: `QA.answer` → `["item1", "item2"]` 列表
+
+**根因**: MemBench 论文未详细说明数据格式差异，且两种 Agent 的 JSON schema 不统一。
+
+**修复方案**:
+1. `_parseMessageList()` — 自动检测首元素类型（Map vs List），分别走扁平/嵌套解析路径
+2. `_parseIntList()` — 递归解析嵌套 int 列表
+3. `answer`/`choices` 改为 `dynamic` + `answerText` getter — 兼容 String 和 List<String>
+
+**教训**:
+1. **永远不要假设社区数据集的 JSON schema 是统一的** — 同一数据集内不同子集可能有不同的结构
+2. **数据加载器必须做防御性解析** — 每个字段都应处理类型不一致的情况
+3. **先用 Python 探查数据结构，再写 Dart 加载器** — Python 交互式分析比 Dart 编译-运行循环快 10 倍
+
+### 踩坑：LoCoMo 会话数据嵌套在 conversation 字段内
+
+**问题**: LoCoMo 的 JSON 结构中，`speaker_a`、`speaker_b`、`session_*` 等字段不在顶层，而是嵌套在 `conversation` 字段内。
+
+**根因**: LoCoMo 数据集将元数据（sample_id）和对话数据（conversation）分层组织。
+
+**修复**: `map['conversation'] as Map<String, dynamic>` 先取出内层对象，再解析 session。
+
+### 发现：BEIR JSONL 格式的高效流式解析
+
+**方案**: Dart 中解析 JSONL 文件的最佳方式：
+```dart
+await for (final line in file.openRead()
+    .transform(utf8.decoder)
+    .transform(const LineSplitter())) {
+  if (line.trim().isEmpty) continue;
+  final item = Model.fromJson(jsonDecode(line) as Map<String, dynamic>);
+}
+```
+- 流式解析，内存友好（适合 BEIR 的 5K+ 文档语料）
+- `LineSplitter` 自动处理换行符
+- 跳过空行避免解析错误
+
+### 发现：社区基准测试的 Mock Embedding 局限性
+
+**问题**: 使用 `SemanticEmbeddingSource`（基于关键词 hash 的模拟向量），BEIR scifact NDCG@10 仅 0.259。
+
+**根因**: 模拟向量无真实语义信息，仅靠关键词重叠产生相似度。
+
+**真实系统预期**: EmbeddingGemma 300M 在 BEIR scifact 上应达到 NDCG@10 >= 0.5（参考 MTEB 排行榜）。
+
+**当前策略**: Mock 测试建立基线，真实模型接入后对比提升幅度。
+
+---
+
+## 2026-04-30: LongMemEval answer 字段类型陷阱
+
+### 踩坑：LongMemEval 的 answer 字段可以是 int 而非 String
+
+**问题**: LongMemEval 数据集中，部分实例的 `answer` 是 int 类型（如 `3`, `2`, `99`, `1300`），而非 String。这在 temporal-reasoning 和 knowledge-update 类型中常见（答案为数字）。
+
+**根因**: LongMemEval 论文中 answer 定义为 "the expected answer"，未限定类型。数字答案在 JSON 中自然解析为 int。
+
+**修复**: `answer` 改为 `dynamic` 类型 + `answerText` getter（`answer?.toString() ?? ''`）。
+
+**教训**: 
+1. **社区数据集的 answer 字段不一定是 String** — 特别是涉及计数、时间、数值的 QA 数据集
+2. **`dynamic` + getter 是处理多类型字段的 Dart 惯用模式** — 保持类型安全的同时兼容异构数据
+3. **HuggingFace 数据可直接 wget 下载** — 不需要 Google Drive 或 API key
