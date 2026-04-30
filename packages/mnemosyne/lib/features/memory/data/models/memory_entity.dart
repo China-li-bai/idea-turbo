@@ -26,7 +26,6 @@ class MemoryEntity {
   String entities;
   String topics;
 
-  @HnswIndex(dimensions: 384, distanceType: VectorDistanceType.cosine)
   @Property(type: PropertyType.floatVector)
   List<double>? embedding;
 
