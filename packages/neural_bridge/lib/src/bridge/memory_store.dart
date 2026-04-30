@@ -1,0 +1,108 @@
+import 'package:mnemosyne/mnemosyne.dart';
+
+abstract class MemoryStore {
+  Future<String> remember({
+    required String content,
+    MemoryType type = MemoryType.episodic,
+    MemorySource source = MemorySource.conversation,
+    double importance = 0.5,
+    double emotionalValence = 0.0,
+    List<String>? keywords,
+    List<String>? entities,
+    List<String>? topics,
+    List<double>? embedding,
+    Map<String, dynamic>? metadata,
+  });
+
+  Future<List<MemorySearchResult>> recall({
+    required String query,
+    List<double>? queryEmbedding,
+    int limit = 10,
+  });
+
+  Future<List<MemoryItem>> getRecent({int limit = 20});
+
+  Future<void> updateMemory(MemoryItem memory);
+
+  Future<MemoryItem?> getMemory(String id);
+
+  Future<void> decay();
+
+  Future<void> prune();
+
+  Future<List<ConsolidationCandidate>> findConsolidationCandidates();
+
+  Future<ConsolidationResult> consolidate(
+    ConsolidationCandidate candidate,
+    String Function(List<MemoryItem>) summarizeContent,
+  );
+}
+
+class MnemosyneMemoryStore implements MemoryStore {
+  final Mnemosyne _mnemosyne;
+
+  MnemosyneMemoryStore(this._mnemosyne);
+
+  @override
+  Future<String> remember({
+    required String content,
+    MemoryType type = MemoryType.episodic,
+    MemorySource source = MemorySource.conversation,
+    double importance = 0.5,
+    double emotionalValence = 0.0,
+    List<String>? keywords,
+    List<String>? entities,
+    List<String>? topics,
+    List<double>? embedding,
+    Map<String, dynamic>? metadata,
+  }) =>
+      _mnemosyne.remember(
+        content: content,
+        type: type,
+        source: source,
+        importance: importance,
+        emotionalValence: emotionalValence,
+        keywords: keywords,
+        entities: entities,
+        topics: topics,
+        embedding: embedding,
+        metadata: metadata,
+      );
+
+  @override
+  Future<List<MemorySearchResult>> recall({
+    required String query,
+    List<double>? queryEmbedding,
+    int limit = 10,
+  }) =>
+      _mnemosyne.recall(query: query, queryEmbedding: queryEmbedding, limit: limit);
+
+  @override
+  Future<List<MemoryItem>> getRecent({int limit = 20}) =>
+      _mnemosyne.getRecent(limit: limit);
+
+  @override
+  Future<void> updateMemory(MemoryItem memory) =>
+      _mnemosyne.updateMemory(memory);
+
+  @override
+  Future<MemoryItem?> getMemory(String id) =>
+      _mnemosyne.getMemory(id);
+
+  @override
+  Future<void> decay() => _mnemosyne.decay();
+
+  @override
+  Future<void> prune() => _mnemosyne.prune();
+
+  @override
+  Future<List<ConsolidationCandidate>> findConsolidationCandidates() =>
+      _mnemosyne.findConsolidationCandidates();
+
+  @override
+  Future<ConsolidationResult> consolidate(
+    ConsolidationCandidate candidate,
+    String Function(List<MemoryItem>) summarizeContent,
+  ) =>
+      _mnemosyne.consolidate(candidate, summarizeContent);
+}
