@@ -1,5 +1,3 @@
-import 'dart:math' show min;
-
 enum VitalityLevel {
   critical,
   low,

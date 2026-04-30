@@ -1,5 +1,3 @@
-import 'dart:math';
-
 enum PersonalityArchetype {
   defaultNeutral,
   cyberpunkSarcastic,
@@ -115,7 +113,6 @@ class DefaultPersonalityAwakeningService
     implements PersonalityAwakeningService {
   final AwakeningConfig config;
   final Map<String, PersonalityProfile> _profiles = {};
-  final Random _random = Random();
 
   DefaultPersonalityAwakeningService({this.config = const AwakeningConfig()});
 
