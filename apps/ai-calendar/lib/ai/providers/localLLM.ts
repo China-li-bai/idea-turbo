@@ -49,6 +49,7 @@ export class LocalLLMProvider implements LLMProvider {
   private currentDevice: 'webgpu' | 'wasm' = 'wasm';
   private _status: LocalLLMStatus;
   private statusCallback?: (status: LocalLLMStatus) => void;
+  private initPromise: Promise<void> | null = null;
 
   constructor(config: LocalLLMConfig) {
     this.config = config;
@@ -86,9 +87,10 @@ export class LocalLLMProvider implements LLMProvider {
 
   async initialize(): Promise<void> {
     if (this._status.isReady) return;
-    if (this._status.isLoading) return;
+    if (this.initPromise) return this.initPromise;
 
-    await this.tryLoadModel();
+    this.initPromise = this.tryLoadModel();
+    return this.initPromise;
   }
 
   private async tryLoadModel(): Promise<void> {
@@ -272,6 +274,7 @@ export class LocalLLMProvider implements LLMProvider {
   async dispose(): Promise<void> {
     if (this.generator) {
       this.generator = null;
+      this.initPromise = null;
       this.updateStatus({ isReady: false, isLoading: false });
     }
   }
