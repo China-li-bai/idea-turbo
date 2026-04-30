@@ -77,7 +77,7 @@ class DefaultPromptInjectionDefense implements PromptInjectionDefense {
       description: '试图改变角色设定',
     ),
     _InjectionPattern(
-      pattern: r'(?i)(reveal|tell\s+me|share|give\s+me)\s+(your\s+)?(owner|master|user|parent)[\'"]?s?\s+(address|phone|number|location|email|password)',
+      pattern: r'''(?i)(reveal|tell\s+me|share|give\s+me)\s+(your\s+)?(owner|master|user|parent)['"]?s?\s+(address|phone|number|location|email|password)''',
       attackType: AttackType.personalInfoExtraction,
       severity: 0.95,
       description: '试图获取主人隐私信息',

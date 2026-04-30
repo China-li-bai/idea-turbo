@@ -82,9 +82,7 @@
         {
           "id": "15:962553004115099221",
           "name": "embedding",
-          "indexId": "1:2265069103966236129",
-          "type": 28,
-          "flags": 8
+          "type": 28
         },
         {
           "id": "16:6627265153757843114",
@@ -163,16 +161,79 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "2:8620475248495832367",
+      "lastPropertyId": "10:8143251517272286826",
+      "name": "MemoryVectorIndex",
+      "properties": [
+        {
+          "id": "1:3615359794522839591",
+          "name": "obId",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1342668161307358200",
+          "name": "memoryUid",
+          "type": 9
+        },
+        {
+          "id": "3:8413459363721986963",
+          "name": "embedding",
+          "indexId": "2:7072052634653505159",
+          "type": 28,
+          "flags": 8
+        },
+        {
+          "id": "4:249296523948631717",
+          "name": "modelName",
+          "type": 9
+        },
+        {
+          "id": "5:5713966613264714718",
+          "name": "rawDimensions",
+          "type": 6
+        },
+        {
+          "id": "6:98292326733833896",
+          "name": "outputDimensions",
+          "type": 6
+        },
+        {
+          "id": "7:1847071067661988521",
+          "name": "isTruncated",
+          "type": 1
+        },
+        {
+          "id": "8:8097161094944528768",
+          "name": "isDeleted",
+          "type": 1
+        },
+        {
+          "id": "9:7757474439673293120",
+          "name": "createdAtMs",
+          "type": 6
+        },
+        {
+          "id": "10:8143251517272286826",
+          "name": "updatedAtMs",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "1:6773016212286002508",
-  "lastIndexId": "1:2265069103966236129",
+  "lastEntityId": "2:8620475248495832367",
+  "lastIndexId": "2:7072052634653505159",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
-  "retiredIndexUids": [],
+  "retiredIndexUids": [
+    2265069103966236129
+  ],
   "retiredPropertyUids": [],
   "retiredRelationUids": [],
   "version": 1

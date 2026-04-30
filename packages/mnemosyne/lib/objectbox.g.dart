@@ -15,6 +15,7 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'features/memory/data/models/memory_entity.dart';
+import 'features/memory/data/models/memory_vector_index.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -113,9 +114,7 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(15, 962553004115099221),
         name: 'embedding',
         type: 28,
-        flags: 8,
-        indexId: const obx_int.IdUid(1, 2265069103966236129),
-        hnswParams: obx_int.ModelHnswParams(dimensions: 384, distanceType: 2),
+        flags: 0,
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(16, 6627265153757843114),
@@ -211,6 +210,78 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(2, 8620475248495832367),
+    name: 'MemoryVectorIndex',
+    lastPropertyId: const obx_int.IdUid(10, 8143251517272286826),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 3615359794522839591),
+        name: 'obId',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 1342668161307358200),
+        name: 'memoryUid',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 8413459363721986963),
+        name: 'embedding',
+        type: 28,
+        flags: 8,
+        indexId: const obx_int.IdUid(2, 7072052634653505159),
+        hnswParams: obx_int.ModelHnswParams(dimensions: 256, distanceType: 2),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 249296523948631717),
+        name: 'modelName',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 5713966613264714718),
+        name: 'rawDimensions',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 98292326733833896),
+        name: 'outputDimensions',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 1847071067661988521),
+        name: 'isTruncated',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 8097161094944528768),
+        name: 'isDeleted',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 7757474439673293120),
+        name: 'createdAtMs',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 8143251517272286826),
+        name: 'updatedAtMs',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -256,12 +327,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(1, 6773016212286002508),
-    lastIndexId: const obx_int.IdUid(1, 2265069103966236129),
+    lastEntityId: const obx_int.IdUid(2, 8620475248495832367),
+    lastIndexId: const obx_int.IdUid(2, 7072052634653505159),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
-    retiredIndexUids: const [],
+    retiredIndexUids: const [2265069103966236129],
     retiredPropertyUids: const [],
     retiredRelationUids: const [],
     modelVersion: 5,
@@ -515,6 +586,103 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    MemoryVectorIndex: obx_int.EntityDefinition<MemoryVectorIndex>(
+      model: _entities[1],
+      toOneRelations: (MemoryVectorIndex object) => [],
+      toManyRelations: (MemoryVectorIndex object) => {},
+      getId: (MemoryVectorIndex object) => object.obId,
+      setId: (MemoryVectorIndex object, int id) {
+        object.obId = id;
+      },
+      objectToFB: (MemoryVectorIndex object, fb.Builder fbb) {
+        final memoryUidOffset = fbb.writeString(object.memoryUid);
+        final embeddingOffset = fbb.writeListFloat32(object.embedding);
+        final modelNameOffset = fbb.writeString(object.modelName);
+        fbb.startTable(11);
+        fbb.addInt64(0, object.obId);
+        fbb.addOffset(1, memoryUidOffset);
+        fbb.addOffset(2, embeddingOffset);
+        fbb.addOffset(3, modelNameOffset);
+        fbb.addInt64(4, object.rawDimensions);
+        fbb.addInt64(5, object.outputDimensions);
+        fbb.addBool(6, object.isTruncated);
+        fbb.addBool(7, object.isDeleted);
+        fbb.addInt64(8, object.createdAtMs);
+        fbb.addInt64(9, object.updatedAtMs);
+        fbb.finish(fbb.endTable());
+        return object.obId;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final obIdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final memoryUidParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final embeddingParam = const fb.ListReader<double>(
+          fb.Float32Reader(),
+          lazy: false,
+        ).vTableGet(buffer, rootOffset, 8, []);
+        final modelNameParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 10, '');
+        final rawDimensionsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          12,
+          0,
+        );
+        final outputDimensionsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          14,
+          0,
+        );
+        final isTruncatedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          16,
+          false,
+        );
+        final isDeletedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          18,
+          false,
+        );
+        final createdAtMsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          20,
+          0,
+        );
+        final updatedAtMsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          22,
+          0,
+        );
+        final object = MemoryVectorIndex(
+          obId: obIdParam,
+          memoryUid: memoryUidParam,
+          embedding: embeddingParam,
+          modelName: modelNameParam,
+          rawDimensions: rawDimensionsParam,
+          outputDimensions: outputDimensionsParam,
+          isTruncated: isTruncatedParam,
+          isDeleted: isDeletedParam,
+          createdAtMs: createdAtMsParam,
+          updatedAtMs: updatedAtMsParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -593,7 +761,7 @@ class MemoryEntity_ {
   );
 
   /// See [MemoryEntity.embedding].
-  static final embedding = obx.QueryHnswProperty<MemoryEntity>(
+  static final embedding = obx.QueryDoubleVectorProperty<MemoryEntity>(
     _entities[0].properties[14],
   );
 
@@ -670,5 +838,58 @@ class MemoryEntity_ {
   /// See [MemoryEntity.isConsolidated].
   static final isConsolidated = obx.QueryBooleanProperty<MemoryEntity>(
     _entities[0].properties[29],
+  );
+}
+
+/// [MemoryVectorIndex] entity fields to define ObjectBox queries.
+class MemoryVectorIndex_ {
+  /// See [MemoryVectorIndex.obId].
+  static final obId = obx.QueryIntegerProperty<MemoryVectorIndex>(
+    _entities[1].properties[0],
+  );
+
+  /// See [MemoryVectorIndex.memoryUid].
+  static final memoryUid = obx.QueryStringProperty<MemoryVectorIndex>(
+    _entities[1].properties[1],
+  );
+
+  /// See [MemoryVectorIndex.embedding].
+  static final embedding = obx.QueryHnswProperty<MemoryVectorIndex>(
+    _entities[1].properties[2],
+  );
+
+  /// See [MemoryVectorIndex.modelName].
+  static final modelName = obx.QueryStringProperty<MemoryVectorIndex>(
+    _entities[1].properties[3],
+  );
+
+  /// See [MemoryVectorIndex.rawDimensions].
+  static final rawDimensions = obx.QueryIntegerProperty<MemoryVectorIndex>(
+    _entities[1].properties[4],
+  );
+
+  /// See [MemoryVectorIndex.outputDimensions].
+  static final outputDimensions = obx.QueryIntegerProperty<MemoryVectorIndex>(
+    _entities[1].properties[5],
+  );
+
+  /// See [MemoryVectorIndex.isTruncated].
+  static final isTruncated = obx.QueryBooleanProperty<MemoryVectorIndex>(
+    _entities[1].properties[6],
+  );
+
+  /// See [MemoryVectorIndex.isDeleted].
+  static final isDeleted = obx.QueryBooleanProperty<MemoryVectorIndex>(
+    _entities[1].properties[7],
+  );
+
+  /// See [MemoryVectorIndex.createdAtMs].
+  static final createdAtMs = obx.QueryIntegerProperty<MemoryVectorIndex>(
+    _entities[1].properties[8],
+  );
+
+  /// See [MemoryVectorIndex.updatedAtMs].
+  static final updatedAtMs = obx.QueryIntegerProperty<MemoryVectorIndex>(
+    _entities[1].properties[9],
   );
 }

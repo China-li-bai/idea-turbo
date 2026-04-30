@@ -89,7 +89,7 @@ class ObjectBoxMemoryDataSource {
         b.remove(existing.obId);
       }
 
-      await _deleteVectorIndex(uid);
+      await _softDeleteVectorIndex(uid);
     } catch (e, s) {
       throw DatabaseException('Failed to delete memory', e, s);
     }
@@ -194,11 +194,19 @@ class ObjectBoxMemoryDataSource {
 
   Future<List<MemoryItem>> vectorSearchMemories(
     List<double> queryVector,
-    int topK,
-  ) async {
+    int topK, {
+    Set<String>? filterStatus,
+    bool excludeArchived = true,
+  }) async {
     try {
-      final vectorResults = await vectorSearch(queryVector, topK);
-      final uids = vectorResults.map((r) => r.object.memoryUid).toList();
+      final overRetrieveK = topK * 3;
+      final vectorResults = await vectorSearch(queryVector, overRetrieveK);
+
+      final activeResults = vectorResults
+          .where((r) => !r.object.isDeleted)
+          .toList();
+
+      final uids = activeResults.map((r) => r.object.memoryUid).toList();
 
       final b = await box;
       final allEntities = b.getAll();
@@ -207,9 +215,14 @@ class ObjectBoxMemoryDataSource {
       final results = <MemoryItem>[];
       for (final uid in uids) {
         final entity = uidToEntity[uid];
-        if (entity != null) {
-          results.add(entity.toDomain());
-        }
+        if (entity == null) continue;
+
+        if (excludeArchived && entity.isArchived) continue;
+
+        if (filterStatus != null && !filterStatus.contains(entity.status)) continue;
+
+        results.add(entity.toDomain());
+        if (results.length >= topK) break;
       }
       return results;
     } catch (e, s) {
@@ -272,7 +285,7 @@ class ObjectBoxMemoryDataSource {
       }
 
       for (final entity in results) {
-        await _deleteVectorIndex(entity.uid);
+        await _softDeleteVectorIndex(entity.uid);
       }
     } catch (e, s) {
       throw DatabaseException('Failed to delete weak memories', e, s);
@@ -314,11 +327,33 @@ class ObjectBoxMemoryDataSource {
     }
   }
 
-  Future<void> _deleteVectorIndex(String memoryUid) async {
+  Future<void> _softDeleteVectorIndex(String memoryUid) async {
     final existing = await _findVectorByMemoryUid(memoryUid);
     if (existing != null) {
+      existing.markDeleted();
       final vb = await vectorBox;
-      vb.remove(existing.obId);
+      vb.put(existing);
+    }
+  }
+
+  Future<int> purgeDeletedVectors({int batchSize = 100}) async {
+    try {
+      final vb = await vectorBox;
+      final s = await store;
+      final query = s.box<MemoryVectorIndex>().query(
+        MemoryVectorIndex_.isDeleted.equals(true),
+      ).build();
+      query.limit = batchSize;
+      final deleted = query.find();
+      query.close();
+
+      if (deleted.isEmpty) return 0;
+
+      final ids = deleted.map((e) => e.obId).toList();
+      vb.removeMany(ids);
+      return ids.length;
+    } catch (e, s) {
+      throw DatabaseException('Failed to purge deleted vectors', e, s);
     }
   }
 

@@ -108,7 +108,7 @@ class RetrievalEngine {
 
     final allowedTypes = _getAllowedTypes(retrievalProfile);
 
-    final denseRanking = denseResults.map((r) => _RankEntry(r.object.uid, 1.0 / (1.0 + r.score))).toList();
+    final denseRanking = denseResults.map((r) => _RankEntry(r.object.memoryUid, 1.0 / (1.0 + r.score))).toList();
     final keywordRanking = keywordResults.asMap().entries.map((e) {
       final rank = e.key + 1;
       return _RankEntry(e.value.id, 1.0 / rank);
@@ -130,10 +130,6 @@ class RetrievalEngine {
     final memoryMap = <String, MemoryItem>{};
     for (final m in allActive) {
       memoryMap[m.id] = m;
-    }
-    for (final dense in denseResults) {
-      final domain = dense.object.toDomain();
-      memoryMap[domain.id] = domain;
     }
     for (final m in keywordResults) {
       memoryMap[m.id] = m;
@@ -210,7 +206,7 @@ class RetrievalEngine {
     return results;
   }
 
-  Future<List<ObjectWithScore<MemoryEntity>>> _denseSearch(
+  Future<List<ObjectWithScore<MemoryVectorIndex>>> _denseSearch(
     List<double> queryEmbedding,
     int topK,
   ) async {

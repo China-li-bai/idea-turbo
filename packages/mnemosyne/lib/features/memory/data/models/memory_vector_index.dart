@@ -15,6 +15,7 @@ class MemoryVectorIndex {
   int rawDimensions;
   int outputDimensions;
   bool isTruncated;
+  bool isDeleted;
 
   int createdAtMs;
   int updatedAtMs;
@@ -27,6 +28,7 @@ class MemoryVectorIndex {
     this.rawDimensions = 768,
     this.outputDimensions = 256,
     this.isTruncated = true,
+    this.isDeleted = false,
     required this.createdAtMs,
     required this.updatedAtMs,
   });
@@ -38,12 +40,18 @@ class MemoryVectorIndex {
     this.rawDimensions = 768,
     this.outputDimensions = 256,
     this.isTruncated = true,
+    this.isDeleted = false,
   })  : createdAtMs = DateTime.now().millisecondsSinceEpoch,
         updatedAtMs = DateTime.now().millisecondsSinceEpoch;
 
   void updateEmbedding(List<double> newEmbedding, {String? newModelName}) {
     embedding = newEmbedding;
     if (newModelName != null) modelName = newModelName;
+    updatedAtMs = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void markDeleted() {
+    isDeleted = true;
     updatedAtMs = DateTime.now().millisecondsSinceEpoch;
   }
 }
