@@ -426,7 +426,7 @@ void main() {
 
     group('Dimension 4: Conflict Resolution', () {
       test('latest fact should rank higher than outdated fact', () async {
-        final idMap = await seedMemories(CriDataset.conflictMemories());
+        final _ = await seedMemories(CriDataset.conflictMemories());
 
         final queryResult = await embeddingSource.embed('Can I eat sushi?');
         final results = await store.recall(
@@ -480,7 +480,7 @@ void main() {
 
     group('Dimension 7: Selective Forgetting', () {
       test('ephemeral memories should have lower importance than permanent', () async {
-        final idMap = await seedMemories(CriDataset.forgettingMemories());
+        final _ = await seedMemories(CriDataset.forgettingMemories());
 
         final ephemeralMemories = store.allMemories.where(
             (m) => m.metadata?['ephemeral'] == true);
@@ -511,7 +511,7 @@ void main() {
       });
 
       test('cross-lingual: English query should find Chinese memory', () async {
-        final idMap = await seedMemories(CriDataset.chineseMemories());
+        final _ = await seedMemories(CriDataset.chineseMemories());
 
         final queryResult = await embeddingSource.embed('What food do I enjoy in winter?');
         final results = await store.recall(
@@ -583,8 +583,8 @@ void main() {
       final memories = CriDataset.factualMemories();
       final queries = CriDataset.factualQueries();
 
-      final fullStore = SemanticMemoryStore(fullDimSource);
-      final truncStore = SemanticMemoryStore(truncDimSource);
+      final fullStore = SemanticMemoryStore();
+      final truncStore = SemanticMemoryStore();
 
       for (final m in memories) {
         final fullResult = await fullDimSource.embed(m.content);
@@ -661,7 +661,7 @@ void main() {
   group('AMB-style Scale Test', () {
     test('retrieval should work with 100+ distractor memories', () async {
       final embeddingSource = SemanticEmbeddingSource(dimensions: 256);
-      final store = SemanticMemoryStore(embeddingSource);
+      final store = SemanticMemoryStore();
 
       final targetMemories = CriDataset.factualMemories();
       for (final m in targetMemories) {

@@ -5,6 +5,7 @@ import 'package:mnemosyne/mnemosyne.dart';
 import 'package:neural_bridge/neural_bridge.dart';
 import 'beir_dataset.dart';
 import 'locomo_dataset.dart';
+import 'longmemeval_dataset.dart';
 import 'membench_dataset.dart';
 import 'retrieval_metrics.dart';
 
@@ -583,6 +584,131 @@ void main() {
           '($evaluated queries)');
       expect(evaluated, greaterThan(0),
           reason: 'Should evaluate at least some queries');
+    });
+  });
+
+  group('LongMemEval Benchmark (ICLR 2025)', () {
+    late LongMemEvalDataset dataset;
+
+    setUpAll(() async {
+      final filePath = _fixturePath('longmemeval/longmemeval_oracle.json');
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw FileSystemException(
+            'LongMemEval oracle not found. Download from: '
+            'https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned',
+            filePath);
+      }
+      dataset = await LongMemEvalDataset.load(
+          filePath: filePath, variant: 'oracle');
+    });
+
+    test('dataset should load with 500 instances', () {
+      expect(dataset.totalInstances, equals(500),
+          reason: 'LongMemEval has 500 evaluation instances');
+    });
+
+    test('question types should cover all 6 categories', () {
+      final dist = dataset.typeDistribution;
+      expect(dist.length, equals(6),
+          reason: 'LongMemEval has 6 question types');
+      expect(dist[LongMemEvalQuestionType.temporalReasoning], greaterThan(0));
+      expect(dist[LongMemEvalQuestionType.multiSession], greaterThan(0));
+      expect(dist[LongMemEvalQuestionType.knowledgeUpdate], greaterThan(0));
+      expect(dist[LongMemEvalQuestionType.singleSessionUser], greaterThan(0));
+      print('LongMemEval type distribution: '
+          '${dist.map((k, v) => MapEntry(k.name, v))}');
+    });
+
+    test('abstention questions should be identified', () {
+      expect(dataset.abstentionCount, greaterThan(0),
+          reason: 'LongMemEval has abstention questions');
+      print('LongMemEval abstention count: ${dataset.abstentionCount}');
+    });
+
+    test('each instance should have valid question and answer', () {
+      for (final instance in dataset.instances.take(20)) {
+        expect(instance.questionId, isNotEmpty);
+        expect(instance.question, isNotEmpty);
+        expect(instance.answerText, isNotEmpty);
+        expect(instance.haystackSessions, isNotEmpty);
+      }
+    });
+
+    test('evidence turns should be labeled with has_answer', () {
+      final sample = dataset.nonAbstention.take(10);
+      int totalEvidence = 0;
+      for (final instance in sample) {
+        totalEvidence += instance.evidenceTurnCount;
+      }
+      expect(totalEvidence, greaterThan(0),
+          reason: 'Non-abstention instances should have evidence turns');
+      print('LongMemEval evidence turns (sample of 10): $totalEvidence');
+    });
+
+    test('temporal reasoning should retrieve evidence from conversation', () async {
+      final embeddingSource = SemanticEmbeddingSource();
+      final store = _InMemoryStore(embeddingSource);
+
+      final temporalInstances = dataset
+          .byType(LongMemEvalQuestionType.temporalReasoning)
+          .where((i) => !i.isAbstention)
+          .take(5)
+          .toList();
+      if (temporalInstances.isEmpty) return;
+
+      for (final instance in temporalInstances) {
+        final evidenceTexts = instance.evidenceTurns
+            .map((t) => t.content)
+            .where((c) => c.isNotEmpty)
+            .toList();
+        for (final text in evidenceTexts) {
+          final emb = await embeddingSource.embed(text);
+          await store.remember(
+            content: text,
+            type: MemoryType.episodic,
+            embedding: emb?.vector,
+            metadata: {
+              'questionId': instance.questionId,
+              'source': 'longmemeval',
+              'questionDate': instance.questionDate,
+            },
+          );
+        }
+      }
+
+      int found = 0;
+      for (final instance in temporalInstances) {
+        final results = await store.search(
+            query: instance.question, limit: 10);
+        final hasMatch = results.any((r) =>
+            r.memory.metadata?['questionId'] == instance.questionId);
+        if (hasMatch) found++;
+      }
+
+      final recall = found / temporalInstances.length;
+      print('LongMemEval temporal recall@10 (semantic-mock): '
+          '${recall.toStringAsFixed(3)} ($found/${temporalInstances.length})');
+      expect(found, greaterThan(0),
+          reason: 'Should find at least some evidence');
+    });
+
+    test('knowledge update should test conflicting information', () async {
+      final kuInstances = dataset
+          .byType(LongMemEvalQuestionType.knowledgeUpdate)
+          .where((i) => !i.isAbstention)
+          .take(5)
+          .toList();
+      if (kuInstances.isEmpty) return;
+
+      for (final instance in kuInstances) {
+        expect(instance.haystackSessions.length, greaterThanOrEqualTo(1),
+            reason: 'Knowledge update needs at least 1 session');
+        expect(instance.evidenceTurnCount, greaterThan(0),
+            reason: 'Should have evidence turns');
+      }
+      print('LongMemEval knowledge_update sample: '
+          '${kuInstances.first.question}');
     });
   });
 }

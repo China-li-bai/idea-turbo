@@ -130,7 +130,7 @@ class MockEmbeddingSource implements EmbeddingSource {
     callCount++;
     calls.add(text);
     if (_embedFn != null) {
-      final vector = _embedFn!(text);
+      final vector = _embedFn(text);
       return EmbeddingResult(
         vector: vector,
         providerName: 'mock',
