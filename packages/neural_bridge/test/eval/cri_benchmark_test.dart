@@ -286,6 +286,24 @@ class SemanticMemoryStore implements MemoryStore {
     );
   }
 
+  @override
+  Future<List<String>> findConflictingMemories({
+    required String content,
+    required String conflictTopic,
+    MemoryType? type,
+    int limit = 5,
+  }) async {
+    return _memories
+        .where((m) {
+          if (type != null && m.type != type) return false;
+          if (m.status != MemoryStatus.active) return false;
+          return m.content.toLowerCase().contains(conflictTopic.toLowerCase());
+        })
+        .take(limit)
+        .map((m) => m.id)
+        .toList();
+  }
+
   void clear() => _memories.clear();
   List<MemoryItem> get allMemories => List.unmodifiable(_memories);
 }

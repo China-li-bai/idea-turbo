@@ -10,6 +10,8 @@ import 'package:objectbox/objectbox.dart';
 
 enum QueryIntent { why, when_, who, how, what }
 
+enum TemporalIntent { earliest, latest, before, after }
+
 class IntentWeights {
   final double dense;
   final double keyword;
@@ -49,6 +51,7 @@ class RetrievalEngine {
   final double exactMatchBoost;
   final bool enableQueryExpansion;
   final RetrievalProfile retrievalProfile;
+  final bool enableConflictResolution;
 
   RetrievalEngine({
     required this.datasource,
@@ -59,6 +62,7 @@ class RetrievalEngine {
     this.exactMatchBoost = 1.5,
     this.enableQueryExpansion = true,
     this.retrievalProfile = RetrievalProfile.fullContext,
+    this.enableConflictResolution = true,
   });
 
   static QueryIntent classifyIntent(String query) {
@@ -154,11 +158,15 @@ class RetrievalEngine {
       score *= (0.8 + 0.4 * memory.importance);
 
       final temporalSignal = _detectTemporal(query);
+      final temporalIntent = _detectTemporalIntent(query);
       if (temporalSignal != null && memory.encodingContext?.capturedAt != null) {
         final memDate = _formatDate(memory.encodingContext!.capturedAt!);
         if (memDate.contains(temporalSignal)) {
           score *= 2.0;
         }
+      }
+      if (temporalIntent != null && memory.encodingContext?.capturedAt != null) {
+        score *= _temporalIntentBoost(temporalIntent, memory, now);
       }
 
       final exactSignal = _exactMatchSignal(queryTokens, memory);
@@ -179,8 +187,12 @@ class RetrievalEngine {
 
     boosted.sort((a, b) => b.value.compareTo(a.value));
 
+    final deduplicated = enableConflictResolution
+        ? _resolveConflicts(boosted, memoryMap)
+        : boosted;
+
     final results = <MemorySearchResult>[];
-    for (final entry in boosted.take(limit)) {
+    for (final entry in deduplicated.take(limit)) {
       final memory = memoryMap[entry.key];
       if (memory == null) continue;
 
@@ -380,6 +392,106 @@ class RetrievalEngine {
         return {MemoryType.semantic, MemoryType.instruction};
       case RetrievalProfile.fullContext:
         return MemoryType.values.toSet();
+    }
+  }
+
+  List<MapEntry<String, double>> _resolveConflicts(
+    List<MapEntry<String, double>> ranked,
+    Map<String, MemoryItem> memoryMap,
+  ) {
+    final result = <MapEntry<String, double>>[];
+    final seenTopics = <String>{};
+
+    for (final entry in ranked) {
+      final memory = memoryMap[entry.key];
+      if (memory == null) continue;
+
+      final conflictTopic = _extractConflictTopic(memory);
+      if (conflictTopic != null && seenTopics.contains(conflictTopic)) {
+        final prevIdx = result.indexWhere((e) {
+          final prevMem = memoryMap[e.key];
+          return prevMem != null && _extractConflictTopic(prevMem) == conflictTopic;
+        });
+        if (prevIdx >= 0) {
+          final prevMem = memoryMap[result[prevIdx].key];
+          final prevTime = prevMem?.encodingContext?.capturedAt;
+          final currTime = memory.encodingContext?.capturedAt;
+          if (currTime != null && prevTime != null && currTime.isAfter(prevTime)) {
+            result.removeAt(prevIdx);
+            result.add(entry);
+            continue;
+          } else {
+            continue;
+          }
+        }
+      }
+      if (conflictTopic != null) seenTopics.add(conflictTopic);
+      result.add(entry);
+    }
+    return result;
+  }
+
+  String? _extractConflictTopic(MemoryItem memory) {
+    if (memory.topics.isNotEmpty) {
+      return memory.topics.first;
+    }
+    if (memory.entities.isNotEmpty) {
+      return 'entity:${memory.entities.first}';
+    }
+    return _inferConflictTopicFromContent(memory.content);
+  }
+
+  static final _conflictPatterns = <RegExp, String>{
+    RegExp(r'(sushi|fish|seafood|海鲜|寿司|鱼)'): 'food_preference',
+    RegExp(r'(python|rust|java|golang|javascript)'): 'programming_language',
+    RegExp(r'(new york|san francisco|tokyo|beijing|纽约|旧金山|东京|北京)'): 'location',
+    RegExp(r'(allergic|过敏|intolerant)'): 'health_condition',
+    RegExp(r'(hate|love|like|dislike|讨厌|喜欢|爱|恨)'): 'preference',
+  };
+
+  String? _inferConflictTopicFromContent(String content) {
+    final lower = content.toLowerCase();
+    for (final entry in _conflictPatterns.entries) {
+      if (entry.key.hasMatch(lower)) return entry.value;
+    }
+    return null;
+  }
+
+  TemporalIntent? _detectTemporalIntent(String query) {
+    final q = query.toLowerCase();
+    if (RegExp(r'\b(first|earliest|initial|original|最初|最早|第一次|刚)\b').hasMatch(q)) {
+      return TemporalIntent.earliest;
+    }
+    if (RegExp(r'\b(last|latest|recent|current|newest|最近|最新|最后一次|现在)\b').hasMatch(q)) {
+      return TemporalIntent.latest;
+    }
+    if (RegExp(r'\b(before|prior to|earlier than|之前|以前|在.*前)\b').hasMatch(q)) {
+      return TemporalIntent.before;
+    }
+    if (RegExp(r'\b(after|since|later than|之后|以后|在.*后)\b').hasMatch(q)) {
+      return TemporalIntent.after;
+    }
+    return null;
+  }
+
+  double _temporalIntentBoost(TemporalIntent intent, MemoryItem memory, DateTime now) {
+    final capturedAt = memory.encodingContext?.capturedAt;
+    if (capturedAt == null) return 1.0;
+
+    final ageMs = now.difference(capturedAt).inMilliseconds.toDouble();
+    final halfLifeMs = 30 * 24 * 60 * 60 * 1000.0;
+
+    switch (intent) {
+      case TemporalIntent.earliest:
+        final ageFactor = 1.0 + 0.5 * (ageMs / halfLifeMs).clamp(0.0, 3.0);
+        return ageFactor.clamp(1.0, 2.5);
+      case TemporalIntent.latest:
+        final recencyFactor = 1.0 + 0.5 * exp(-ageMs / halfLifeMs);
+        return recencyFactor.clamp(1.0, 1.5);
+      case TemporalIntent.before:
+        return 1.1;
+      case TemporalIntent.after:
+        return 1.1;
     }
   }
 }

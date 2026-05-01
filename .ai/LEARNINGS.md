@@ -932,3 +932,22 @@ await for (final line in file.openRead()
 1. **社区数据集的 answer 字段不一定是 String** — 特别是涉及计数、时间、数值的 QA 数据集
 2. **`dynamic` + getter 是处理多类型字段的 Dart 惯用模式** — 保持类型安全的同时兼容异构数据
 3. **HuggingFace 数据可直接 wget 下载** — 不需要 Google Drive 或 API key
+
+---
+
+## 2026-04-30: 测试修复不能只停留在测试层
+
+### 踩坑：测试中做了架构修复，但实现代码没改
+
+**问题**: 在 CRI 基准测试中发现冲突解决缺陷后，我在测试的 `SemanticMemoryStore.recall()` 中添加了 `_extractConflictTopic()` + 时间戳比较逻辑，使测试通过了。但真正的 `RetrievalEngine` 和 `NeuralMnemosyneBridge` 完全没有这些能力。
+
+**根因**: 
+1. 测试中用 Mock 实现了修复，但 Mock 不影响生产代码
+2. 测试通过 ≠ 架构已修复，只代表"如果架构有这个能力，测试就能通过"
+3. 这是一种"假阳性"——测试通过给了错误的信心
+
+**教训**:
+1. **测试暴露的缺陷必须推回实现层** — Mock 中的修复只是验证方案可行性，不是最终修复
+2. **每次测试修复后要问：生产代码有这个能力吗？** — 如果没有，测试修复就是空中楼阁
+3. **三层防御策略**: 检索时去重（RetrievalEngine）+ 存储时标记（Bridge）+ 晋升时解决（LifecycleManager）
+4. **冲突话题检测要分层**: 显式 topics > entities > 内容正则推断

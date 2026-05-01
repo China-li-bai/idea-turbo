@@ -8,6 +8,7 @@ export '../embedding/embedding_provider.dart';
 export '../embedding/gemma_embedding_provider.dart';
 export '../embedding/cloud_embedding_provider.dart';
 export '../embedding/mock_embedding_provider.dart';
+export '../embedding/precomputed_embedding_provider.dart';
 export '../embedding/flutter_gemma_adapter.dart';
 export '../bridge/neural_mnemosyne_bridge.dart';
 export '../bridge/memory_lifecycle_manager.dart';

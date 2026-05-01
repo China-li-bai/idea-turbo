@@ -373,3 +373,39 @@
 | LongMemEval | ICLR 2025 | 500实例/6类型 | recall@10: 1.000 |
 
 **测试总数**: neural_bridge **82 tests passed** ✅, **0 静态分析问题** ✅
+
+---
+
+### 任务：测试驱动架构迭代 — 将测试修复推回实现层
+
+**开始时间**: 2026-04-30
+**任务描述**: 测试暴露了冲突解决、时间推理等架构缺陷，但这些修复只存在于测试的 Mock Store 中，真正的实现代码（RetrievalEngine、NeuralMnemosyneBridge、MemoryLifecycleManager）完全没有这些能力。本次迭代将修复推回实现层。
+
+**问题根因**: 测试中的 `SemanticMemoryStore.recall()` 做了冲突去重（同话题比较时间戳，保留最新的），但 `RetrievalEngine` 只有 RRF 融合 + 时间信号匹配，没有冲突去重。
+
+**实现层修复清单**:
+
+| 修复 | 文件 | 变更 |
+|------|------|------|
+| 冲突解决 | `mnemosyne/lib/services/retrieval_engine.dart` | 新增 `_resolveConflicts()` + `_extractConflictTopic()` + `_inferConflictTopicFromContent()` |
+| 时间推理增强 | `mnemosyne/lib/services/retrieval_engine.dart` | 新增 `TemporalIntent` enum + `_detectTemporalIntent()` + `_temporalIntentBoost()` |
+| 存储时冲突检测 | `neural_bridge/lib/src/bridge/neural_mnemosyne_bridge.dart` | 新增 `ConflictResolutionResult` + `_detectAndResolveConflicts()` + `_extractConflictTopics()` |
+| 晋升时冲突解决 | `neural_bridge/lib/src/bridge/memory_lifecycle_manager.dart` | 新增 `_resolvePromotionConflicts()` + `_extractConflictTopics()` |
+| 接口扩展 | `neural_bridge/lib/src/bridge/memory_store.dart` | 新增 `findConflictingMemories()` 抽象方法 + `MnemosyneMemoryStore` 实现 |
+
+**冲突解决策略**:
+1. **检索时去重**: `RetrievalEngine._resolveConflicts()` — 同话题记忆只保留最新的（基于 `encodingContext.capturedAt`）
+2. **存储时标记**: `NeuralMnemosyneBridge._detectAndResolveConflicts()` — 新存入的语义记忆自动将同话题旧记忆标记为 `superseded`
+3. **晋升时解决**: `MemoryLifecycleManager._resolvePromotionConflicts()` — Episodic→Semantic 晋升时检测同话题冲突
+
+**冲突话题检测三层优先级**:
+1. `memory.topics` — 显式话题标签（最可靠）
+2. `memory.entities` — 实体标签（次可靠）
+3. 内容正则推断 — `_conflictPatterns` 匹配（兜底）
+
+**时间推理增强**:
+- `TemporalIntent.earliest`: 旧记忆 boost（ageFactor 最高 2.5x）
+- `TemporalIntent.latest`: 新记忆 boost（recencyFactor 最高 1.5x）
+- `TemporalIntent.before/after`: 轻微 boost（1.1x）
+
+**编译验证**: neural_bridge **82 tests passed** ✅, mnemosyne **0 静态分析问题** ✅

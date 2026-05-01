@@ -116,6 +116,24 @@ class MockMemoryStore implements MemoryStore {
       consolidationTimestamp: DateTime.now(),
     );
   }
+
+  @override
+  Future<List<String>> findConflictingMemories({
+    required String content,
+    required String conflictTopic,
+    MemoryType? type,
+    int limit = 5,
+  }) async {
+    return _memories
+        .where((m) {
+          if (type != null && m.type != type) return false;
+          if (m.status != MemoryStatus.active) return false;
+          return m.content.toLowerCase().contains(conflictTopic.toLowerCase());
+        })
+        .take(limit)
+        .map((m) => m.id)
+        .toList();
+  }
 }
 
 class MockEmbeddingSource implements EmbeddingSource {
@@ -187,12 +205,12 @@ void main() {
           memoryStore: store,
         );
 
-        final id = await bridge.rememberWithEmbedding(
+        final result = await bridge.rememberWithEmbedding(
           content: 'I love cats',
           importance: 0.8,
         );
 
-        expect(id, isNotNull);
+        expect(result.newMemoryId, isNotNull);
         expect(embedding.callCount, equals(1));
         expect(embedding.calls, contains('I love cats'));
 
@@ -206,11 +224,11 @@ void main() {
         final store = MockMemoryStore();
         final bridge = NeuralMnemosyneBridge(memoryStore: store);
 
-        final id = await bridge.rememberWithEmbedding(
+        final result = await bridge.rememberWithEmbedding(
           content: 'No embedding available',
         );
 
-        expect(id, isNotNull);
+        expect(result.newMemoryId, isNotNull);
         final memories = await store.getRecent();
         expect(memories.length, equals(1));
         expect(memories[0].embedding, isNull);
@@ -224,11 +242,11 @@ void main() {
           memoryStore: store,
         );
 
-        final id = await bridge.rememberWithEmbedding(
+        final result = await bridge.rememberWithEmbedding(
           content: 'Embedding will fail',
         );
 
-        expect(id, isNotNull);
+        expect(result.newMemoryId, isNotNull);
         final memories = await store.getRecent();
         expect(memories[0].embedding, isNull);
       });

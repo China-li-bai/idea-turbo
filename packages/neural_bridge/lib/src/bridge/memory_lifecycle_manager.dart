@@ -94,6 +94,8 @@ class MemoryLifecycleManager {
 
     for (final memory in candidates.take(config.maxConsolidationBatch)) {
       try {
+        final supersededIds = await _resolvePromotionConflicts(memory);
+
         await memoryStore.updateMemory(memory.copyWith(
           type: MemoryType.semantic,
           isConsolidated: true,
@@ -103,6 +105,8 @@ class MemoryLifecycleManager {
             'promotedFrom': 'episodic',
             'promotionReason': 'importance=${memory.importance.toStringAsFixed(2)}, '
                 'accessCount=${memory.accessCount}',
+            if (supersededIds.isNotEmpty)
+              'supersededMemories': supersededIds,
           },
         ));
         promoted.add(memory.id);
@@ -110,6 +114,68 @@ class MemoryLifecycleManager {
     }
 
     return promoted;
+  }
+
+  Future<List<String>> _resolvePromotionConflicts(MemoryItem newSemantic) async {
+    final conflictTopics = _extractConflictTopics(newSemantic.content);
+    if (conflictTopics.isEmpty) return [];
+
+    final supersededIds = <String>[];
+
+    for (final topic in conflictTopics) {
+      final existing = await memoryStore.recall(
+        query: topic,
+        queryEmbedding: newSemantic.embedding,
+        limit: 5,
+      );
+
+      for (final result in existing) {
+        final mem = result.memory;
+        if (mem.id == newSemantic.id) continue;
+        if (mem.status != MemoryStatus.active) continue;
+        if (mem.type != MemoryType.semantic) continue;
+
+        final memTopics = _extractConflictTopics(mem.content);
+        if (memTopics.any((t) => conflictTopics.contains(t))) {
+          final newTime = newSemantic.encodingContext?.capturedAt ?? newSemantic.createdAt;
+          final oldTime = mem.encodingContext?.capturedAt ?? mem.createdAt;
+          if (newTime.isAfter(oldTime)) {
+            try {
+              await memoryStore.updateMemory(mem.copyWith(
+                status: MemoryStatus.superseded,
+                metadata: {
+                  ...?mem.metadata,
+                  'supersededBy': newSemantic.id,
+                  'supersededAt': DateTime.now().toIso8601String(),
+                },
+              ));
+              supersededIds.add(mem.id);
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    return supersededIds;
+  }
+
+  static final _conflictPatterns = <RegExp, String>{
+    RegExp(r'(sushi|fish|seafood|海鲜|寿司|鱼)'): 'food_preference',
+    RegExp(r'(python|rust|java|golang|javascript)'): 'programming_language',
+    RegExp(r'(new york|san francisco|tokyo|beijing|纽约|旧金山|东京|北京)'): 'location',
+    RegExp(r'(allergic|过敏|intolerant)'): 'health_condition',
+    RegExp(r'(hate|love|like|dislike|讨厌|喜欢|爱|恨)'): 'preference',
+  };
+
+  List<String> _extractConflictTopics(String content) {
+    final lower = content.toLowerCase();
+    final topics = <String>{};
+    for (final entry in _conflictPatterns.entries) {
+      if (entry.key.hasMatch(lower)) {
+        topics.add(entry.value);
+      }
+    }
+    return topics.toList();
   }
 
   Future<Map<String, dynamic>> runFullCycle() async {

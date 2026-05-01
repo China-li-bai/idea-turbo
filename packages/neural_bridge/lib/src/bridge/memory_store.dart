@@ -36,6 +36,13 @@ abstract class MemoryStore {
     ConsolidationCandidate candidate,
     String Function(List<MemoryItem>) summarizeContent,
   );
+
+  Future<List<String>> findConflictingMemories({
+    required String content,
+    required String conflictTopic,
+    MemoryType? type,
+    int limit = 5,
+  });
 }
 
 class MnemosyneMemoryStore implements MemoryStore {
@@ -105,4 +112,25 @@ class MnemosyneMemoryStore implements MemoryStore {
     String Function(List<MemoryItem>) summarizeContent,
   ) =>
       _mnemosyne.consolidate(candidate, summarizeContent);
+
+  @override
+  Future<List<String>> findConflictingMemories({
+    required String content,
+    required String conflictTopic,
+    MemoryType? type,
+    int limit = 5,
+  }) async {
+    final results = await _mnemosyne.recall(
+      query: conflictTopic,
+      limit: limit,
+    );
+    return results
+        .where((r) {
+          if (type != null && r.memory.type != type) return false;
+          if (r.memory.status != MemoryStatus.active) return false;
+          return r.memory.id != content;
+        })
+        .map((r) => r.memory.id)
+        .toList();
+  }
 }
