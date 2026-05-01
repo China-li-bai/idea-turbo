@@ -46,6 +46,7 @@ class MockMemoryStore implements MemoryStore {
   Future<List<MemorySearchResult>> recall({
     required String query,
     List<double>? queryEmbedding,
+    EncodingContext? currentContext,
     int limit = 10,
   }) async {
     final results = _memories
@@ -62,6 +63,26 @@ class MockMemoryStore implements MemoryStore {
             ))
         .toList();
     return results;
+  }
+
+  @override
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
+    int limit = 10,
+  }) async {
+    return recall(
+      query: query,
+      queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
+      limit: limit,
+    );
   }
 
   @override

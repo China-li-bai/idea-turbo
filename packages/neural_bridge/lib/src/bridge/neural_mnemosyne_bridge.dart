@@ -17,6 +17,75 @@ class ConflictResolutionResult {
   bool get hasConflicts => supersededMemoryIds.isNotEmpty;
 }
 
+class RetrievalQualityReport {
+  final String query;
+  final int resultCount;
+  final double topScore;
+  final double scoreDropoff;
+  final bool isLowConfidence;
+  final String? suggestedAction;
+
+  const RetrievalQualityReport({
+    required this.query,
+    required this.resultCount,
+    required this.topScore,
+    required this.scoreDropoff,
+    required this.isLowConfidence,
+    this.suggestedAction,
+  });
+
+  factory RetrievalQualityReport.fromResults(
+    String query,
+    List<MemorySearchResult> results, {
+    double confidenceThreshold = 0.5,
+    double dropoffThreshold = 0.3,
+  }) {
+    final topScore = results.isNotEmpty ? results.first.totalScore : 0.0;
+    final secondScore = results.length > 1 ? results[1].totalScore : 0.0;
+    final dropoff = topScore - secondScore;
+
+    final isLow = topScore < confidenceThreshold;
+    String? action;
+    if (isLow) {
+      action = 'fallback_to_keyword';
+    } else if (dropoff < dropoffThreshold && results.length > 1) {
+      action = 'consider_reranking';
+    }
+
+    return RetrievalQualityReport(
+      query: query,
+      resultCount: results.length,
+      topScore: topScore,
+      scoreDropoff: dropoff,
+      isLowConfidence: isLow,
+      suggestedAction: action,
+    );
+  }
+}
+
+class SceneContext {
+  final String? weather;
+  final String? temperature;
+  final String? activity;
+  final String? location;
+  final String? ambientMood;
+
+  const SceneContext({
+    this.weather,
+    this.temperature,
+    this.activity,
+    this.location,
+    this.ambientMood,
+  });
+
+  bool get hasAnyScene =>
+      weather != null ||
+      temperature != null ||
+      activity != null ||
+      location != null ||
+      ambientMood != null;
+}
+
 class NeuralMnemosyneBridge {
   final EmbeddingSource? embeddingSource;
   final MemoryStore memoryStore;
@@ -42,8 +111,9 @@ class NeuralMnemosyneBridge {
 
   Future<void> archiveConversationMessages(
     String sessionId,
-    List<ConversationMessage> messages,
-  ) async {
+    List<ConversationMessage> messages, {
+    EncodingContext? encodingContext,
+  }) async {
     final nonSystem = messages.where((m) => m.role != MessageRole.system).toList();
     if (nonSystem.isEmpty) return;
 
@@ -85,6 +155,7 @@ class NeuralMnemosyneBridge {
 
   Future<List<MemorySearchResult>> recallWithEmbedding({
     required String query,
+    EncodingContext? currentContext,
     int limit = 10,
   }) async {
     List<double>? queryEmbedding;
@@ -96,8 +167,63 @@ class NeuralMnemosyneBridge {
     return await memoryStore.recall(
       query: query,
       queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
       limit: limit,
     );
+  }
+
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    SceneContext? sceneContext,
+    EncodingContext? currentContext,
+    int limit = 10,
+  }) async {
+    List<double>? queryEmbedding;
+    if (embeddingSource != null) {
+      final result = await embeddingSource!.embed(query);
+      if (result != null) queryEmbedding = result.vector;
+    }
+
+    if (sceneContext != null && sceneContext.hasAnyScene) {
+      return await memoryStore.recallWithScene(
+        query: query,
+        queryEmbedding: queryEmbedding,
+        currentContext: currentContext,
+        weather: sceneContext.weather,
+        temperature: sceneContext.temperature,
+        activity: sceneContext.activity,
+        location: sceneContext.location,
+        ambientMood: sceneContext.ambientMood,
+        limit: limit,
+      );
+    }
+
+    return await memoryStore.recall(
+      query: query,
+      queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
+      limit: limit,
+    );
+  }
+
+  Future<({List<MemorySearchResult> results, RetrievalQualityReport quality})>
+      recallWithQualityReport({
+    required String query,
+    EncodingContext? currentContext,
+    int limit = 10,
+    double confidenceThreshold = 0.5,
+  }) async {
+    final results = await recallWithEmbedding(
+      query: query,
+      currentContext: currentContext,
+      limit: limit,
+    );
+    final quality = RetrievalQualityReport.fromResults(
+      query,
+      results,
+      confidenceThreshold: confidenceThreshold,
+    );
+    return (results: results, quality: quality);
   }
 
   Future<ConflictResolutionResult> rememberWithEmbedding({

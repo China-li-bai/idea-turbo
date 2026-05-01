@@ -218,6 +218,7 @@ class MemoryLifecycleManager {
   Future<List<MemorySearchResult>> recall({
     required String query,
     MemoryTier? tier,
+    EncodingContext? currentContext,
     int limit = 10,
   }) async {
     List<double>? queryEmbedding;
@@ -229,6 +230,7 @@ class MemoryLifecycleManager {
     final results = await memoryStore.recall(
       query: query,
       queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
       limit: tier != null ? limit * 3 : limit,
     );
 

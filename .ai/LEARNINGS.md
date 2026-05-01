@@ -951,3 +951,63 @@ await for (final line in file.openRead()
 2. **每次测试修复后要问：生产代码有这个能力吗？** — 如果没有，测试修复就是空中楼阁
 3. **三层防御策略**: 检索时去重（RetrievalEngine）+ 存储时标记（Bridge）+ 晋升时解决（LifecycleManager）
 4. **冲突话题检测要分层**: 显式 topics > entities > 内容正则推断
+
+---
+
+## 2026-05-01: EmbeddingGemma 300M 真实基线验证的架构教训
+
+### 教训1: MRL 截断存在最低维度阈值
+
+**发现**: MRL (Matryoshka Representation Learning) 截断并非"越短越省"——64d 时 NDCG@10 断崖式下降 31%。
+
+**数据支撑**:
+| 维度 | NDCG@10 | 相对 768d 退化 |
+|------|---------|---------------|
+| 64 | 0.203 | -32.3% |
+| 128 | 0.273 | -9.0% |
+| 256 | 0.293 | -2.3% |
+| 768 | 0.300 | baseline |
+
+**架构决策**: `EmbeddingConfig.minMrlDimensions = 128`，低于此值自动提升。256d 是性价比最优（仅退化 2.3%，但存储/计算节省 66%）。
+
+### 教训2: Mock 基线完全不可信
+
+**发现**: BEIR scifact 的 Mock NDCG@10 仅 0.259，而 Real EmbeddingGemma 达到 0.774 — **3x 差异**。
+
+**根因**: Mock 的 SemanticEmbeddingSource 基于关键词 hash 生成伪向量，对科学文献语义理解完全无效。
+
+**最佳实践**: 
+- Mock 测试只能验证"代码能不能跑"，不能评估"效果好不好"
+- 真实基线必须在真实 Embedding 模型上建立
+- 小规模测试（只索引相关文档）和全语料库测试结果差异巨大
+
+### 教训3: 纯向量检索 Top-1 命中率不足
+
+**发现**: LongMemEval 全语料检索中，Top-1 命中率仅 70%，但 Top-5 达到 100%。
+
+**架构启示**: 
+- 需要混合检索（向量+关键词 RRF 融合）提升 Top-1 精度
+- 需要 cross-encoder reranker 对 top-K 结果重排序
+- `RetrievalQualityReport` 可在运行时检测低置信度检索，触发 fallback
+
+### 教训4: Python 预计算是 Dart ONNX 生态不成熟时的务实方案
+
+**发现**: Dart 缺少 SentencePiece tokenizer 实现，无法直接运行 EmbeddingGemma ONNX 模型。
+
+**解决方案**: 
+- Phase 1: Python 预计算 → numpy 二进制格式存储（.npy + .json）
+- Phase 2: Dart 加载预计算向量进行评估
+- Phase 3: 等待 Dart ONNX Runtime 生态成熟后实现端侧推理
+
+**numpy 解析踩坑**:
+- dtype 字符串格式多样：`float32`/`<f4`/`>f4`/`|f4` 都需要支持
+- 必须用 `Float32List.view(buffer, offsetInBytes, length)` 而非 `buffer.asFloat32List()` 来处理非零偏移
+- header 解析用正则匹配 `'shape': (rows, cols)` 格式
+
+### 教训5: 数据收集必须包含对话消息，不能只取 QA
+
+**发现**: 初始预计算只收集了 QA 对，遗漏了对话消息。LoCoMo 从 1974 条增加到 9256 条（4.7x），BEIR 从 11469 增加到 16652（1.5x）。
+
+**根因**: LoCoMo 的对话数据嵌套在 `conversation.session_N` 中，需要遍历所有 session 提取消息。BEIR 需要同时收集 `title + text` 的组合文本。
+
+**最佳实践**: 预计算前先验证数据完整性，确保文本数与原始数据集的消息/文档数匹配。

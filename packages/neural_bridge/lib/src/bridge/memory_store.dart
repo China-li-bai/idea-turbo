@@ -17,6 +17,19 @@ abstract class MemoryStore {
   Future<List<MemorySearchResult>> recall({
     required String query,
     List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    int limit = 10,
+  });
+
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
     int limit = 10,
   });
 
@@ -80,9 +93,39 @@ class MnemosyneMemoryStore implements MemoryStore {
   Future<List<MemorySearchResult>> recall({
     required String query,
     List<double>? queryEmbedding,
+    EncodingContext? currentContext,
     int limit = 10,
   }) =>
-      _mnemosyne.recall(query: query, queryEmbedding: queryEmbedding, limit: limit);
+      _mnemosyne.recall(
+        query: query,
+        queryEmbedding: queryEmbedding,
+        currentContext: currentContext,
+        limit: limit,
+      );
+
+  @override
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
+    int limit = 10,
+  }) =>
+      _mnemosyne.recallWithScene(
+        query: query,
+        queryEmbedding: queryEmbedding,
+        currentContext: currentContext,
+        weather: weather,
+        temperature: temperature,
+        activity: activity,
+        location: location,
+        ambientMood: ambientMood,
+        limit: limit,
+      );
 
   @override
   Future<List<MemoryItem>> getRecent({int limit = 20}) =>

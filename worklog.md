@@ -409,3 +409,90 @@
 - `TemporalIntent.before/after`: 轻微 boost（1.1x）
 
 **编译验证**: neural_bridge **82 tests passed** ✅, mnemosyne **0 静态分析问题** ✅
+
+---
+
+## 2026-05-01
+
+### 任务：EmbeddingGemma 300M 真实基线建立与架构迭代
+
+**开始时间**: 2026-05-01
+**任务描述**: 使用 EmbeddingGemma 300M ONNX 模型预计算四大数据集的向量嵌入，建立真实 NDCG/Recall 基线，对比 Mock vs Real 差异，发现架构瓶颈并迭代升级。
+
+**Phase 1: Python 预计算 Embedding**
+
+由于 Dart 缺少 SentencePiece tokenizer 实现，采用两阶段策略：
+- Phase 1: Python 预计算 → numpy 二进制格式存储
+- Phase 2: Dart 加载预计算向量进行评估
+
+**预计算数据**:
+
+| 数据集 | 文本数 | 768d 向量 | 256d 向量 | 文本列表 |
+|--------|--------|----------|----------|---------|
+| LoCoMo | 9256 | 28MB | 9.1MB | 898KB |
+| BEIR scifact | 16652 | 49MB | 17MB | 15MB |
+| LongMemEval | 10252 | 31MB | 11MB | 12MB |
+
+**Phase 2: 真实基线测试结果**
+
+**小规模基线** (real_baseline_test.dart):
+
+| 数据集 | 维度 | 查询数 | NDCG@10 | Recall@10 | MRR | P@10 |
+|--------|------|--------|---------|-----------|-----|------|
+| BEIR scifact | 256 | 30 | 0.983 | 1.000 | 0.978 | 0.120 |
+| LoCoMo | 256 | 30 | 1.000 | 1.000 | 1.000 | 0.100 |
+| LongMemEval | 256 | 20 | 1.000 | 1.000 | 1.000 | 0.100 |
+| BEIR scifact | 768 | 30 | 0.999 | 1.000 | 1.000 | 0.120 |
+| LoCoMo | 768 | 30 | 1.000 | 1.000 | 1.000 | 0.100 |
+| LongMemEval | 768 | 20 | 1.000 | 1.000 | 1.000 | 0.100 |
+
+**全语料库压力测试** (stress_baseline_test.dart):
+
+| 测试 | 核心指标 | 值 | 状态 |
+|------|---------|-----|------|
+| BEIR 全语料 (5168 docs) | NDCG@10 | 0.7743 | ✅ 超过 BM25 (0.65-0.70) |
+| BEIR 全语料 (5168 docs) | Recall@10 | 0.8720 | ✅ |
+| LoCoMo 全语料 (5882 msgs) | NDCG@10 | 1.000 | ✅ |
+| LongMemEval 证据检索 | Top-1 命中率 | 70.0% | ⚠️ 需改进 |
+| LongMemEval 证据检索 | Top-5 命中率 | 100.0% | ✅ |
+
+**MRL 维度扫描** (BEIR scifact, 1k docs, 20 queries):
+
+| 维度 | NDCG@10 | Recall@10 | MRR |
+|------|---------|-----------|-----|
+| 64 | 0.203 | 0.275 | 0.198 |
+| 128 | 0.273 | 0.350 | 0.274 |
+| **256** | **0.293** | **0.350** | **0.300** |
+| 768 | 0.300 | 0.350 | 0.308 |
+
+**关键发现**:
+1. **256→768 仅提升 2.4%** — 256d 是性价比最优选择，确认架构决策正确
+2. **64d 性能断崖** — NDCG@10 从 0.293 降到 0.203 (降 31%)，低于 128d 不适合生产
+3. **Top-1 命中率 70%** — 纯向量检索不够，需要混合检索（向量+关键词+重排序）
+4. **Mock vs Real 差异巨大** — BEIR Mock NDCG@10 仅 0.259，Real 达到 0.774 (3x 提升)
+
+**Phase 3: 架构迭代**
+
+基于真实基线发现的问题，实施以下架构改进：
+
+1. **MRL 最低维度保护** — `EmbeddingConfig.minMrlDimensions = 128`，低于此值自动提升
+   - 修改文件: `embedding_provider.dart` (EmbeddingConfig + truncate 方法)
+   - 修改文件: `precomputed_embedding_provider.dart` (load 方法 + truncate 方法)
+
+2. **检索质量监控** — `RetrievalQualityReport` 类，自动评估检索结果质量
+   - topScore < 0.5 → 低置信度，建议 fallback_to_keyword
+   - scoreDropoff < 0.3 → 结果区分度低，建议 consider_reranking
+   - 新增 `recallWithQualityReport()` 方法返回结果+质量报告
+
+3. **新增测试文件**:
+   - `test/eval/stress_baseline_test.dart` — 全语料库压力测试 + MRL 维度扫描
+
+**新增类**:
+- `RetrievalQualityReport` — 检索质量报告（topScore/scoreDropoff/isLowConfidence/suggestedAction）
+
+**修改文件**:
+- `lib/src/embedding/embedding_provider.dart` — EmbeddingConfig 新增 minMrlDimensions + isDimensionSafe
+- `lib/src/embedding/precomputed_embedding_provider.dart` — load 新增 minDimensions 参数 + truncate 签名更新
+- `lib/src/bridge/neural_mnemosyne_bridge.dart` — 新增 RetrievalQualityReport + recallWithQualityReport()
+
+**编译验证**: neural_bridge **92 tests passed** ✅, **0 静态分析问题** ✅

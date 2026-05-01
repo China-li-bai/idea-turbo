@@ -9,13 +9,17 @@ class EmbeddingConfig {
   final bool enableTruncation;
   final Duration timeout;
   final int maxBatchSize;
+  final int minMrlDimensions;
 
   const EmbeddingConfig({
     this.targetDimensions = 256,
     this.enableTruncation = true,
     this.timeout = const Duration(seconds: 30),
     this.maxBatchSize = 32,
+    this.minMrlDimensions = 128,
   });
+
+  bool get isDimensionSafe => targetDimensions >= minMrlDimensions;
 }
 
 class EmbeddingProviderException implements Exception {
@@ -53,7 +57,10 @@ abstract class EmbeddingProvider {
   Future<List<double>> embed(String text);
   Future<List<List<double>>> embedBatch(List<String> texts);
 
-  List<double> truncate(List<double> embedding, int targetDim) {
+  List<double> truncate(List<double> embedding, int targetDim, {int minDim = 128}) {
+    if (targetDim < minDim) {
+      targetDim = minDim;
+    }
     if (embedding.length <= targetDim) return embedding;
     return embedding.sublist(0, targetDim);
   }

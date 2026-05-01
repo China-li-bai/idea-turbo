@@ -147,6 +147,7 @@ class _InMemoryStore implements MemoryStore {
   Future<List<MemorySearchResult>> recall({
     required String query,
     List<double>? queryEmbedding,
+    EncodingContext? currentContext,
     int limit = 10,
   }) async {
     if (queryEmbedding == null) return [];
@@ -245,6 +246,26 @@ class _InMemoryStore implements MemoryStore {
         .take(limit)
         .map((m) => m.id)
         .toList();
+  }
+
+  @override
+  Future<List<MemorySearchResult>> recallWithScene({
+    required String query,
+    List<double>? queryEmbedding,
+    EncodingContext? currentContext,
+    String? weather,
+    String? temperature,
+    String? activity,
+    String? location,
+    String? ambientMood,
+    int limit = 10,
+  }) async {
+    return recall(
+      query: query,
+      queryEmbedding: queryEmbedding,
+      currentContext: currentContext,
+      limit: limit,
+    );
   }
 
   Future<List<MemorySearchResult>> search({
