@@ -1,16 +1,22 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 import '../pet_store.dart';
+import '../../ui/widgets/vitality_bar.dart';
 
 class HUDLayer extends StatefulWidget {
   final PetStore store;
-  final Future<String> Function(String) onSendMessage;
+  final Future<({String response, dynamic memoryContext})> Function(String) onSendMessage;
+  final VoidCallback? onOpenGallery;
+  final VoidCallback? onOpenPersonality;
 
   const HUDLayer({
     super.key,
     required this.store,
     required this.onSendMessage,
+    this.onOpenGallery,
+    this.onOpenPersonality,
   });
 
   @override
@@ -22,6 +28,7 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isSending = false;
+  bool _showVitality = false;
 
   @override
   void initState() {
@@ -78,11 +85,11 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
     setState(() => _isSending = true);
 
     try {
-      final response = await widget.onSendMessage(text);
+      final result = await widget.onSendMessage(text);
       if (!mounted) return;
       widget.store.setMood(PetMood.speaking);
       widget.store.addSubtitle(
-        response,
+        result.response,
         size.width * 0.5 - 80,
         size.height * 0.35,
         isUser: false,
@@ -134,10 +141,10 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
         Future.delayed(const Duration(seconds: 1), () async {
           if (!mounted) return;
           try {
-            final resp = await widget.onSendMessage('用户说了你好');
+            final result = await widget.onSendMessage('用户说了你好');
             widget.store.setMood(PetMood.speaking);
             widget.store.addSubtitle(
-              resp,
+              result.response,
               size.width * 0.5 - 80,
               size.height * 0.35,
               isUser: false,
@@ -179,36 +186,42 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(28),
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('菜单功能开发中...')),
-              ),
-              child: ClipRRect(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildMenuButton(),
+            if (widget.store.vitalityState != null)
+              _buildVitalityToggle(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => _showMenu(),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(28),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.10),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.menu,
-                      color: Colors.white54,
-                      size: 24,
-                    ),
-                  ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.10),
                 ),
+              ),
+              child: const Icon(
+                Icons.menu,
+                color: Colors.white54,
+                size: 24,
               ),
             ),
           ),
@@ -217,20 +230,294 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
     );
   }
 
+  Widget _buildVitalityToggle() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => setState(() => _showVitality = !_showVitality),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _showVitality
+                    ? Colors.amber.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: _showVitality
+                      ? Colors.amber.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.10),
+                ),
+              ),
+              child: Icon(
+                Icons.favorite,
+                color: _showVitality ? Colors.amber : Colors.white54,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.85),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _menuItem(
+                  icon: Icons.photo_album,
+                  label: '记忆画廊',
+                  subtitle: '查看宠物的所有记忆',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    widget.onOpenGallery?.call();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _menuItem(
+                  icon: Icons.psychology,
+                  label: '人格档案',
+                  subtitle: '查看宠物的性格特质',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    widget.onOpenPersonality?.call();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _menuItem(
+                  icon: Icons.share,
+                  label: '分享战报',
+                  subtitle: '生成今日互动报告',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showSharePreview();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _menuItem({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white54, size: 24),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSharePreview() {
+    final vitality = widget.store.vitalityState;
+    final personality = widget.store.personalityProfile;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.deepPurple.withValues(alpha: 0.3),
+                    Colors.black.withValues(alpha: 0.9),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🐱', style: TextStyle(fontSize: 48)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '镇岳的今日战报',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (vitality != null) ...[
+                    _reportRow('⚡ 能量', '${(vitality.socialEnergy * 100).toInt()}%'),
+                    _reportRow('💛 心情', '${(vitality.emotionalBattery * 100).toInt()}%'),
+                    _reportRow('💬 互动', '${widget.store.interactionCount} 次'),
+                  ],
+                  if (personality != null && personality.hasAwakened) ...[
+                    const SizedBox(height: 8),
+                    _reportRow('🌟 人格', _archetypeShortName(personality.currentArchetype)),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('战报已生成！长按保存图片分享'),
+                            backgroundColor: Colors.deepPurple,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.share),
+                      label: const Text('分享到朋友圈'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _reportRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 14)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  String _archetypeShortName(PersonalityArchetype archetype) {
+    switch (archetype) {
+      case PersonalityArchetype.cyberpunkSarcastic: return '赛博毒舌';
+      case PersonalityArchetype.zenPhilosopher: return '禅意哲学家';
+      case PersonalityArchetype.socialButterfly: return '社交蝴蝶';
+      case PersonalityArchetype.introvertPoet: return '内敛诗人';
+      case PersonalityArchetype.chaosAgent: return '混沌使者';
+      case PersonalityArchetype.nostalgiaElder: return '怀旧长者';
+      case PersonalityArchetype.techEvangelist: return '科技布道者';
+      case PersonalityArchetype.defaultNeutral: return '未觉醒';
+    }
+  }
+
   Widget _buildBottomControls(Size size, double bottomPadding) {
     return Padding(
       padding: EdgeInsets.only(bottom: 32 + bottomPadding),
-      child: AnimatedBuilder(
-        animation: _inputController,
-        builder: (context, _) {
-          final inputOpen = _inputController.value > 0.5;
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_showVitality && widget.store.vitalityState != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: VitalityBar(state: widget.store.vitalityState!),
+            ),
+          AnimatedBuilder(
+            animation: _inputController,
+            builder: (context, _) {
+              final inputOpen = _inputController.value > 0.5;
 
-          if (inputOpen) {
-            return _buildTextInput(size);
-          } else {
-            return _buildControlPills();
-          }
-        },
+              if (inputOpen) {
+                return _buildTextInput(size);
+              } else {
+                return _buildControlPills();
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -246,14 +533,14 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
           width: inputWidth,
           height: 56,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.10),
+            color: Colors.white.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: Colors.white.withOpacity(0.20),
+              color: Colors.white.withValues(alpha: 0.20),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -274,7 +561,7 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                     decoration: InputDecoration(
                       hintText: '说点什么...',
                       hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
+                        color: Colors.white.withValues(alpha: 0.4),
                       ),
                       border: InputBorder.none,
                       isDense: true,
@@ -333,17 +620,17 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.10),
+                  color: Colors.white.withValues(alpha: 0.10),
                 ),
               ),
               child: Center(
                 child: Text(
                   '输入...',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1,
@@ -375,22 +662,22 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
               height: 56,
               decoration: BoxDecoration(
                 color: isListening
-                    ? Colors.green.withOpacity(0.20)
-                    : Colors.white.withOpacity(0.10),
+                    ? Colors.green.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
                   color: isListening
-                      ? Colors.green.withOpacity(0.50)
-                      : Colors.white.withOpacity(0.20),
+                      ? Colors.green.withValues(alpha: 0.50)
+                      : Colors.white.withValues(alpha: 0.20),
                 ),
                 boxShadow: isListening
                     ? [
                         BoxShadow(
-                          color: Colors.green.withOpacity(0.40),
+                          color: Colors.green.withValues(alpha: 0.40),
                           blurRadius: 40,
                         ),
                         BoxShadow(
-                          color: Colors.green.withOpacity(0.20),
+                          color: Colors.green.withValues(alpha: 0.20),
                           blurRadius: 20,
                           offset: const Offset(0, 0),
                         ),

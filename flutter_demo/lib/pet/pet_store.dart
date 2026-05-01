@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 
 enum PetMood {
   idle,
@@ -28,6 +30,7 @@ class Subtitle {
   final double y;
   final DateTime createdAt;
   final bool isUser;
+  final bool isMemory;
 
   Subtitle({
     required this.id,
@@ -36,6 +39,7 @@ class Subtitle {
     required this.y,
     required this.isUser,
     DateTime? createdAt,
+    this.isMemory = false,
   }) : createdAt = createdAt ?? DateTime.now();
 }
 
@@ -68,6 +72,14 @@ class PetStore extends ChangeNotifier {
 
   Timer? _subtitleCleanupTimer;
   Timer? _particleCleanupTimer;
+  Timer? _vitalityTickTimer;
+  Timer? _proactiveMemoryTimer;
+
+  VitalityState? _vitalityState;
+  PersonalityProfile? _personalityProfile;
+  AwakeningResult? _awakeningResult;
+  bool _isAwakeningAnimation = false;
+  int _interactionCount = 0;
 
   PetMood get mood => _mood;
   Offset get lookAt => _lookAt;
@@ -77,6 +89,14 @@ class PetStore extends ChangeNotifier {
   bool get isInputOpen => _isInputOpen;
   List<Subtitle> get subtitles => List.unmodifiable(_subtitles);
   List<Particle> get particles => List.unmodifiable(_particles);
+  VitalityState? get vitalityState => _vitalityState;
+  PersonalityProfile? get personalityProfile => _personalityProfile;
+  AwakeningResult? get awakeningResult => _awakeningResult;
+  bool get isAwakeningAnimation => _isAwakeningAnimation;
+  int get interactionCount => _interactionCount;
+
+  void Function()? onProactiveMemory;
+  void Function(AwakeningResult)? onAwakening;
 
   PetStore() {
     _subtitleCleanupTimer = Timer.periodic(
@@ -86,6 +106,52 @@ class PetStore extends ChangeNotifier {
     _particleCleanupTimer = Timer.periodic(
       const Duration(milliseconds: 500),
       (_) => _cleanupParticles(),
+    );
+  }
+
+  void setVitalityService(DefaultVitalityService service) {
+    _vitalityState = service.getCurrentState('zhenyue');
+    _vitalityTickTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) {
+        _vitalityState = service.tick('zhenyue', const Duration(minutes: 5));
+        notifyListeners();
+      },
+    );
+    notifyListeners();
+  }
+
+  void setPersonalityService(DefaultPersonalityAwakeningService service) {
+    _personalityProfile = service.getProfile('zhenyue');
+    notifyListeners();
+  }
+
+  void onInteraction(String content) {
+    _interactionCount++;
+    notifyListeners();
+  }
+
+  void setAwakeningResult(AwakeningResult result) {
+    _awakeningResult = result;
+    _isAwakeningAnimation = true;
+    notifyListeners();
+
+    Future.delayed(const Duration(seconds: 8), () {
+      _isAwakeningAnimation = false;
+      notifyListeners();
+    });
+  }
+
+  void dismissAwakening() {
+    _isAwakeningAnimation = false;
+    notifyListeners();
+  }
+
+  void startProactiveMemoryTimer(void Function() callback) {
+    onProactiveMemory = callback;
+    _proactiveMemoryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => callback(),
     );
   }
 
@@ -125,13 +191,14 @@ class PetStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addSubtitle(String text, double x, double y, {bool isUser = false}) {
+  void addSubtitle(String text, double x, double y, {bool isUser = false, bool isMemory = false}) {
     _subtitles.add(Subtitle(
       id: _generateId(),
       text: text,
       x: x,
       y: y,
       isUser: isUser,
+      isMemory: isMemory,
     ));
     notifyListeners();
   }
@@ -192,6 +259,8 @@ class PetStore extends ChangeNotifier {
   void dispose() {
     _subtitleCleanupTimer?.cancel();
     _particleCleanupTimer?.cancel();
+    _vitalityTickTimer?.cancel();
+    _proactiveMemoryTimer?.cancel();
     super.dispose();
   }
 }

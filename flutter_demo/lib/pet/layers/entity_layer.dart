@@ -196,13 +196,13 @@ class _EntityLayerState extends State<EntityLayer>
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFC86420).withOpacity(0.25),
+              color: const Color(0xFFC86420).withValues(alpha: 0.25),
               offset: const Offset(-6, -8),
               blurRadius: 16,
               spreadRadius: 0,
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
+              color: Colors.black.withValues(alpha: 0.10),
               offset: const Offset(0, 8),
               blurRadius: 20,
             ),
@@ -272,7 +272,7 @@ class _EntityLayerState extends State<EntityLayer>
         borderRadius: BorderRadius.circular(width * 0.45),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha: 0.12),
             offset: const Offset(0, 3),
             blurRadius: 6,
           ),
@@ -283,7 +283,7 @@ class _EntityLayerState extends State<EntityLayer>
           width: width * 0.65,
           height: height * 0.55,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.92),
+            color: Colors.white.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(width * 0.2),
           ),
         ),
@@ -310,7 +310,7 @@ class _EntityLayerState extends State<EntityLayer>
             borderRadius: BorderRadius.circular(bellyWidth * 0.42),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFFECD8).withOpacity(0.5),
+                color: const Color(0xFFFFECD8).withValues(alpha: 0.5),
                 blurRadius: _isRubbing ? 10 : 4,
                 spreadRadius: _isRubbing ? 3 : 0,
               ),
@@ -361,12 +361,12 @@ class _EntityLayerState extends State<EntityLayer>
           borderRadius: BorderRadius.circular(legWidth * 0.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFC86420).withOpacity(0.25),
+              color: const Color(0xFFC86420).withValues(alpha: 0.25),
               offset: const Offset(0, 3),
               blurRadius: 8,
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
+              color: Colors.black.withValues(alpha: 0.10),
               offset: const Offset(0, 5),
               blurRadius: 10,
             ),
@@ -379,10 +379,10 @@ class _EntityLayerState extends State<EntityLayer>
             height: legHeight * 0.30,
             margin: const EdgeInsets.only(bottom: 2),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.94),
+              color: Colors.white.withValues(alpha: 0.94),
               borderRadius: BorderRadius.circular(legWidth * 0.2),
               border: Border.all(
-                color: const Color(0xFFD17A2A).withOpacity(0.15),
+                color: const Color(0xFFD17A2A).withValues(alpha: 0.15),
                 width: 1,
               ),
             ),
@@ -468,7 +468,7 @@ class _EntityLayerState extends State<EntityLayer>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.white.withOpacity(0.25),
+            color: Colors.white.withValues(alpha: 0.25),
             offset: const Offset(1.5, 1.5),
             blurRadius: 6,
           ),
@@ -484,7 +484,7 @@ class _EntityLayerState extends State<EntityLayer>
             right: isLeft ? 0 : earWidth * 0.1,
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFB6B6).withOpacity(0.88),
+            color: const Color(0xFFFFB6B6).withValues(alpha: 0.88),
             shape: BoxShape.circle,
           ),
         ),
@@ -509,7 +509,7 @@ class _EntityLayerState extends State<EntityLayer>
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFC86420).withOpacity(0.35),
+              color: const Color(0xFFC86420).withValues(alpha: 0.35),
               offset: const Offset(0, 10),
               blurRadius: 20,
             ),
@@ -523,7 +523,7 @@ class _EntityLayerState extends State<EntityLayer>
                 height: headSize * 0.24,
                 margin: const EdgeInsets.only(top: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC17025).withOpacity(0.55),
+                  color: const Color(0xFFC17025).withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -535,7 +535,7 @@ class _EntityLayerState extends State<EntityLayer>
                   width: headSize * 0.036,
                   height: headSize * 0.20,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC17025).withOpacity(0.55),
+                    color: const Color(0xFFC17025).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(2),
                   ),
                   transform: Matrix4.rotationZ(20 * pi / 180),
@@ -549,7 +549,7 @@ class _EntityLayerState extends State<EntityLayer>
                   width: headSize * 0.036,
                   height: headSize * 0.20,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC17025).withOpacity(0.55),
+                    color: const Color(0xFFC17025).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(2),
                   ),
                   transform: Matrix4.rotationZ(-20 * pi / 180),
@@ -607,7 +607,7 @@ class _EntityLayerState extends State<EntityLayer>
         border: Border.all(color: const Color(0xFFE08D40), width: eyeSize * 0.045),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.18),
+            color: Colors.black.withValues(alpha: 0.18),
             offset: const Offset(0, 3),
             blurRadius: 8,
             spreadRadius: -2,
@@ -649,7 +649,7 @@ class _EntityLayerState extends State<EntityLayer>
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             blurRadius: 5,
                           ),
                         ],
@@ -782,7 +782,7 @@ class _EntityLayerState extends State<EntityLayer>
             painter: _WhiskerPainter(
               start: Offset(isLeft ? length : 0, length * 0.05),
               end: Offset(isLeft ? 0 : length, -length * 0.12),
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               strokeWidth: stroke,
             ),
           ),
@@ -791,7 +791,7 @@ class _EntityLayerState extends State<EntityLayer>
             painter: _WhiskerPainter(
               start: Offset(isLeft ? length : 0, length * 0.22),
               end: Offset(isLeft ? 0 : length, length * 0.06),
-              color: Colors.white.withOpacity(0.45),
+              color: Colors.white.withValues(alpha: 0.45),
               strokeWidth: stroke,
             ),
           ),
@@ -800,7 +800,7 @@ class _EntityLayerState extends State<EntityLayer>
             painter: _WhiskerPainter(
               start: Offset(isLeft ? length : 0, length * 0.39),
               end: Offset(isLeft ? 0 : length, length * 0.28),
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               strokeWidth: stroke,
             ),
           ),

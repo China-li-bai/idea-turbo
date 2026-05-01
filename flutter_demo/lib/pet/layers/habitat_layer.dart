@@ -82,7 +82,7 @@ class _HabitatLayerState extends State<HabitatLayer>
               ),
               BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-                child: Container(color: Colors.black.withOpacity(0.2)),
+                child: Container(color: Colors.black.withValues(alpha: 0.2)),
               ),
               Positioned(
                 top: -size.height * 0.15,
@@ -97,8 +97,8 @@ class _HabitatLayerState extends State<HabitatLayer>
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          Colors.blue.withOpacity(0.10),
-                          Colors.blue.withOpacity(0.0),
+                          Colors.blue.withValues(alpha: 0.10),
+                          Colors.blue.withValues(alpha: 0.0),
                         ],
                       ),
                     ),
@@ -115,8 +115,8 @@ class _HabitatLayerState extends State<HabitatLayer>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        Colors.green.withOpacity(0.05),
-                        Colors.green.withOpacity(0.0),
+                        Colors.green.withValues(alpha: 0.05),
+                        Colors.green.withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -132,8 +132,8 @@ class _HabitatLayerState extends State<HabitatLayer>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        Colors.amber.withOpacity(0.04),
-                        Colors.amber.withOpacity(0.0),
+                        Colors.amber.withValues(alpha: 0.04),
+                        Colors.amber.withValues(alpha: 0.0),
                       ],
                     ),
                   ),

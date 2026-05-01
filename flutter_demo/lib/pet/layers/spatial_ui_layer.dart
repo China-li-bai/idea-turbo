@@ -135,17 +135,17 @@ class _SubtitleBubbleState extends State<_SubtitleBubble>
                       ),
                       decoration: BoxDecoration(
                         color: isUser
-                            ? Colors.white.withOpacity(0.10)
-                            : Colors.black.withOpacity(0.40),
+                            ? Colors.white.withValues(alpha: 0.10)
+                            : Colors.black.withValues(alpha: 0.40),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
                           color: isUser
-                              ? Colors.white.withOpacity(0.10)
-                              : Colors.white.withOpacity(0.05),
+                              ? Colors.white.withValues(alpha: 0.10)
+                              : Colors.white.withValues(alpha: 0.05),
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -156,7 +156,7 @@ class _SubtitleBubbleState extends State<_SubtitleBubble>
                         style: TextStyle(
                           color: isUser
                               ? Colors.white
-                              : Colors.white.withOpacity(0.9),
+                              : Colors.white.withValues(alpha: 0.9),
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
                           height: 1.5,

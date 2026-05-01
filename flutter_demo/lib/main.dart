@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:llamadart/llamadart.dart';
-import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -272,12 +271,8 @@ class UpdateCheckPage extends StatefulWidget {
 class _UpdateCheckPageState extends State<UpdateCheckPage> {
   String _status = '正在检查更新...';
   bool _isChecking = true;
-  UpdateConfig? _updateConfig;
   String _currentVersion = '';
   int _currentVersionCode = 0;
-
-  static const String updateServerUrl =
-      'https://your-update-server.com/api/update';
 
   @override
   void initState() {
@@ -523,7 +518,7 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _devicePerformance!.color.withOpacity(0.1),
+                  color: _devicePerformance!.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _devicePerformance!.color),
                 ),
@@ -958,7 +953,7 @@ class _ChatPageState extends State<ChatPage> {
               color: Theme.of(context).colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 4,
                   offset: const Offset(0, -2),
                 ),
