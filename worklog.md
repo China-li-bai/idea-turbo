@@ -496,3 +496,63 @@
 - `lib/src/bridge/neural_mnemosyne_bridge.dart` — 新增 RetrievalQualityReport + recallWithQualityReport()
 
 **编译验证**: neural_bridge **92 tests passed** ✅, **0 静态分析问题** ✅
+
+---
+
+## 2026-05-01
+
+### 任务：flutter_demo SDK 全链路串联
+
+**开始时间**: 2026-05-01
+**任务描述**: 将 mnemosyne 和 neural_bridge 两个 SDK 完整接入 flutter_demo，实现记忆驱动对话、主动回忆、人格觉醒三大核心链路。
+
+**架构设计**:
+
+```
+main.dart → PetAppShell (总控)
+              ├── ServiceLocator (DI 容器)
+              │     ├── Mnemosyne (记忆引擎)
+              │     ├── PetMemoryBridge (宠物-记忆桥接)
+              │     ├── DefaultVitalityService (生命力系统)
+              │     └── DefaultPersonalityAwakeningService (人格觉醒)
+              ├── MemoryService (记忆上下文构建)
+              ├── AiService (LLM 对话引擎 + 记忆/人格注入)
+              └── PetStore (UI 状态管理)
+```
+
+**核心链路**:
+
+1. **记忆驱动对话**: 用户输入 → MemoryService.buildContext() 检索相关记忆 → 注入 System Prompt → LLM 推理 → unawaited 异步记录交互
+2. **主动回忆**: Timer(30s) → checkSceneTrigger() → 场景评估 → 字幕气泡展示记忆
+3. **人格觉醒**: 每10次交互 → checkAwakening() → 特质达标 → 确定原型 → 切换对话风格 + 觉醒动画
+
+**修改文件**:
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `lib/pet/pet_app_shell.dart` | 重写 | 核心集成，初始化全链路 |
+| `lib/pet/pet_store.dart` | 修改 | 新增 dismissAwakening() |
+| `lib/ui/pages/memory_gallery_page.dart` | 修改 | 修复 MemoryType 未导入 |
+
+**自审发现与修复**:
+
+1. MemoryType 未导入 — memory_gallery_page.dart 使用 MemoryType.semantic 但只导入了 memory_item.dart，MemoryType 定义在 constants.dart。修复：新增 import
+2. AwakeningResult 无 shouldAwaken — checkAwakening() 返回非 null 即表示应觉醒
+3. AwakeningResult 无 copyWith — 新增 PetStore.dismissAwakening() 替代
+4. _checkAwakening 计数器未重置 — 已觉醒后计数器不重置导致重复检查。修复：提前重置
+5. PetMood 枚举隔离 — flutter_demo 与 mnemosyne 的 PetMood 需显式映射
+
+**关键设计决策**:
+
+1. ServiceLocator 在 PetAppShell 内初始化（不在 main.dart）
+2. MemoryService 作为 AiService 可选依赖，支持降级运行
+3. unawaited 记录交互，不阻塞对话响应
+4. 30秒主动回忆间隔，平衡生命感与骚扰感
+
+**待验证**: Flutter/Dart 编译器在当前沙箱不可用，需在真实 Flutter 环境中验证编译
+
+**经验总结**:
+- DI 先行：ServiceLocator 让服务生命周期管理清晰
+- 枚举隔离：不同包的同名枚举需显式映射
+- 异步不阻塞：unawaited 是用户体验优先的关键设计
+- 防御性 null 检查：所有可选服务使用前检查 null
