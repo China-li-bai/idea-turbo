@@ -1079,3 +1079,63 @@ cd /root/idea-turbo/flutter_demo && \
 ### 已创建资源
 - **Skill**: `.trae/skills/flutter-build-upload/SKILL.md` — 一键触发打包+上传流程
 - **文档更新**: `flutter_demo/DEVELOPMENT.md` 附录 A — 完整的打包上传脚本和问题排查表
+
+---
+
+## 2026-05-01: 核心数据流接口设计 — 场景A记忆沉淀 + 场景B端云协同
+
+### 设计决策：不重复造轮子，只补缺失拼图
+
+**审计发现**: 现有 `mnemosyne` 包已覆盖 80%+ 的产品需求，但缺少以下关键模块：
+
+| 缺失模块 | 对应需求 | 新增文件 |
+|----------|---------|---------|
+| 记忆提取管道 | 场景A: RawMessage→LLM提取→JSON→Vector | `extraction/` 3个文件 |
+| Embedding服务 | 场景A: 向量化 | `embedding/` 1个文件 |
+| 社交代理 | 场景B: 端云协同流 | `proxy/` 3个文件 |
+| LBS路由 | 场景B: WebSocket消息路由 | `lbs/` 2个文件 |
+| LLM接口 | 场景B: 端侧SmolLM + 云端大模型 | `llm/` 2个文件 |
+| 编排层 | 全局串联 | `pet_orchestrator.dart` |
+| 分享服务 | 炫耀切片: 一键分享 | `report/share_service.dart` |
+| 支付预留 | 商业化: 支付接口 | `payment/` 2个文件 |
+
+### 核心架构：PetOrchestrator 编排层
+
+**设计原则**: 所有子系统通过 PetOrchestrator 统一编排，外部只与 Orchestrator 交互。
+
+```
+用户对话 → PetOrchestrator.ingestConversation()
+  → MemoryExtractionService.ingest() → RawMessage
+  → MemoryExtractionService.extractInsight() → ExtractedInsight (LLM提取JSON)
+  → EmbeddingService.embed() → 向量
+  → PetMemoryBridge.rememberInteraction() → MemoryNode
+  → VitalityService.onOwnerInteraction() → 更新活力
+  → PersonalityAwakeningService.feedInteraction() → 积累性格特质
+
+陌生人消息 → PetOrchestrator.handleStrangerMessage()
+  → PromptInjectionDefense.scan() → 安全扫描
+  → SocialShield.evaluateIncoming() → 护盾过滤
+  → VitalityService.canSocialize → 能量检查
+  → MemoryRetriever.retrieve() → 本地记忆检索
+  → PromptPackager.package() → 安全Prompt封装
+  → CloudLlmService.chat() → 云端生成回复
+  → VitalityService.onSocialInteraction() → 消耗社交能量
+```
+
+### 关键设计决策
+
+1. **LLM接口用抽象+Stub**: 端侧 SmolLM 和云端 DeepSeek-V3 均为预留接口（Stub实现），实际部署时替换即可
+2. **MemoryRetriever 独立抽象**: 从 PetMemoryBridge 中抽离检索逻辑，使 SocialProxyService 不依赖完整记忆系统
+3. **PromptPackage.fullPrompt**: 将系统提示+安全约束+主人记忆+对方消息打包成完整Prompt，直接传给云端大模型
+4. **PaymentService 预留**: 支持 Apple/Google/支付宝/微信/Stripe 五种支付渠道，Stub实现
+5. **ShareService 预留**: 支持微信/微博/小红书/抖音/QQ 五种分享平台，含图片生成接口
+
+### Dart 分析经验
+
+**问题**: `dart analyze` 在沙箱中报 `Read-only file system` 错误。
+
+**解决**: 设置 `HOME=/tmp/dart-home` 重定向 Dart 分析服务器的缓存目录。
+
+**代码规范**: 
+- nullable 字段在 null-check 后应使用局部变量提升（`final x = _field; if (x != null) x.method()`），避免不必要的 `!`
+- 未使用的 import 和 field 必须清理，否则 `dart analyze` 会报 warning
