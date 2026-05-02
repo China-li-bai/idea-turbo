@@ -1139,3 +1139,60 @@ cd /root/idea-turbo/flutter_demo && \
 **代码规范**: 
 - nullable 字段在 null-check 后应使用局部变量提升（`final x = _field; if (x != null) x.method()`），避免不必要的 `!`
 - 未使用的 import 和 field 必须清理，否则 `dart analyze` 会报 warning
+
+---
+
+## 2026-05-02: 千人千面性格系统 — 从7种到21种原型的爆炸式多样性
+
+### 核心问题：原性格系统无法产生"千人千面"
+
+**审计发现 5 大缺陷**:
+
+| 缺陷 | 根因 | 影响 |
+|------|------|------|
+| 关键词检测不准 | 简单字符串匹配 | 同一用户反复触发同一特质 |
+| 特质衰减数学错误 | 每次交互衰减，阻止发展 | 性格永远无法"觉醒" |
+| 单阶段进化 | 只有"觉醒"一个阶段 | 性格无成长感 |
+| 原型互斥 | 强制选一个 | 21选1 vs 21×20/2=210种组合 |
+| 原型太少 | 只有7种 | 多样性不足 |
+
+### 修复方案：8维特质向量 + 时间衰减 + 多阶段进化 + 主副原型混合
+
+1. **8维特质向量** (`PersonalityTraitVector`): warmth/humor/logic/energy/curiosity/independence/expressiveness/patience，每维度 0.0~1.0
+2. **时间衰减公式**: `0.5 + (current - 0.5) * exp(-decayRate * hoursSince)` — 趋向0.5而非0，保证已形成的性格不会完全消失
+3. **5阶段进化**: neutral → awakened → deepened → evolved → transcendent，每阶段需要更多交互和更高特质偏差
+4. **主副原型混合**: 每只宠物有 primaryArchetype + secondaryArchetype，产生68种混合标题（如"赛博诗人""毒舌禅师"）
+5. **性格DNA指纹**: 基于8维特质向量生成的唯一标识，保证每只宠物的性格独一无二
+
+### PersonalitySpeechEngine — 千人千面的表达引擎
+
+**设计核心**: 8维特质向量 → SpeechStyle（15个维度） → 性格化文本
+
+```
+特质向量 → SpeechStyle:
+  warmth → 主人称谓（"铲屎官"/"主人"/"两脚兽"）
+  humor → 语气词（"哈"/"喵"/"哼"）、幽默风格
+  energy → 感叹号频率、句子长度
+  logic → 隐喻偏好、技术术语密度
+  curiosity → 提问频率、话题偏好
+  independence → 自称（"本喵"/"我"/"人家"）
+  expressiveness → emoji密度、表达丰富度
+  patience → 省略号频率、容忍度
+```
+
+### 性格化独白池 — 7种原型 × 7种触发场景 = 49组专属文案
+
+每种原型（cyberpunkSarcastic/zenPhilosopher/warmHealer/introvertPoet/chaosAgent/dramaQueen/coldScholar）都有独立的独白池，覆盖 boredom/loneliness/ownerReturned/ownerLeaving/midnight/morning/randomThought 7种触发场景。
+
+### 集成路径
+
+- **PetDiaryService**: 接收 PersonalityProfile，通过 SpeechEngine 生成性格化日记
+- **PetMonologueService**: 优先使用性格专属独白池，再通过 SpeechEngine 二次风格化
+- **SocialProxyService**: PromptPackager 注入 SpeechStyle 指南到 system prompt，让云端大模型按性格说话
+- **PetOrchestrator**: 统一编排，所有 SoloPlay 方法自动注入当前性格
+
+### Dart 分析踩坑
+
+1. `personality_awakening.dart` 中引用了 `PetContext` 但未 import — 必须显式导入
+2. `personality_speech.dart` 中 `_determinePrimaryTone` 使用了 `curiosity`/`independence` 但未声明为局部变量 — 方法内的局部变量必须显式声明
+3. `generateStyle` 中声明了 `humor` 局部变量但未使用 — 即使后续方法需要，如果当前方法不直接引用，就不要声明

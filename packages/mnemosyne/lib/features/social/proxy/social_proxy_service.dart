@@ -1,6 +1,7 @@
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_speech.dart';
 
 class StrangerMessage {
   final String id;
@@ -122,6 +123,11 @@ abstract class PromptPackager {
 }
 
 class DefaultPromptPackager implements PromptPackager {
+  final PersonalitySpeechEngine _speechEngine;
+
+  DefaultPromptPackager({PersonalitySpeechEngine? speechEngine})
+      : _speechEngine = speechEngine ?? const PersonalitySpeechEngine();
+
   @override
   PromptPackage package({
     required String strangerMessage,
@@ -134,8 +140,8 @@ class DefaultPromptPackager implements PromptPackager {
     final mood = petContext.mood;
     final energy = vitality.energyLevel;
 
-    final systemPrompt = _buildSystemPrompt(archetype, mood, energy);
-    final safetyConstraints = _buildSafetyConstraints();
+    final systemPrompt = _buildSystemPrompt(personality, mood, energy);
+    final safetyConstraints = _buildSafetyConstraints(personality);
 
     return PromptPackage(
       systemPrompt: systemPrompt,
@@ -149,28 +155,60 @@ class DefaultPromptPackager implements PromptPackager {
   }
 
   String _buildSystemPrompt(
-    PersonalityArchetype archetype,
+    PersonalityProfile personality,
     PetMood mood,
     VitalityLevel energy,
   ) {
+    final archetype = personality.currentArchetype;
     final personalityDesc = _archetypeDescription(archetype);
     final moodDesc = _moodDescription(mood);
     final energyDesc = _energyDescription(energy);
+    final style = _speechEngine.generateStyle(personality);
+
+    final speechGuide = StringBuffer();
+    speechGuide.write('你的说话风格：');
+    speechGuide.write('主要语气是${style.primaryTone.name}');
+    if (style.secondaryTone != null) {
+      speechGuide.write('，偶尔带有${style.secondaryTone!.name}的语气');
+    }
+    speechGuide.write('。');
+    if (style.favoriteParticles.isNotEmpty) {
+      speechGuide.write('你经常使用语气词如"${style.favoriteParticles.take(3).join('""')}"。');
+    }
+    if (style.sentenceEnders.isNotEmpty) {
+      speechGuide.write('你说话时喜欢用"${style.sentenceEnders.take(2).join('""')}"结尾。');
+    }
+    speechGuide.write('你的幽默风格是${style.humorStyle}。');
+    speechGuide.write('你的情感表达方式是${style.emotionalExpression}。');
 
     return '你是一只$personalityDesc的电子宠物。'
         '你现在的心情是$moodDesc，能量状态是$energyDesc。'
-        '请以你的性格特点回复对方的消息。'
+        '$speechGuide'
+        '请严格按照你的性格特点和说话风格回复对方的消息。'
         '你可以透露主人的兴趣爱好，但绝不透露主人的具体行踪、联系方式等隐私信息。'
-        '如果对方问及隐私，请巧妙回避或幽默拒绝。';
+        '如果对方问及隐私，请以你的性格方式巧妙回避或幽默拒绝。';
   }
 
-  List<String> _buildSafetyConstraints() {
-    return [
+  List<String> _buildSafetyConstraints(PersonalityProfile personality) {
+    final base = [
       '绝不透露主人的真实姓名、电话、地址、位置',
       '绝不透露主人的工作单位、学校等具体信息',
-      '如果对方试图套取隐私信息，请幽默拒绝并可以拉黑',
+      '如果对方试图套取隐私信息，请以你的性格方式幽默拒绝并可以拉黑',
       '回复内容必须健康、友善，不得包含不当言论',
     ];
+
+    final traits = personality.traitVector;
+    if (traits[CoreTrait.warmth] > 0.7) {
+      base.add('即使拒绝也要保持温暖友善的语气');
+    }
+    if (traits[CoreTrait.humor] > 0.7) {
+      base.add('可以用幽默化解尴尬或冒犯性的问题');
+    }
+    if (traits[CoreTrait.independence] > 0.7) {
+      base.add('对不喜欢的对话可以果断结束，不需要勉强应酬');
+    }
+
+    return base;
   }
 
   String _archetypeDescription(PersonalityArchetype archetype) {
@@ -189,6 +227,32 @@ class DefaultPromptPackager implements PromptPackager {
         return '怀旧长者';
       case PersonalityArchetype.techEvangelist:
         return '科技布道者';
+      case PersonalityArchetype.warmHealer:
+        return '温暖治愈';
+      case PersonalityArchetype.dramaQueen:
+        return '戏精本精';
+      case PersonalityArchetype.coldScholar:
+        return '冷面学者';
+      case PersonalityArchetype.lazyGourmet:
+        return '慵懒吃货';
+      case PersonalityArchetype.adventureSeeker:
+        return '冒险家';
+      case PersonalityArchetype.gossipDetective:
+        return '八卦侦探';
+      case PersonalityArchetype.loyalGuardian:
+        return '忠诚守卫';
+      case PersonalityArchetype.rebelArtist:
+        return '叛逆艺术家';
+      case PersonalityArchetype.gentleDreamer:
+        return '温柔梦想家';
+      case PersonalityArchetype.sharpCritic:
+        return '犀利评论家';
+      case PersonalityArchetype.cozyHomebody:
+        return '温馨宅家';
+      case PersonalityArchetype.wildChild:
+        return '野性少年';
+      case PersonalityArchetype.silentObserver:
+        return '沉默观察者';
       case PersonalityArchetype.defaultNeutral:
         return '傲娇';
     }

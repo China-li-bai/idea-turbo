@@ -4,6 +4,9 @@ import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/pet_memory_bridge.dart';
 import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_speech.dart';
+import 'package:mnemosyne/features/pet/solo_play/pet_diary_service.dart';
+import 'package:mnemosyne/features/pet/solo_play/pet_monologue_service.dart';
 import 'package:mnemosyne/features/social/proxy/social_proxy_service.dart';
 import 'package:mnemosyne/features/social/proxy/default_social_proxy_service.dart';
 import 'package:mnemosyne/features/social/safety/social_shield.dart';
@@ -42,6 +45,9 @@ class PetOrchestrator {
   final EmbeddingService? _embeddingService;
   final VitalityService _vitalityService;
   final PersonalityAwakeningService _personalityService;
+  final PersonalitySpeechEngine _speechEngine;
+  final PetDiaryService _diaryService;
+  final PetMonologueService _monologueService;
   final SocialProxyService _socialProxyService;
   final SocialShield _socialShield;
   final DailyReportService _reportService;
@@ -58,6 +64,9 @@ class PetOrchestrator {
     EmbeddingService? embeddingService,
     VitalityService? vitalityService,
     PersonalityAwakeningService? personalityService,
+    PersonalitySpeechEngine? speechEngine,
+    PetDiaryService? diaryService,
+    PetMonologueService? monologueService,
     SocialProxyService? socialProxyService,
     SocialShield? socialShield,
     DailyReportService? reportService,
@@ -69,6 +78,9 @@ class PetOrchestrator {
         _embeddingService = embeddingService,
         _vitalityService = vitalityService ?? DefaultVitalityService(),
         _personalityService = personalityService ?? DefaultPersonalityAwakeningService(),
+        _speechEngine = speechEngine ?? const PersonalitySpeechEngine(),
+        _diaryService = diaryService ?? DefaultPetDiaryService(),
+        _monologueService = monologueService ?? DefaultPetMonologueService(),
         _socialProxyService = socialProxyService ?? DefaultSocialProxyService(),
         _socialShield = socialShield ?? DefaultSocialShield(),
         _reportService = reportService ?? DefaultDailyReportService(),
@@ -79,6 +91,9 @@ class PetOrchestrator {
   PetMemoryBridge get memoryBridge => _memoryBridge;
   VitalityService get vitalityService => _vitalityService;
   PersonalityAwakeningService get personalityService => _personalityService;
+  PersonalitySpeechEngine get speechEngine => _speechEngine;
+  PetDiaryService get diaryService => _diaryService;
+  PetMonologueService get monologueService => _monologueService;
   SocialShield get socialShield => _socialShield;
   DailyReportService get reportService => _reportService;
   SubscriptionService get subscriptionService => _subscriptionService;
@@ -162,6 +177,45 @@ class PetOrchestrator {
 
   AwakeningResult? checkPersonalityAwakening() {
     return _personalityService.checkAwakening(petId);
+  }
+
+  PersonalityProfile getPersonalityProfile() {
+    return _personalityService.getProfile(petId);
+  }
+
+  void applyPersonalityTimeDecay(Duration elapsed) {
+    _personalityService.applyTimeDecay(petId, elapsed);
+  }
+
+  Future<DiaryEntry?> generateDailyDiary(PetContext context, List<String> recentMemories) async {
+    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
+    return await _diaryService.generateDailyDiary(petId, context, recentMemories, personality: personality);
+  }
+
+  Future<DiaryEntry?> generateObservation(PetContext context, String target) async {
+    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
+    return await _diaryService.generateObservation(petId, context, target, personality: personality);
+  }
+
+  PetMonologue? generateMonologue(MonologueTrigger trigger, PetContext context) {
+    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
+    return _monologueService.generateMonologue(petId, trigger, context, personality: personality);
+  }
+
+  PetMonologue? generateBoredomMonologue(PetContext context) {
+    final vitality = _vitalityService.getCurrentState(petId);
+    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
+    return _monologueService.generateBoredomMonologue(petId, vitality, context, personality: personality);
+  }
+
+  PetMonologue? generateTimeBasedMonologue(PetContext context) {
+    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
+    return _monologueService.generateTimeBasedMonologue(petId, context, personality: personality);
+  }
+
+  String generatePersonalityResponse(String baseContent) {
+    final profile = getPersonalityProfile();
+    return _speechEngine.generateMonologue(profile, baseContent);
   }
 
   VitalityState tickVitality(Duration elapsed) {

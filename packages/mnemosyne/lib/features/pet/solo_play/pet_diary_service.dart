@@ -1,5 +1,6 @@
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_speech.dart';
 
 enum DiaryEntryType {
   dailyObservation,
@@ -71,10 +72,10 @@ class DiaryConfig {
 }
 
 abstract class PetDiaryService {
-  Future<DiaryEntry?> generateDailyDiary(String petId, PetContext context, List<String> recentMemories);
-  Future<DiaryEntry?> generateObservation(String petId, PetContext context, String observationTarget);
-  Future<DiaryEntry?> generateDreamRecord(String petId, PetContext context, List<String> recentMemories);
-  Future<DiaryEntry?> generateHabitAnalysis(String petId, List<String> ownerHabits);
+  Future<DiaryEntry?> generateDailyDiary(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality});
+  Future<DiaryEntry?> generateObservation(String petId, PetContext context, String observationTarget, {PersonalityProfile? personality});
+  Future<DiaryEntry?> generateDreamRecord(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality});
+  Future<DiaryEntry?> generateHabitAnalysis(String petId, List<String> ownerHabits, {PersonalityProfile? personality});
   List<DiaryEntry> getUnreadEntries(String petId);
   List<DiaryEntry> getAllEntries(String petId, {int? limit});
   void markEntryRead(String entryId);
@@ -82,12 +83,14 @@ abstract class PetDiaryService {
 
 class DefaultPetDiaryService implements PetDiaryService {
   final DiaryConfig config;
+  final PersonalitySpeechEngine _speechEngine;
   final Map<String, List<DiaryEntry>> _diaries = {};
 
-  DefaultPetDiaryService({this.config = const DiaryConfig()});
+  DefaultPetDiaryService({this.config = const DiaryConfig(), PersonalitySpeechEngine? speechEngine})
+      : _speechEngine = speechEngine ?? const PersonalitySpeechEngine();
 
   @override
-  Future<DiaryEntry?> generateDailyDiary(String petId, PetContext context, List<String> recentMemories) async {
+  Future<DiaryEntry?> generateDailyDiary(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality}) async {
     final entries = _diaries[petId] ?? [];
     final today = DateTime.now();
     final todayEntries = entries.where((e) =>
@@ -104,15 +107,19 @@ class DefaultPetDiaryService implements PetDiaryService {
       }
     }
 
-    final archetype = PersonalityArchetype.defaultNeutral;
-    final template = _selectDiaryTemplate(context, recentMemories);
-    final content = _fillTemplate(template, context, recentMemories, archetype);
+    final archetype = personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral;
+    final template = _selectDiaryTemplate(context, recentMemories, personality);
+    var content = _fillTemplate(template, context, recentMemories, archetype, personality);
+
+    if (personality != null) {
+      content = _speechEngine.generateDiaryEntry(personality, content);
+    }
 
     final entry = DiaryEntry(
       id: 'diary_${petId}_${today.millisecondsSinceEpoch}',
       petId: petId,
       type: DiaryEntryType.dailyObservation,
-      title: template.title,
+      title: _personalityTitle(template.title, personality),
       content: content,
       moodAtWriting: context.mood,
       archetype: archetype,
@@ -126,19 +133,23 @@ class DefaultPetDiaryService implements PetDiaryService {
   }
 
   @override
-  Future<DiaryEntry?> generateObservation(String petId, PetContext context, String observationTarget) async {
+  Future<DiaryEntry?> generateObservation(String petId, PetContext context, String observationTarget, {PersonalityProfile? personality}) async {
     final today = DateTime.now();
     final template = _observationTemplates[observationTarget] ?? _observationTemplates['default']!;
-    final content = _fillObservationTemplate(template, context);
+    var content = _fillObservationTemplate(template, context, personality);
+
+    if (personality != null) {
+      content = _speechEngine.generateDiaryEntry(personality, content);
+    }
 
     final entry = DiaryEntry(
       id: 'obs_${petId}_${today.millisecondsSinceEpoch}',
       petId: petId,
       type: DiaryEntryType.ownerHabit,
-      title: template.title,
+      title: _personalityTitle(template.title, personality),
       content: content,
       moodAtWriting: context.mood,
-      archetype: PersonalityArchetype.defaultNeutral,
+      archetype: personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral,
       writtenAt: today,
       tags: [observationTarget, '观察报告'],
     );
@@ -148,20 +159,25 @@ class DefaultPetDiaryService implements PetDiaryService {
   }
 
   @override
-  Future<DiaryEntry?> generateDreamRecord(String petId, PetContext context, List<String> recentMemories) async {
+  Future<DiaryEntry?> generateDreamRecord(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality}) async {
     if (!config.enableDreamRecords) return null;
 
     final today = DateTime.now();
-    final dream = _generateDream(context, recentMemories);
+    final dream = _generateDream(context, recentMemories, personality);
+    var content = dream.content;
+
+    if (personality != null) {
+      content = _speechEngine.generateDiaryEntry(personality, content);
+    }
 
     final entry = DiaryEntry(
       id: 'dream_${petId}_${today.millisecondsSinceEpoch}',
       petId: petId,
       type: DiaryEntryType.dreamRecord,
-      title: dream.title,
-      content: dream.content,
+      title: _personalityTitle(dream.title, personality),
+      content: content,
       moodAtWriting: PetMood.sleepy,
-      archetype: PersonalityArchetype.defaultNeutral,
+      archetype: personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral,
       writtenAt: today,
       tags: ['梦境', '深夜'],
       illustrationHint: dream.illustrationHint,
@@ -172,20 +188,25 @@ class DefaultPetDiaryService implements PetDiaryService {
   }
 
   @override
-  Future<DiaryEntry?> generateHabitAnalysis(String petId, List<String> ownerHabits) async {
+  Future<DiaryEntry?> generateHabitAnalysis(String petId, List<String> ownerHabits, {PersonalityProfile? personality}) async {
     if (ownerHabits.length < config.habitAnalysisMinInteractions) return null;
 
     final today = DateTime.now();
-    final analysis = _analyzeHabits(ownerHabits);
+    final analysis = _analyzeHabits(ownerHabits, personality);
+    var content = analysis.content;
+
+    if (personality != null) {
+      content = _speechEngine.generateDiaryEntry(personality, content);
+    }
 
     final entry = DiaryEntry(
       id: 'habit_${petId}_${today.millisecondsSinceEpoch}',
       petId: petId,
       type: DiaryEntryType.ownerHabit,
-      title: analysis.title,
-      content: analysis.content,
+      title: _personalityTitle(analysis.title, personality),
+      content: content,
       moodAtWriting: PetMood.curious,
-      archetype: PersonalityArchetype.defaultNeutral,
+      archetype: personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral,
       writtenAt: today,
       tags: ['习惯分析', '周报'],
     );
@@ -220,7 +241,23 @@ class DefaultPetDiaryService implements PetDiaryService {
     }
   }
 
-  _DiaryTemplate _selectDiaryTemplate(PetContext context, List<String> memories) {
+  _DiaryTemplate _selectDiaryTemplate(PetContext context, List<String> memories, PersonalityProfile? personality) {
+    if (personality != null) {
+      final traits = personality.traitVector;
+      if (traits[CoreTrait.warmth] > 0.7 && traits[CoreTrait.energy] < 0.4) {
+        return _diaryTemplates['gentle'] ?? _diaryTemplates['daily']!;
+      }
+      if (traits[CoreTrait.humor] > 0.7 && traits[CoreTrait.independence] > 0.6) {
+        return _diaryTemplates['snarky'] ?? _diaryTemplates['daily']!;
+      }
+      if (traits[CoreTrait.curiosity] > 0.7) {
+        return _diaryTemplates['curious']!;
+      }
+      if (traits[CoreTrait.logic] > 0.7) {
+        return _diaryTemplates['analytical'] ?? _diaryTemplates['daily']!;
+      }
+    }
+
     if (context.mood == PetMood.lonely || context.mood == PetMood.sad) {
       return _diaryTemplates['lonely']!;
     }
@@ -239,14 +276,18 @@ class DefaultPetDiaryService implements PetDiaryService {
     return _diaryTemplates['daily']!;
   }
 
-  String _fillTemplate(_DiaryTemplate template, PetContext context, List<String> memories, PersonalityArchetype archetype) {
+  String _fillTemplate(_DiaryTemplate template, PetContext context, List<String> memories, PersonalityArchetype archetype, PersonalityProfile? personality) {
     final buffer = StringBuffer();
     buffer.writeln(template.content);
 
     if (memories.isNotEmpty) {
       final memory = memories.first;
+      final style = personality != null ? _speechEngine.generateStyle(personality) : null;
+      final owner = style?.ownerReferences.isNotEmpty == true
+          ? style!.ownerReferences[personality!.personalityDNA.hashCode.abs() % style.ownerReferences.length]
+          : '主人';
       buffer.writeln();
-      buffer.writeln('今天主人说了句有意思的话：「$memory」');
+      buffer.writeln('今天$owner说了句有意思的话：「$memory」');
       buffer.writeln('我把它记下来了，说不定哪天能用上。');
     }
 
@@ -258,11 +299,11 @@ class DefaultPetDiaryService implements PetDiaryService {
     return buffer.toString();
   }
 
-  String _fillObservationTemplate(_DiaryTemplate template, PetContext context) {
+  String _fillObservationTemplate(_DiaryTemplate template, PetContext context, PersonalityProfile? personality) {
     return template.content;
   }
 
-  _DreamContent _generateDream(PetContext context, List<String> memories) {
+  _DreamContent _generateDream(PetContext context, List<String> memories, PersonalityProfile? personality) {
     final dreams = <_DreamContent>[
       _DreamContent(
         title: '🌙 梦境记录：大鱼之梦',
@@ -294,7 +335,7 @@ class DefaultPetDiaryService implements PetDiaryService {
     return dreams[context.capturedAt.millisecond % dreams.length];
   }
 
-  _HabitAnalysis _analyzeHabits(List<String> habits) {
+  _HabitAnalysis _analyzeHabits(List<String> habits, PersonalityProfile? personality) {
     return _HabitAnalysis(
       title: '📊 《观察人类》周刊 — 主人行为分析报告',
       content: '经过本喵/汪长期缜密观察，现对主人的行为模式做出如下专业分析：\n\n'
@@ -314,6 +355,38 @@ class DefaultPetDiaryService implements PetDiaryService {
     if (memories.isNotEmpty) tags.add('有记忆素材');
     return tags;
   }
+
+  String _personalityTitle(String baseTitle, PersonalityProfile? personality) {
+    if (personality == null) return baseTitle;
+    final archetype = personality.primaryArchetype;
+    if (archetype == PersonalityArchetype.defaultNeutral) return baseTitle;
+    final prefix = _archetypeDiaryPrefix[archetype];
+    if (prefix != null) return '$prefix $baseTitle';
+    return baseTitle;
+  }
+
+  static final Map<PersonalityArchetype, String> _archetypeDiaryPrefix = {
+    PersonalityArchetype.cyberpunkSarcastic: '⚡',
+    PersonalityArchetype.zenPhilosopher: '🧘',
+    PersonalityArchetype.socialButterfly: '🦋',
+    PersonalityArchetype.introvertPoet: '🌙',
+    PersonalityArchetype.chaosAgent: '🎲',
+    PersonalityArchetype.nostalgiaElder: '📜',
+    PersonalityArchetype.techEvangelist: '🚀',
+    PersonalityArchetype.warmHealer: '💚',
+    PersonalityArchetype.dramaQueen: '🎭',
+    PersonalityArchetype.coldScholar: '🔬',
+    PersonalityArchetype.lazyGourmet: '🍩',
+    PersonalityArchetype.adventureSeeker: '🗺️',
+    PersonalityArchetype.gossipDetective: '🔍',
+    PersonalityArchetype.loyalGuardian: '🛡️',
+    PersonalityArchetype.rebelArtist: '🎨',
+    PersonalityArchetype.gentleDreamer: '☁️',
+    PersonalityArchetype.sharpCritic: '⚡',
+    PersonalityArchetype.cozyHomebody: '🏠',
+    PersonalityArchetype.wildChild: '🔥',
+    PersonalityArchetype.silentObserver: '👁️',
+  };
 
   static final Map<String, _DiaryTemplate> _diaryTemplates = {
     'daily': _DiaryTemplate(
@@ -345,6 +418,21 @@ class DefaultPetDiaryService implements PetDiaryService {
       title: '📖 今日观察：回忆',
       content: '今天主人跟我说了一些心里话。我虽然不能完全理解人类的世界，但我能感受到他的情绪。有些话他只跟我说，这让我觉得自己很重要。我决定把这些都记下来，等他老了念给他听。',
       illustrationHint: 'cat_listening_owner',
+    ),
+    'snarky': _DiaryTemplate(
+      title: '📖 毒舌观察',
+      content: '今天又目睹了主人在人类迷惑行为大赏上的精彩表现。他花了20分钟决定中午吃什么，最后选了跟昨天一样的。我甚至懒得翻白眼了——省点力气等他下次问我"你觉得我胖了吗"的时候用。',
+      illustrationHint: 'cat_judging_owner',
+    ),
+    'gentle': _DiaryTemplate(
+      title: '📖 温柔观察',
+      content: '今天主人好像有点累。他回来的时候脚步比平时慢，但看到我还是笑了。我蹭了蹭他的手，他摸了摸我的头。有些日子不需要太多话，一个眼神就够了。我会在他身边，一直都在。',
+      illustrationHint: 'cat_comforting_owner',
+    ),
+    'analytical': _DiaryTemplate(
+      title: '📖 数据观察',
+      content: '今日主人行为数据：屏幕使用时长9.2小时，叹气频率0.7次/小时，饮水次数3次（低于推荐值），对我说话次数11次（高于均值）。结论：主人今天状态中等偏上，需要增加饮水量，减少焦虑源。建议：增加撸猫时长。',
+      illustrationHint: 'cat_analyzing_data',
     ),
   };
 

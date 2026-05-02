@@ -1,5 +1,6 @@
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_speech.dart';
 
 enum AdventureType {
   cyberSpace,
@@ -99,8 +100,8 @@ class AdventureConfig {
 }
 
 abstract class PetAdventureService {
-  AdventurePostcard? startAdventure(String petId, PetContext context, double boredomLevel);
-  AdventurePostcard? generatePostcard(String petId, AdventureType type, PetContext context);
+  AdventurePostcard? startAdventure(String petId, PetContext context, double boredomLevel, {PersonalityProfile? personality});
+  AdventurePostcard? generatePostcard(String petId, AdventureType type, PetContext context, {PersonalityProfile? personality});
   List<AdventurePostcard> getPostcards(String petId, {int? limit});
   List<AdventurePostcard> getUnreadPostcards(String petId);
   void markPostcardRead(String postcardId);
@@ -109,13 +110,15 @@ abstract class PetAdventureService {
 
 class DefaultPetAdventureService implements PetAdventureService {
   final AdventureConfig config;
+  final PersonalitySpeechEngine _speechEngine;
   final Map<String, List<AdventurePostcard>> _postcards = {};
   final Map<String, List<AdventureSouvenir>> _souvenirs = {};
 
-  DefaultPetAdventureService({this.config = const AdventureConfig()});
+  DefaultPetAdventureService({this.config = const AdventureConfig(), PersonalitySpeechEngine? speechEngine})
+      : _speechEngine = speechEngine ?? const PersonalitySpeechEngine();
 
   @override
-  AdventurePostcard? startAdventure(String petId, PetContext context, double boredomLevel) {
+  AdventurePostcard? startAdventure(String petId, PetContext context, double boredomLevel, {PersonalityProfile? personality}) {
     if (boredomLevel < config.boredomTriggerThreshold) return null;
 
     final today = DateTime.now();
@@ -127,16 +130,25 @@ class DefaultPetAdventureService implements PetAdventureService {
         .length;
     if (todayAdventures >= config.maxAdventuresPerDay) return null;
 
-    final type = _selectAdventureType(context);
-    return generatePostcard(petId, type, context);
+    final type = _selectAdventureType(context, personality);
+    return generatePostcard(petId, type, context, personality: personality);
   }
 
   @override
-  AdventurePostcard? generatePostcard(String petId, AdventureType type, PetContext context) {
+  AdventurePostcard? generatePostcard(String petId, AdventureType type, PetContext context, {PersonalityProfile? personality}) {
     final rarity = _rollRarity(context);
     final template = _getTemplate(type, rarity);
     final souvenirs = _generateSouvenirs(type, rarity);
     final now = DateTime.now();
+    final archetype = personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral;
+
+    var narrative = template.narrative;
+    var postscript = template.postscript;
+
+    if (personality != null) {
+      narrative = _speechEngine.generateAdventureNarrative(personality, narrative);
+      postscript = _speechEngine.generateAdventureNarrative(personality, postscript);
+    }
 
     final postcard = AdventurePostcard(
       id: 'adv_${petId}_${now.millisecondsSinceEpoch}',
@@ -144,10 +156,10 @@ class DefaultPetAdventureService implements PetAdventureService {
       type: type,
       rarity: rarity,
       destination: template.destination,
-      narrative: template.narrative,
-      postscript: template.postscript,
+      narrative: narrative,
+      postscript: postscript,
       souvenirs: souvenirs,
-      archetype: PersonalityArchetype.defaultNeutral,
+      archetype: archetype,
       sentAt: now,
     );
 
@@ -188,7 +200,29 @@ class DefaultPetAdventureService implements PetAdventureService {
     return List.unmodifiable(_souvenirs[petId] ?? []);
   }
 
-  AdventureType _selectAdventureType(PetContext context) {
+  AdventureType _selectAdventureType(PetContext context, PersonalityProfile? personality) {
+    if (personality != null) {
+      final traits = personality.traitVector;
+      if (traits[CoreTrait.curiosity] > 0.7 && traits[CoreTrait.energy] > 0.5) {
+        return AdventureType.treasureHunt;
+      }
+      if (traits[CoreTrait.warmth] > 0.7 && traits[CoreTrait.energy] < 0.5) {
+        return AdventureType.dreamRealm;
+      }
+      if (traits[CoreTrait.humor] > 0.7 && traits[CoreTrait.independence] > 0.6) {
+        return AdventureType.cyberSpace;
+      }
+      if (traits[CoreTrait.logic] > 0.7) {
+        return AdventureType.philosophicalJourney;
+      }
+      if (traits[CoreTrait.expressiveness] > 0.7) {
+        return AdventureType.socialExpedition;
+      }
+      if (traits[CoreTrait.independence] > 0.8) {
+        return AdventureType.midnightPatrol;
+      }
+    }
+
     final hour = context.capturedAt.hour;
     if (hour >= 0 && hour < 5) return AdventureType.midnightPatrol;
     if (hour >= 5 && hour < 8) return AdventureType.dreamRealm;

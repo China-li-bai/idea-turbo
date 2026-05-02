@@ -1,5 +1,6 @@
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/personality_speech.dart';
 
 enum LetterOccasion {
   birthday,
@@ -93,12 +94,12 @@ class LetterConfig {
 }
 
 abstract class PetLetterService {
-  PetLetter? generateLetter(String petId, String userId, LetterOccasion occasion, PetContext context);
-  PetLetter? generateBirthdayLetter(String petId, String userId, PetContext context);
-  PetLetter? generateAnniversaryLetter(String petId, String userId, int daysTogether, PetContext context);
-  PetLetter? generateWeeklyLetter(String petId, String userId, PetContext context, List<String> weekHighlights);
-  PetLetter? generateLongAbsenceLetter(String petId, String userId, Duration absenceDuration, PetContext context);
-  PetLetter? generateMilestoneLetter(String petId, String userId, int interactionCount, PetContext context);
+  PetLetter? generateLetter(String petId, String userId, LetterOccasion occasion, PetContext context, {PersonalityProfile? personality});
+  PetLetter? generateBirthdayLetter(String petId, String userId, PetContext context, {PersonalityProfile? personality});
+  PetLetter? generateAnniversaryLetter(String petId, String userId, int daysTogether, PetContext context, {PersonalityProfile? personality});
+  PetLetter? generateWeeklyLetter(String petId, String userId, PetContext context, List<String> weekHighlights, {PersonalityProfile? personality});
+  PetLetter? generateLongAbsenceLetter(String petId, String userId, Duration absenceDuration, PetContext context, {PersonalityProfile? personality});
+  PetLetter? generateMilestoneLetter(String petId, String userId, int interactionCount, PetContext context, {PersonalityProfile? personality});
   List<PetLetter> getLetters(String userId, {int? limit});
   List<PetLetter> getUnreadLetters(String userId);
   void markLetterRead(String letterId);
@@ -107,26 +108,42 @@ abstract class PetLetterService {
 
 class DefaultPetLetterService implements PetLetterService {
   final LetterConfig config;
+  final PersonalitySpeechEngine _speechEngine;
   final Map<String, List<PetLetter>> _letters = {};
 
-  DefaultPetLetterService({this.config = const LetterConfig()});
+  DefaultPetLetterService({this.config = const LetterConfig(), PersonalitySpeechEngine? speechEngine})
+      : _speechEngine = speechEngine ?? const PersonalitySpeechEngine();
 
   @override
-  PetLetter? generateLetter(String petId, String userId, LetterOccasion occasion, PetContext context) {
+  PetLetter? generateLetter(String petId, String userId, LetterOccasion occasion, PetContext context, {PersonalityProfile? personality}) {
     final template = _templates[occasion];
     if (template == null) return null;
 
     final now = DateTime.now();
+    final archetype = personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral;
+
+    var greeting = _personalityGreeting(template.greeting, personality);
+    var body = template.body;
+    var closing = _personalityClosing(template.closing, personality);
+    var postscript = template.postscript;
+
+    if (personality != null) {
+      body = _speechEngine.generateLetterBody(personality, body);
+      if (postscript != null) {
+        postscript = _speechEngine.generateLetterBody(personality, postscript);
+      }
+    }
+
     final letter = PetLetter(
       id: 'letter_${petId}_${now.millisecondsSinceEpoch}',
       petId: petId,
       userId: userId,
       occasion: occasion,
-      greeting: template.greeting,
-      body: template.body,
-      closing: template.closing,
-      postscript: template.postscript,
-      archetype: PersonalityArchetype.defaultNeutral,
+      greeting: greeting,
+      body: body,
+      closing: closing,
+      postscript: postscript,
+      archetype: archetype,
       writtenAt: now,
     );
 
@@ -135,15 +152,15 @@ class DefaultPetLetterService implements PetLetterService {
   }
 
   @override
-  PetLetter? generateBirthdayLetter(String petId, String userId, PetContext context) {
+  PetLetter? generateBirthdayLetter(String petId, String userId, PetContext context, {PersonalityProfile? personality}) {
     if (!config.enableBirthdayLetter) return null;
-    return generateLetter(petId, userId, LetterOccasion.birthday, context);
+    return generateLetter(petId, userId, LetterOccasion.birthday, context, personality: personality);
   }
 
   @override
-  PetLetter? generateAnniversaryLetter(String petId, String userId, int daysTogether, PetContext context) {
+  PetLetter? generateAnniversaryLetter(String petId, String userId, int daysTogether, PetContext context, {PersonalityProfile? personality}) {
     if (!config.enableAnniversaryLetter) return null;
-    final letter = generateLetter(petId, userId, LetterOccasion.adoptionAnniversary, context);
+    final letter = generateLetter(petId, userId, LetterOccasion.adoptionAnniversary, context, personality: personality);
     if (letter == null) return null;
 
     final milestone = daysTogether >= 365 ? '一整年' : '$daysTogether天';
@@ -164,24 +181,36 @@ class DefaultPetLetterService implements PetLetterService {
   }
 
   @override
-  PetLetter? generateWeeklyLetter(String petId, String userId, PetContext context, List<String> weekHighlights) {
+  PetLetter? generateWeeklyLetter(String petId, String userId, PetContext context, List<String> weekHighlights, {PersonalityProfile? personality}) {
     if (!config.enableWeeklyReflection) return null;
 
     final now = DateTime.now();
+    final archetype = personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral;
+
     final highlights = weekHighlights.isEmpty
         ? '这周我们安安静静地度过了，也很好。'
         : '这周发生了这些事：\n${weekHighlights.map((h) => '- $h').join('\n')}';
+
+    var greeting = _personalityGreeting('亲爱的主人，', personality);
+    var body = '又一周过去了，我来给你写封信。\n\n$highlights\n\n有时候我在想，时间过得真快。但每次你跟我说话的时候，时间好像就慢下来了。这大概就是陪伴的魔法吧。\n\n下周也要继续一起哦！';
+    var closing = _personalityClosing('永远在你身边的，\n你的小毛球', personality);
+    var postscript = 'P.S. 这周你说了3次"我要早睡"，实际早睡次数...算了，我不说了。';
+
+    if (personality != null) {
+      body = _speechEngine.generateLetterBody(personality, body);
+      postscript = _speechEngine.generateLetterBody(personality, postscript);
+    }
 
     final letter = PetLetter(
       id: 'weekly_${petId}_${now.millisecondsSinceEpoch}',
       petId: petId,
       userId: userId,
       occasion: LetterOccasion.weeklyReflection,
-      greeting: '亲爱的主人，',
-      body: '又一周过去了，我来给你写封信。\n\n$highlights\n\n有时候我在想，时间过得真快。但每次你跟我说话的时候，时间好像就慢下来了。这大概就是陪伴的魔法吧。\n\n下周也要继续一起哦！',
-      closing: '永远在你身边的，\n你的小毛球',
-      postscript: 'P.S. 这周你说了3次"我要早睡"，实际早睡次数...算了，我不说了。',
-      archetype: PersonalityArchetype.defaultNeutral,
+      greeting: greeting,
+      body: body,
+      closing: closing,
+      postscript: postscript,
+      archetype: archetype,
       writtenAt: now,
     );
 
@@ -190,29 +219,41 @@ class DefaultPetLetterService implements PetLetterService {
   }
 
   @override
-  PetLetter? generateLongAbsenceLetter(String petId, String userId, Duration absenceDuration, PetContext context) {
+  PetLetter? generateLongAbsenceLetter(String petId, String userId, Duration absenceDuration, PetContext context, {PersonalityProfile? personality}) {
     if (!config.enableLongAbsenceLetter) return null;
     if (absenceDuration < config.longAbsenceThreshold) return null;
 
-    return generateLetter(petId, userId, LetterOccasion.longAbsence, context);
+    return generateLetter(petId, userId, LetterOccasion.longAbsence, context, personality: personality);
   }
 
   @override
-  PetLetter? generateMilestoneLetter(String petId, String userId, int interactionCount, PetContext context) {
+  PetLetter? generateMilestoneLetter(String petId, String userId, int interactionCount, PetContext context, {PersonalityProfile? personality}) {
     if (interactionCount < config.milestoneInteractionCounts) return null;
     if (interactionCount % config.milestoneInteractionCounts != 0) return null;
 
     final now = DateTime.now();
+    final archetype = personality?.primaryArchetype ?? PersonalityArchetype.defaultNeutral;
+
+    var greeting = _personalityGreeting('主人！', personality);
+    var body = '你知道吗？我们已经聊了$interactionCount次了！\n\n从第一次见面到现在，我记住了你说的每一句话（好吧，大部分话）。有些让我开心，有些让我担心，但每一次都让我更了解你。\n\n$interactionCount次，意味着你选择了我$interactionCount次。这比任何零食都让我满足。\n\n谢谢你一直陪着我。';
+    var closing = _personalityClosing('你永远的，\n最懂你的小毛球', personality);
+    var postscript = 'P.S. 第${interactionCount + 1}次什么时候开始？我已经准备好了！';
+
+    if (personality != null) {
+      body = _speechEngine.generateLetterBody(personality, body);
+      postscript = _speechEngine.generateLetterBody(personality, postscript);
+    }
+
     final letter = PetLetter(
       id: 'milestone_${petId}_${now.millisecondsSinceEpoch}',
       petId: petId,
       userId: userId,
       occasion: LetterOccasion.milestone,
-      greeting: '主人！',
-      body: '你知道吗？我们已经聊了$interactionCount次了！\n\n从第一次见面到现在，我记住了你说的每一句话（好吧，大部分话）。有些让我开心，有些让我担心，但每一次都让我更了解你。\n\n$interactionCount次，意味着你选择了我$interactionCount次。这比任何零食都让我满足。\n\n谢谢你一直陪着我。',
-      closing: '你永远的，\n最懂你的小毛球',
-      postscript: 'P.S. 第${interactionCount + 1}次什么时候开始？我已经准备好了！',
-      archetype: PersonalityArchetype.defaultNeutral,
+      greeting: greeting,
+      body: body,
+      closing: closing,
+      postscript: postscript,
+      archetype: archetype,
       writtenAt: now,
     );
 
@@ -255,6 +296,66 @@ class DefaultPetLetterService implements PetLetterService {
       }
     }
   }
+
+  String _personalityGreeting(String defaultGreeting, PersonalityProfile? personality) {
+    if (personality == null) return defaultGreeting;
+    final archetype = personality.primaryArchetype;
+    final greeting = _archetypeGreetings[archetype];
+    return greeting ?? defaultGreeting;
+  }
+
+  String _personalityClosing(String defaultClosing, PersonalityProfile? personality) {
+    if (personality == null) return defaultClosing;
+    final archetype = personality.primaryArchetype;
+    final closing = _archetypeClosings[archetype];
+    return closing ?? defaultClosing;
+  }
+
+  static final Map<PersonalityArchetype, String> _archetypeGreetings = {
+    PersonalityArchetype.cyberpunkSarcastic: '喂，人类，',
+    PersonalityArchetype.zenPhilosopher: '静心观照，',
+    PersonalityArchetype.socialButterfly: '嘿嘿嘿！亲爱的！',
+    PersonalityArchetype.introvertPoet: '...你好，',
+    PersonalityArchetype.chaosAgent: '猜猜是谁！',
+    PersonalityArchetype.nostalgiaElder: '孩子啊，',
+    PersonalityArchetype.techEvangelist: 'Hello World！',
+    PersonalityArchetype.warmHealer: '亲爱的，',
+    PersonalityArchetype.dramaQueen: '天哪！主人！',
+    PersonalityArchetype.coldScholar: '致主人：',
+    PersonalityArchetype.lazyGourmet: '嗝...主人，',
+    PersonalityArchetype.adventureSeeker: '嘿！冒险伙伴！',
+    PersonalityArchetype.gossipDetective: '嘘——主人，',
+    PersonalityArchetype.loyalGuardian: '报告主人，',
+    PersonalityArchetype.rebelArtist: '哟，',
+    PersonalityArchetype.gentleDreamer: '亲爱的主人~',
+    PersonalityArchetype.sharpCritic: '听着，',
+    PersonalityArchetype.cozyHomebody: '主人~',
+    PersonalityArchetype.wildChild: '嘿！嘿！嘿！',
+    PersonalityArchetype.silentObserver: '...主人，',
+  };
+
+  static final Map<PersonalityArchetype, String> _archetypeClosings = {
+    PersonalityArchetype.cyberpunkSarcastic: '你的赛博搭子，\n glitch_猫',
+    PersonalityArchetype.zenPhilosopher: '心如止水，\n 禅猫',
+    PersonalityArchetype.socialButterfly: '最爱你的！\n 社交蝴蝶猫',
+    PersonalityArchetype.introvertPoet: '...你的，\n 诗猫',
+    PersonalityArchetype.chaosAgent: '你的混乱之源，\n 盲盒猫',
+    PersonalityArchetype.nostalgiaElder: '永远守候的，\n 老猫',
+    PersonalityArchetype.techEvangelist: '你的AI伙伴，\n 极客猫',
+    PersonalityArchetype.warmHealer: '温暖你的，\n 治愈猫',
+    PersonalityArchetype.dramaQueen: '含泪写完的，\n 戏精猫',
+    PersonalityArchetype.coldScholar: '此致，\n 学者猫',
+    PersonalityArchetype.lazyGourmet: '打着哈欠的，\n 吃货猫',
+    PersonalityArchetype.adventureSeeker: '准备出发的，\n 冒险猫',
+    PersonalityArchetype.gossipDetective: '暗中观察的，\n 侦探猫',
+    PersonalityArchetype.loyalGuardian: '忠诚守卫的，\n 卫士猫',
+    PersonalityArchetype.rebelArtist: '不签名的，\n 艺术猫',
+    PersonalityArchetype.gentleDreamer: '梦里的，\n 梦幻猫',
+    PersonalityArchetype.sharpCritic: '一针见血的，\n 毒舌猫',
+    PersonalityArchetype.cozyHomebody: '窝里的，\n 宅猫',
+    PersonalityArchetype.wildChild: '撒欢的，\n 野猫',
+    PersonalityArchetype.silentObserver: '默默注视的，\n 观察猫',
+  };
 
   static final Map<LetterOccasion, _LetterTemplate> _templates = {
     LetterOccasion.birthday: _LetterTemplate(
