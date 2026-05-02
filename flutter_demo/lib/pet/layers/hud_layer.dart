@@ -490,7 +490,8 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
       case PersonalityArchetype.chaosAgent: return '混沌使者';
       case PersonalityArchetype.nostalgiaElder: return '怀旧长者';
       case PersonalityArchetype.techEvangelist: return '科技布道者';
-      case PersonalityArchetype.defaultNeutral: return '未觉醒';
+      case PersonalityArchetype.warmHealer: return '温暖治愈者';
+      default: return '未觉醒';
     }
   }
 

@@ -86,7 +86,7 @@ class PersonalityPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     profile.hasAwakened
-                        ? '觉醒于 ${_formatDate(profile.awakenedAt!)}'
+                        ? '觉醒于 ${_formatDate(profile.firstAwakenedAt!)}'
                         : '继续互动以触发觉醒',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
@@ -361,7 +361,9 @@ class PersonalityPage extends StatelessWidget {
         return (emoji: '📜', name: '怀旧长者', description: '说话带着岁月的味道');
       case PersonalityArchetype.techEvangelist:
         return (emoji: '🚀', name: '科技布道者', description: '用算法思维优化一切');
-      case PersonalityArchetype.defaultNeutral:
+      case PersonalityArchetype.warmHealer:
+        return (emoji: '💚', name: '温暖治愈者', description: '用最柔软的心治愈一切');
+      default:
         return (emoji: '🐱', name: '未觉醒', description: '还是一只普通的猫');
     }
   }

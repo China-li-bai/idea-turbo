@@ -89,7 +89,9 @@ class AiService {
         return '怀旧长者';
       case PersonalityArchetype.techEvangelist:
         return '科技布道者';
-      case PersonalityArchetype.defaultNeutral:
+      case PersonalityArchetype.warmHealer:
+        return '温暖治愈者';
+      default:
         return '未觉醒';
     }
   }

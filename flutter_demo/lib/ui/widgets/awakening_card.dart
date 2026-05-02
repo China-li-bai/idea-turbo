@@ -241,7 +241,7 @@ class _AwakeningCardState extends State<AwakeningCard>
   }
 
   Color _glowColor() {
-    switch (widget.result.archetype) {
+    switch (widget.result.primaryArchetype) {
       case PersonalityArchetype.cyberpunkSarcastic:
         return const Color(0xFF00FFFF);
       case PersonalityArchetype.zenPhilosopher:
@@ -256,13 +256,15 @@ class _AwakeningCardState extends State<AwakeningCard>
         return const Color(0xFFDAA520);
       case PersonalityArchetype.techEvangelist:
         return const Color(0xFF00FF00);
-      case PersonalityArchetype.defaultNeutral:
+      case PersonalityArchetype.warmHealer:
+        return const Color(0xFF4CAF50);
+      default:
         return Colors.grey;
     }
   }
 
   String _effectEmoji() {
-    switch (widget.result.archetype) {
+    switch (widget.result.primaryArchetype) {
       case PersonalityArchetype.cyberpunkSarcastic:
         return '⚡';
       case PersonalityArchetype.zenPhilosopher:
@@ -277,7 +279,9 @@ class _AwakeningCardState extends State<AwakeningCard>
         return '📜';
       case PersonalityArchetype.techEvangelist:
         return '🚀';
-      case PersonalityArchetype.defaultNeutral:
+      case PersonalityArchetype.warmHealer:
+        return '💚';
+      default:
         return '🐱';
     }
   }
