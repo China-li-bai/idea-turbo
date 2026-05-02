@@ -395,7 +395,35 @@ npx eas-cli project:init --force
 
 ---
 
-## 附录 A: 完整打包+上传流程
+## 附录 A: 完整打包+上传流程（已验证 ✅）
+
+> **最后验证日期**: 2026-04-28
+> **APK 大小**: ~144 MB (Release) | **上传耗时**: ~13s
+> **Expo 账户**: weigh | **项目**: idea-turbo
+
+### 环境要求
+
+| 组件 | 路径 |
+|------|------|
+| Flutter SDK | `/root/idea-turbo/flutter/bin/flutter` |
+| Android SDK | `/root/idea-turbo/.android-sdk` |
+| Node.js | v22+ (系统自带) |
+| EAS CLI | `npx eas-cli` (无需全局安装) |
+
+### ⚠️ 关键：沙箱环境变量设置
+
+由于沙箱文件系统限制，**必须**在构建前设置以下变量：
+
+```bash
+# 必须设置！将 Flutter 配置重定向到可写目录
+export PATH="/root/idea-turbo/flutter/bin:$PATH"
+export ANDROID_HOME="/root/idea-turbo/.android-sdk"
+export XDG_CONFIG_HOME="/tmp/flutter-config"
+export HOME=/tmp/flutter-home
+mkdir -p $HOME $XDG_CONFIG_HOME
+```
+
+> 不设置会导致：`Read-only file system, errno = 30` 错误
 
 ### 方案 A: Release 版本（推荐，正式分发）
 
@@ -403,21 +431,23 @@ npx eas-cli project:init --force
 #!/bin/bash
 set -e
 
-export HOME=/root/idea-turbo
-export ANDROID_HOME=$HOME/.android-sdk
-export ANDROID_USER_HOME=$HOME/.android
-export XDG_CONFIG_HOME=$HOME/.config
-export PATH="$PATH:$HOME/flutter/bin:$ANDROID_HOME/platform-tools"
+export PATH="/root/idea-turbo/flutter/bin:$PATH"
+export ANDROID_HOME="/root/idea-turbo/.android-sdk"
+export XDG_CONFIG_HOME="/tmp/flutter-config"
+export HOME=/tmp/flutter-home
+mkdir -p $HOME $XDG_CONFIG_HOME
 
-cd $HOME/flutter_demo
+cd /root/idea-turbo/flutter_demo
 
 echo "=== Step 1: 构建 Release APK ==="
-flutter build apk --release --target-platform android-arm64
+flutter build apk --release
+# 输出: build/app/outputs/flutter-apk/app-release.apk (~144MB)
 
 echo "=== Step 2: 上传到 EAS ==="
 npx eas-cli upload \
   --platform android \
   --build-path build/app/outputs/flutter-apk/app-release.apk
+# 输出: https://expo.dev/accounts/weigh/projects/idea-turbo/builds/...
 
 echo "=== 完成! ==="
 ```
@@ -428,13 +458,13 @@ echo "=== 完成! ==="
 #!/bin/bash
 set -e
 
-export HOME=/root/idea-turbo
-export ANDROID_HOME=$HOME/.android-sdk
-export ANDROID_USER_HOME=$HOME/.android
-export XDG_CONFIG_HOME=$HOME/.config
-export PATH="$PATH:$HOME/flutter/bin:$ANDROID_HOME/platform-tools"
+export PATH="/root/idea-turbo/flutter/bin:$PATH"
+export ANDROID_HOME="/root/idea-turbo/.android-sdk"
+export XDG_CONFIG_HOME="/tmp/flutter-config"
+export HOME=/tmp/flutter-home
+mkdir -p $HOME $XDG_CONFIG_HOME
 
-cd $HOME/flutter_demo
+cd /root/idea-turbo/flutter_demo
 
 echo "=== Step 1: 构建 Debug APK ==="
 flutter build apk --debug --target-platform android-arm64
@@ -446,6 +476,27 @@ npx eas-cli upload \
 
 echo "=== 完成! ==="
 ```
+
+### 方案 C：仅上传（APK 已构建）
+
+当 APK 已存在，只需上传时使用：
+
+```bash
+cd /root/idea-turbo/flutter_demo && \
+npx eas-cli upload \
+  --platform android \
+  --build-path build/app/outputs/flutter-apk/app-release.apk
+```
+
+### 常见问题排查
+
+| 错误 | 原因 | 解决方案 |
+|------|------|----------|
+| `Read-only file system, errno = 30` | 未设置 XDG_CONFIG_HOME/HOME | 设置环境变量重定向到 `/tmp` |
+| `command not found: flutter` | PATH 未包含 Flutter SDK | 添加 `/root/idea-turbo/flutter/bin` 到 PATH |
+| Gradle 编译失败 | Android SDK 路径错误 | 确认 `ANDROID_HOME=/root/idea-turbo/.android-sdk` |
+| `Woah! You appear to be trying to run flutter as root` | 安全警告 | **可忽略**，不影响构建结果 |
+| `eas: not found` | EAS CLI 未全局安装 | 使用 `npx eas-cli` 代替 |
 
 ## 附录 B: 项目依赖清单
 

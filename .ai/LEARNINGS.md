@@ -1011,3 +1011,71 @@ await for (final line in file.openRead()
 **根因**: LoCoMo 的对话数据嵌套在 `conversation.session_N` 中，需要遍历所有 session 提取消息。BEIR 需要同时收集 `title + text` 的组合文本。
 
 **最佳实践**: 预计算前先验证数据完整性，确保文本数与原始数据集的消息/文档数匹配。
+
+---
+
+## 2026-04-28: Flutter 打包 + EAS 上传完整流程（已固化）
+
+### 场景：Flutter 项目打包 APK 并上传到 Expo EAS 分发
+
+**项目**: `/root/idea-turbo/flutter_demo`
+**Expo 账户**: weigh | **项目名**: idea-turbo
+
+### 核心发现：沙箱环境的文件系统限制
+
+**问题**: 在沙箱环境中直接运行 `flutter build apk` 报错：
+```
+FileSystemException: Creation failed, path = '/root/.config/flutter' (OS Error: Read-only file system, errno = 30)
+```
+
+**根因**: Flutter CLI 尝试在 `/root/.config/flutter` 写入配置文件，但沙箱的 `/root/` 是只读的。
+
+**解决方案**: 将 HOME 和 XDG_CONFIG_HOME 重定向到 `/tmp`：
+```bash
+export XDG_CONFIG_HOME="/tmp/flutter-config"
+export HOME=/tmp/flutter-home
+mkdir -p $HOME $XDG_CONFIG_HOME
+```
+
+### 环境变量清单（必须全部设置）
+
+| 变量 | 值 | 用途 |
+|------|-----|------|
+| `PATH` | 包含 `/root/idea-turbo/flutter/bin` | 找到 flutter 命令 |
+| `ANDROID_HOME` | `/root/idea-turbo/.android-sdk` | Android SDK 路径 |
+| `XDG_CONFIG_HOME` | `/tmp/flutter-config` | Flutter 配置写入位置 |
+| `HOME` | `/tmp/flutter-home` | 用户主目录（可写） |
+
+### 构建命令
+
+```bash
+cd /root/idea-turbo/flutter_demo && \
+  export PATH="/root/idea-turbo/flutter/bin:$PATH" && \
+  export ANDROID_HOME="/root/idea-turbo/.android-sdk" && \
+  export XDG_CONFIG_HOME="/tmp/flutter-config" && \
+  export HOME=/tmp/flutter-home && \
+  mkdir -p $HOME $XDG_CONFIG_HOME && \
+  flutter build apk --release
+# 输出: build/app/outputs/flutter-apk/app-release.apk (~144MB, ~113s)
+```
+
+### EAS 上传命令
+
+```bash
+cd /root/idea-turbo/flutter_demo && \
+  npx eas-cli upload \
+    --platform android \
+    --build-path build/app/outputs/flutter-apk/app-release.apk
+# 输出: https://expo.dev/accounts/weigh/projects/idea-turbo/builds/... (~13s)
+```
+
+### 踩坑记录
+
+1. **EAS CLI 不需要全局安装**: `npm install -g eas-cli` 在沙箱中因权限问题失败。使用 `npx eas-cli` 即可自动下载并执行。
+2. **`flutter as root` 警告可忽略**: 沙箱环境只能以 root 运行，警告不影响构建结果。
+3. **Android SDK 不在标准路径**: 项目的 Android SDK 在 `/root/idea-turbo/.android-sdk`，不是默认的 `/root/Android/Sdk`。
+4. **ModelScope/HuggingFace URL 验证**: 模型下载链接必须用 `curl -I` 验证 HTTP 状态码（302=可下载），不能仅凭文档猜测。
+
+### 已创建资源
+- **Skill**: `.trae/skills/flutter-build-upload/SKILL.md` — 一键触发打包+上传流程
+- **文档更新**: `flutter_demo/DEVELOPMENT.md` 附录 A — 完整的打包上传脚本和问题排查表
