@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, StyleSheet, StatusBar, Dimensions, Pressable } from 'react-native'
+import { View, StyleSheet, StatusBar } from 'react-native'
 import { useAppStore } from '../store'
 import { animaCore } from '../lib/AnimaCore'
 import { ProgressLoader } from '../components'
@@ -7,40 +7,24 @@ import {
   LivingUIProvider,
   PetTransitionProvider,
   usePetTransition,
-  SharedPet,
   usePetMood,
   usePetActivity,
   triggerHaptic,
-  detectMoodFromText,
   createEmotionIntegration,
-  ImmersionPortal,
-  ImmersionChat,
-  AmbientBubbleManager,
-  MemoryAnchorSidebar,
-  CyberGlass,
-  GlassCard,
-  SubconsciousMap,
-  generateSubconsciousNodes,
   DevourAnimation,
   useDevourAnimation,
 } from '../components/LivingUI'
-import type { SubconsciousNode, SubconsciousEdge } from '../components/LivingUI/SubconsciousMap'
-import { FluidBackground } from '../components/HomeScreen/FluidBackground'
-import { ParticleField } from '../components/HomeScreen/ParticleField'
-import { petTheme, dark, candy } from '../theme'
-import type { PetMood, MemoryAnchorData } from '../components/LivingUI'
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+import { SpatialHabitat } from '../components/SpatialHabitat'
+import { PheromoneProvider, usePheromone } from '../lib/PheromoneContext'
+import { useProactiveBehavior } from '../lib/ProactiveBehaviorEngine'
+import { useVoicePipeline, getPetVoiceProfile, getVoiceParamsForMood, getPetVoiceCue } from '../lib/VoicePipeline'
+import { useDeviceSensors } from '../lib/DeviceSensors'
+import { dark } from '../theme'
+import type { PetMood } from '../components/LivingUI'
 
 export type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
 
-interface AmbientBubbleData {
-  id: string
-  text: string
-  mood?: PetMood
-}
-
-function LivingChatScreenInner() {
+function SpatialChatScreenInner() {
   const {
     messages,
     addMessage,
@@ -60,49 +44,18 @@ function LivingChatScreenInner() {
   const { currentMood, setMood } = usePetMood()
   const { activity, setActivity } = usePetActivity()
   const { transitionTo, setPetMood, setPetActivity } = usePetTransition()
+  const pheromone = usePheromone()
+  const proactive = useProactiveBehavior(isCoreInitialized)
+  const voice = useVoicePipeline({ language: 'zh-CN' })
+  const sensors = useDeviceSensors(isCoreInitialized)
 
-  const [inputText, setInputText] = useState('')
   const [initError, setInitError] = useState<string | null>(null)
   const [initPhase, setInitPhase] = useState<InitPhase>('idle')
   const [loadProgress, setLoadProgress] = useState(0)
-  const [immersionActive, setImmersionActive] = useState(false)
-  const [ambientBubbles, setAmbientBubbles] = useState<AmbientBubbleData[]>([])
-  const [mapModeActive, setMapModeActive] = useState(false)
-  const [mapNodes, setMapNodes] = useState<SubconsciousNode[]>([])
-  const [mapEdges, setMapEdges] = useState<SubconsciousEdge[]>([])
   const { devouring, devourTarget, triggerDevour, finishDevour } = useDevourAnimation()
-  const [memoryAnchors] = useState<MemoryAnchorData[]>([
-    {
-      id: 'anchor-1',
-      content: '主人今天心情不错，聊了工作上的事',
-      type: 'episodic',
-      timestamp: Date.now() - 3600000,
-      relatedKeywords: ['工作', '心情'],
-      mood: 'happy',
-    },
-    {
-      id: 'anchor-2',
-      content: '喜欢科幻电影，特别是星际穿越',
-      type: 'semantic',
-      timestamp: Date.now() - 86400000,
-      relatedKeywords: ['科幻', '电影'],
-    },
-    {
-      id: 'anchor-3',
-      content: '深夜时常感到孤独',
-      type: 'emotion',
-      timestamp: Date.now() - 172800000,
-      relatedKeywords: ['深夜', '孤独'],
-      mood: 'sad',
-    },
-  ])
 
   const emotionIntegration = useRef(createEmotionIntegration())
-
-  useEffect(() => {
-    if (!activeStreamId) return
-    return () => {}
-  }, [activeStreamId])
+  const petVoiceCuePlayedRef = useRef(false)
 
   useEffect(() => {
     if (!currentPet) {
@@ -157,42 +110,44 @@ function LivingChatScreenInner() {
     return () => unsubscribe()
   }, [])
 
-  const enterImmersion = useCallback(() => {
-    triggerHaptic('medium')
-    transitionTo('chat')
-    setImmersionActive(true)
-    setMapModeActive(false)
-  }, [transitionTo])
+  useEffect(() => {
+    if (sensors.isShaking) {
+      proactive.notifySensor('shake')
+      setMood('surprised')
+      setPetMood('surprised')
+      setTimeout(() => {
+        setMood('shy')
+        setPetMood('shy')
+      }, 1500)
+    }
+  }, [sensors.isShaking])
 
-  const exitImmersion = useCallback(() => {
-    triggerHaptic('light')
-    transitionTo('home')
-    setImmersionActive(false)
-    setMapModeActive(false)
-  }, [transitionTo])
+  useEffect(() => {
+    proactive.notifyEmotion(pheromone.emotionalBias)
+  }, [pheromone.emotionalBias.loneliness])
 
-  const enterMapMode = useCallback(() => {
-    if (messages.length < 6) return
-    triggerHaptic('heavy')
-    const { nodes, edges } = generateSubconsciousNodes(
-      messages.map(m => ({ content: m.content, role: m.role })),
-      currentMood
-    )
-    setMapNodes(nodes)
-    setMapEdges(edges)
-    setMapModeActive(true)
-  }, [messages, currentMood])
+  useEffect(() => {
+    if (proactive.lastEvent) {
+      addMessage({
+        id: proactive.lastEvent.id,
+        conversationId: 'test-conv',
+        role: 'pet',
+        content: proactive.lastEvent.message,
+        createdAt: new Date().toISOString(),
+      })
+      setMood(proactive.lastEvent.mood)
+      setPetMood(proactive.lastEvent.mood)
 
-  const exitMapMode = useCallback(() => {
-    triggerHaptic('light')
-    setMapModeActive(false)
-  }, [])
-
-  const handleDeleteMessage = useCallback((messageId: string) => {
-    const msg = messages.find(m => m.id === messageId)
-    if (!msg || msg.role !== 'pet') return
-    triggerDevour(SCREEN_WIDTH * 0.3, SCREEN_HEIGHT * 0.5, candy.cyan[400])
-  }, [messages, triggerDevour])
+      if (voice.isTTSAvailable) {
+        const profile = getPetVoiceProfile(currentPet?.species || 'cat')
+        const params = getVoiceParamsForMood(profile, proactive.lastEvent.mood)
+        voice.speak(proactive.lastEvent.message, {
+          rate: params.rate,
+          pitch: params.pitch,
+        })
+      }
+    }
+  }, [proactive.lastEvent?.id])
 
   const handleAutoInit = useCallback(async () => {
     setInitError(null)
@@ -227,24 +182,19 @@ function LivingChatScreenInner() {
       setInitError(e.message || '初始化失败')
       setMood('sad')
       setPetMood('sad')
-      console.error('[ChatScreen] Auto-init error:', e)
+      console.error('[SpatialChatScreen] Auto-init error:', e)
     } finally {
       setLoading(false)
     }
   }, [currentPet])
 
-  async function handleSendText(userMsg: string) {
-    if (!userMsg.trim() || !currentPet) {
-      console.log('[ChatScreen] handleSendText 拒绝: 空消息或无宠物')
-      return
-    }
+  const handleSendMessage = useCallback(async (userMsg: string) => {
+    if (!userMsg.trim() || !currentPet) return
 
     const trimmedMsg = userMsg.trim()
-    setInputText('')
-    console.log('[ChatScreen] handleSendText:', trimmedMsg.substring(0, 30))
-
     emotionIntegration.current.onUserMessage(trimmedMsg)
     await triggerHaptic('messageSend')
+    proactive.resetIdle()
 
     const userMsgId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
     addMessage({
@@ -254,13 +204,12 @@ function LivingChatScreenInner() {
       content: trimmedMsg,
       createdAt: new Date().toISOString(),
     })
-    console.log('[ChatScreen] 用户消息已添加, id:', userMsgId)
 
     if (!isCoreInitialized) {
       const statusMsg = initPhase === 'error'
         ? `⚠️ ${initError || 'AI系统初始化失败，请返回首页重试'}`
         : initPhase === 'idle'
-          ? '🔄 AI系统正在启动中，马上就好...'
+          ? '🔄 AI系统正在启动中...'
           : `🔄 AI系统正在${initPhase === 'downloading' ? '下载模型' : initPhase === 'extracting' ? '解压资源' : initPhase === 'loading' ? '加载引擎' : '准备记忆系统'}...`
       addMessage({
         id: `msg-${Date.now()}-status`,
@@ -277,11 +226,18 @@ function LivingChatScreenInner() {
     setThinking(true, ['👂 接收消息...'])
     setMood('sniffing')
     setPetMood('sniffing')
-    console.log('[ChatScreen] 开始流式请求, streamId:', streamId)
+
+    const species = currentPet?.species || 'cat'
+    const voiceCue = getPetVoiceCue(species, 'thinking')
+    if (voiceCue && voice.isTTSAvailable && !petVoiceCuePlayedRef.current) {
+      petVoiceCuePlayedRef.current = true
+      voice.speak(voiceCue, { rate: 1.0, pitch: 1.2 })
+    }
 
     try {
       const result = await animaCore.chatStream(currentPet, trimmedMsg, streamId, 'test-conv', 'owner')
-      console.log('[ChatScreen] 流式请求完成, result:', JSON.stringify(result).slice(0, 200))
+
+      petVoiceCuePlayedRef.current = false
 
       if (result.piBlocked) {
         addMessage({
@@ -296,7 +252,6 @@ function LivingChatScreenInner() {
       }
 
       if (result.newMemories && (result.newMemories.episodic > 0 || result.newMemories.semantic > 0)) {
-        console.log(`[ChatScreen] 新记忆: +${result.newMemories.episodic}事件, +${result.newMemories.semantic}事实`)
         const updatedStatus = animaCore.getSystemStatus()
         setSystemStatus(updatedStatus)
       }
@@ -309,10 +264,18 @@ function LivingChatScreenInner() {
           content: result.reply,
           createdAt: new Date().toISOString(),
         })
-        console.log('[ChatScreen] 宠物回复已添加, id:', streamId, 'content:', result.reply.slice(0, 50))
+
+        if (voice.isTTSAvailable) {
+          const profile = getPetVoiceProfile(species)
+          const finalMood = emotionIntegration.current.onStreamComplete() || 'happy'
+          const params = getVoiceParamsForMood(profile, finalMood)
+          voice.speak(result.reply, {
+            rate: params.rate,
+            pitch: params.pitch,
+          })
+        }
       }
 
-      console.log('[ChatScreen] 流式完成，重置状态')
       setActiveStreamId(null)
       setThinking(false)
 
@@ -322,7 +285,8 @@ function LivingChatScreenInner() {
         setPetMood(finalStreamMood)
       }
     } catch (e: any) {
-      console.error('[ChatScreen] Send error:', e)
+      console.error('[SpatialChatScreen] Send error:', e)
+      petVoiceCuePlayedRef.current = false
       setActiveStreamId(null)
       setThinking(false)
       setMood('shy')
@@ -335,221 +299,63 @@ function LivingChatScreenInner() {
         createdAt: new Date().toISOString(),
       })
     }
-  }
+  }, [currentPet, isCoreInitialized, initPhase, initError, voice.isTTSAvailable])
 
-  function handleImmersionSend(text: string) {
-    console.log('[ChatScreen] handleImmersionSend 收到文本:', text.substring(0, 30))
-    handleSendText(text)
-  }
+  const handleVoiceStart = useCallback(() => {
+    voice.startListening()
+    setMood('listening')
+    setPetMood('listening')
+  }, [voice])
 
-  function addAmbientBubble(text: string, mood?: PetMood) {
-    const id = `bubble-${Date.now()}`
-    setAmbientBubbles(prev => [...prev, { id, text, mood }])
-  }
-
-  function removeAmbientBubble(id: string) {
-    setAmbientBubbles(prev => prev.filter(b => b.id !== id))
-  }
+  const handleVoiceEnd = useCallback(async () => {
+    const result = await voice.stopListening()
+    if (result?.transcript) {
+      handleSendMessage(result.transcript)
+    } else {
+      setMood('curious')
+      setPetMood('curious')
+    }
+  }, [voice, handleSendMessage])
 
   const brainReady = isCoreInitialized && systemStatus?.brain.isLoaded
   const isLoading = initPhase !== 'idle' && initPhase !== 'ready' && initPhase !== 'error'
 
-  const immersionMessages = messages.map(m => ({
+  const spatialMessages = messages.map(m => ({
     id: m.id,
     role: m.role as 'user' | 'pet' | 'system',
     content: m.content,
-    timestamp: new Date(m.createdAt).getTime(),
-    mood: m.role === 'pet' ? currentMood : undefined,
   }))
+
+  if (isLoading || initPhase === 'error') {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={dark.bg.primary} translucent />
+        <ProgressLoader
+          phase={initPhase === 'error' ? 'error' : initPhase}
+          progress={loadProgress}
+          petEmoji={currentPet?.avatarEmoji}
+          species={currentPet?.species}
+          errorMessage={initError || undefined}
+          onRetry={initPhase === 'error' ? handleAutoInit : undefined}
+        />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg.primary} translucent />
-
-      {!immersionActive && (
-        <View style={styles.vibeLayer}>
-          <FluidBackground
-            mood={currentMood}
-            intensity={1}
-            timeSpeed={currentMood === 'sleepy' ? 0.5 : currentMood === 'excited' ? 2.0 : 1.0}
-          />
-        </View>
-      )}
-
-      {!immersionActive && (
-        <View style={styles.soulLayer}>
-          <ParticleField
-            brainActivity={activity === 'streaming' ? 2.5 : activity === 'waiting' ? 1.8 : 1.0}
-            particleCount={activity === 'streaming' ? 36 : 24}
-            color={
-              currentMood === 'love' ? candy.neonPink[400] :
-              currentMood === 'happy' ? candy.cyan[400] :
-              currentMood === 'excited' ? candy.coral[400] :
-              candy.violet[400]
-            }
-          />
-        </View>
-      )}
-
-      <SharedPet
-        emoji={currentPet?.avatarEmoji || '🐱'}
-        species={currentPet?.species || 'cat'}
-        baseSize={immersionActive ? 100 : 160}
-        onPetPress={() => {
-          setMood('love')
-          setPetMood('love')
-          triggerHaptic('petTap')
-          addAmbientBubble('喵~ 主人摸摸我~', 'love')
-        }}
-        onPetLongPress={() => {
-          setMood('surprised')
-          setPetMood('surprised')
-          triggerHaptic('heavy')
-        }}
+      <SpatialHabitat
+        petName={currentPet?.name}
+        petEmoji={currentPet?.avatarEmoji || '🐱'}
+        brainActive={brainReady}
+        isThinking={isPetThinking}
+        messages={spatialMessages}
+        onSendMessage={handleSendMessage}
+        onVoiceStart={handleVoiceStart}
+        onVoiceEnd={handleVoiceEnd}
+        onNavigateToMemories={() => {}}
+        onNavigateToSettings={() => {}}
       />
-
-      <AmbientBubbleManager
-        bubbles={ambientBubbles}
-        onBubbleDisappear={removeAmbientBubble}
-      />
-
-      {!immersionActive && (
-        <View style={styles.glassLayer}>
-          <GlassCard intensity={0.08} tint="dark" style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.brainIndicator,
-                  {
-                    backgroundColor: brainReady
-                      ? candy.lime[400]
-                      : dark.text.tertiary,
-                  },
-                ]}
-              />
-              <Text style={[styles.statusText, { color: dark.text.secondary }]}>
-                {brainReady
-                  ? `⚡ Qwen-0.5B 正在本地整理今日情绪...`
-                  : `${currentPet?.name || 'Anima'} 正在待机中...`}
-              </Text>
-            </View>
-
-            <View style={styles.moodRow}>
-              <Text style={styles.petName}>{currentPet?.name || 'Anima'}</Text>
-              <CyberGlass intensity={0.15} tint="neon" glow={candy.violet[400]}>
-                <View style={styles.moodBadge}>
-                  <Text style={styles.moodText}>{getMoodLabel(currentMood)}</Text>
-                </View>
-              </CyberGlass>
-            </View>
-          </GlassCard>
-
-          {isLoading && (
-            <View style={styles.loadingOverlay}>
-              <ProgressLoader
-                phase={initPhase}
-                progress={loadProgress}
-                petEmoji={currentPet?.avatarEmoji}
-                species={currentPet?.species}
-              />
-            </View>
-          )}
-
-          {initPhase === 'error' && !isLoading && (
-            <View style={styles.errorOverlay}>
-              <ProgressLoader
-                phase="error"
-                progress={0}
-                petEmoji={currentPet?.avatarEmoji}
-                species={currentPet?.species}
-                errorMessage={initError || '初始化失败，请检查网络后重试'}
-                onRetry={handleAutoInit}
-              />
-            </View>
-          )}
-
-          <Pressable
-            onPress={() => {
-              triggerHaptic('light')
-              enterImmersion()
-            }}
-            style={({ pressed }) => [
-              styles.chatTrigger,
-              {
-                opacity: pressed ? 0.7 : 1,
-                transform: [{ scale: pressed ? 0.96 : 1 }],
-              },
-            ]}
-          >
-            <CyberGlass intensity={0.2} tint="dark">
-              <View style={styles.chatTriggerContent}>
-                <Text style={styles.chatTriggerText}>说点什么</Text>
-                <Text style={styles.chatTriggerHint}>↑ 上滑进入意识空间</Text>
-              </View>
-            </CyberGlass>
-          </Pressable>
-
-          <View style={styles.memoryStatusBar}>
-            <Text style={styles.memoryStatusText}>
-              🧠 Mnemosyne · {memoryAnchors.length} 个记忆碎片
-            </Text>
-          </View>
-        </View>
-      )}
-
-      <ImmersionPortal isActive={immersionActive && !mapModeActive}>
-        <ImmersionChat
-          messages={immersionMessages}
-          onSend={handleImmersionSend}
-          onDismiss={exitImmersion}
-          inputPlaceholder={brainReady ? '向它倾诉...' : '正在准备 AI 系统...'}
-          editable={brainReady && !isLoading && !activeStreamId}
-          initPhase={initPhase}
-          loadProgress={loadProgress}
-          initError={initError}
-          onRetryInit={handleAutoInit}
-        />
-
-        {immersionActive && !mapModeActive && messages.length >= 6 && (
-          <Pressable
-            onPress={enterMapMode}
-            style={styles.mapTrigger}
-          >
-            <CyberGlass intensity={0.15} tint="dark">
-              <View style={styles.mapTriggerContent}>
-                <Text style={styles.mapTriggerIcon}>🧠</Text>
-                <Text style={styles.mapTriggerText}>思维导图</Text>
-              </View>
-            </CyberGlass>
-          </Pressable>
-        )}
-
-        {immersionActive && memoryAnchors.length > 0 && (
-          <MemoryAnchorSidebar
-            anchors={memoryAnchors}
-            onAnchorPress={(anchor) => {
-              triggerHaptic('selection')
-              console.log('[MemoryAnchor] Tapped:', anchor.content)
-            }}
-          />
-        )}
-      </ImmersionPortal>
-
-      {mapModeActive && immersionActive && (
-        <View style={styles.mapLayer}>
-          <SubconsciousMap
-            nodes={mapNodes}
-            edges={mapEdges}
-            onDismiss={exitMapMode}
-            petEmoji={currentPet?.avatarEmoji || '🐱'}
-            mood={currentMood}
-            onNodePress={(node) => {
-              triggerHaptic('selection')
-              console.log('[SubconsciousMap] Node pressed:', node.keyword)
-            }}
-          />
-        </View>
-      )}
 
       <DevourAnimation
         visible={devouring}
@@ -557,40 +363,20 @@ function LivingChatScreenInner() {
         bubbleX={devourTarget?.bubbleX}
         bubbleY={devourTarget?.bubbleY}
         bubbleColor={devourTarget?.color}
-        onBurp={() => {
-          addAmbientBubble('嗝~ 味道不错~', 'happy')
-        }}
+        onBurp={() => {}}
         onComplete={finishDevour}
       />
     </View>
   )
 }
 
-function getMoodLabel(mood: PetMood): string {
-  const labels: Record<PetMood, string> = {
-    idle: '发呆中',
-    thinking: '思考中',
-    typing: '打字中',
-    sniffing: '闻气味',
-    listening: '倾听中',
-    happy: '开心',
-    excited: '兴奋',
-    sad: '难过',
-    angry: '生气',
-    sleepy: '困了',
-    curious: '好奇',
-    love: '喜欢',
-    surprised: '惊讶',
-    shy: '害羞',
-  }
-  return labels[mood] || '未知'
-}
-
 export function ChatScreen() {
   return (
     <LivingUIProvider>
       <PetTransitionProvider>
-        <LivingChatScreenInner />
+        <PheromoneProvider>
+          <SpatialChatScreenInner />
+        </PheromoneProvider>
       </PetTransitionProvider>
     </LivingUIProvider>
   )
@@ -601,140 +387,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: dark.bg.primary,
   },
-  vibeLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  soulLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glassLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-    zIndex: 2,
-  },
-  statusCard: {
-    marginBottom: 12,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  brainIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  moodRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  petName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: dark.text.primary,
-  },
-  moodBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  moodText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: candy.violet[400],
-  },
-  chatTrigger: {
-    marginTop: 8,
-  },
-  chatTriggerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-  },
-  chatTriggerText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: dark.text.primary,
-  },
-  chatTriggerHint: {
-    fontSize: 11,
-    color: dark.text.tertiary,
-  },
-  memoryStatusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  memoryStatusText: {
-    fontSize: 11,
-    color: dark.text.tertiary,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
+  loadingContainer: {
+    flex: 1,
     backgroundColor: dark.bg.primary,
-    zIndex: 10,
-  },
-  errorOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: dark.bg.primary,
-    zIndex: 10,
-  },
-  mapTrigger: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    zIndex: 25,
-  },
-  mapTriggerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  mapTriggerIcon: {
-    fontSize: 16,
-  },
-  mapTriggerText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: dark.text.secondary,
-  },
-  mapLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 50,
   },
 })
