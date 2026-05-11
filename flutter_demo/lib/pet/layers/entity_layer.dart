@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../pet_store.dart';
+import '../domain/pet_action.dart';
+import '../services/emotional_state.dart';
 
 class EntityLayer extends StatefulWidget {
   final PetStore store;
@@ -17,10 +20,17 @@ class _EntityLayerState extends State<EntityLayer>
   late AnimationController _blinkController;
   late AnimationController _earController;
   late AnimationController _tailController;
+  late AnimationController _headTiltController;
+  late AnimationController _approachController;
 
   double _eyeTrackX = 0;
   double _eyeTrackY = 0;
   bool _isRubbing = false;
+  EmotionalMode _prevEmotionalMode = EmotionalMode.normal;
+  Stream<PetAction>? _actionStream;
+  StreamSubscription<PetAction>? _actionSubscription;
+  double _headTiltAngle = 0;
+  double _approachOffset = 0;
 
   @override
   void initState() {
@@ -45,26 +55,181 @@ class _EntityLayerState extends State<EntityLayer>
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
 
+    _headTiltController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _approachController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
     _startBlinkLoop();
     _startEarFlickLoop();
+    _subscribeToActions();
 
     widget.store.addListener(_onStoreChanged);
   }
 
   @override
   void dispose() {
+    _actionSubscription?.cancel();
     _breathController.dispose();
     _blinkController.dispose();
     _earController.dispose();
     _tailController.dispose();
+    _headTiltController.dispose();
+    _approachController.dispose();
     widget.store.removeListener(_onStoreChanged);
     super.dispose();
+  }
+
+  void _subscribeToActions() {
+    _actionStream = widget.store.actionStream;
+    _actionSubscription = _actionStream!.listen(_onAction);
+  }
+
+  void _onAction(PetAction action) {
+    if (!mounted) return;
+
+    switch (action.type) {
+      case PetActionType.tiltHead:
+        _animateTiltHead();
+        break;
+      case PetActionType.approach:
+        _animateApproach();
+        break;
+      case PetActionType.retreat:
+        _animateRetreat();
+        break;
+      case PetActionType.curlUp:
+        break;
+      case PetActionType.earTwitch:
+        _animateEarTwitch();
+        break;
+      case PetActionType.blink:
+        _animateBlink();
+        break;
+      case PetActionType.yawn:
+        _animateBlink();
+        break;
+      case PetActionType.stretch:
+        _animateStretch();
+        break;
+      case PetActionType.zoneOut:
+        _animateZoneOut();
+        break;
+      case PetActionType.tailWagFast:
+        _animateTailWagFast();
+        break;
+      case PetActionType.silent:
+        break;
+    }
+  }
+
+  void _animateTiltHead() {
+    setState(() {
+      _headTiltAngle = (Random().nextBool() ? 8.0 : -8.0);
+    });
+    _headTiltController.forward().then((_) {
+      if (!mounted) return;
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        _headTiltController.reverse().then((_) {
+          if (mounted) setState(() => _headTiltAngle = 0);
+        });
+      });
+    });
+  }
+
+  void _animateApproach() {
+    setState(() => _approachOffset = 6.0);
+    _approachController.forward().then((_) {
+      if (!mounted) return;
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        _approachController.reverse().then((_) {
+          if (mounted) setState(() => _approachOffset = 0);
+        });
+      });
+    });
+  }
+
+  void _animateRetreat() {
+    setState(() => _approachOffset = -8.0);
+    _approachController.forward().then((_) {
+      if (!mounted) return;
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (!mounted) return;
+        _approachController.reverse().then((_) {
+          if (mounted) setState(() => _approachOffset = 0);
+        });
+      });
+    });
+  }
+
+  void _animateEarTwitch() {
+    _earController.forward().then((_) {
+      if (mounted) _earController.reverse();
+    });
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        _earController.forward().then((_) {
+          if (mounted) _earController.reverse();
+        });
+      }
+    });
+  }
+
+  void _animateBlink() {
+    _blinkController.forward().then((_) {
+      if (mounted) _blinkController.reverse();
+    });
+  }
+
+  void _animateStretch() {
+    _animateBlink();
+    _animateEarTwitch();
+  }
+
+  void _animateZoneOut() {
+    _animateBlink();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _animateBlink();
+    });
+  }
+
+  void _animateTailWagFast() {
+    final originalDuration = _tailController.duration;
+    _tailController.stop();
+    _tailController.duration = const Duration(milliseconds: 200);
+    _tailController.repeat(reverse: true);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      _tailController.stop();
+      _tailController.duration = originalDuration;
+      _tailController.repeat(reverse: true);
+    });
   }
 
   void _onStoreChanged() {
     if (!mounted) return;
     _updateEyeTracking();
     _updateRubbingState();
+    _updateEmotionalState();
+  }
+
+  void _updateEmotionalState() {
+    final mode = widget.store.emotionalState.mode;
+    if (mode != _prevEmotionalMode) {
+      _prevEmotionalMode = mode;
+      if (mode == EmotionalMode.withdrawn) {
+        _earController.forward();
+      } else if (mode == EmotionalMode.longing || mode == EmotionalMode.playful) {
+        _earController.reverse();
+      }
+    }
   }
 
   void _updateEyeTracking() {
@@ -136,6 +301,8 @@ class _EntityLayerState extends State<EntityLayer>
     final size = MediaQuery.of(context).size;
     final baseSize = min(size.width, size.height);
     final petSize = baseSize * 0.52;
+    final emotionalMode = widget.store.emotionalState.mode;
+    final isWithdrawn = widget.store.emotionalState.isWithdrawn;
 
     return Center(
       child: SizedBox(
@@ -151,23 +318,38 @@ class _EntityLayerState extends State<EntityLayer>
           builder: (context, _) {
             final breathScaleY = 1.0 + _breathController.value * 0.018;
             final breathScaleX = 1.0 - _breathController.value * 0.008;
-            final blinkValue = 1.0 - _blinkController.value * 0.9;
+            final blinkValue = emotionalMode == EmotionalMode.pensive
+                ? 0.5
+                : 1.0 - _blinkController.value * 0.9;
 
-            return Transform.scale(
-              scaleX: _isRubbing ? 1.04 : breathScaleX,
-              scaleY: _isRubbing ? 0.96 : breathScaleY,
+            final scaleY = isWithdrawn
+                ? 0.92
+                : (_isRubbing ? 0.96 : breathScaleY);
+            final scaleX = isWithdrawn
+                ? 1.05
+                : (_isRubbing ? 1.04 : breathScaleX);
+
+            return Transform.translate(
+              offset: Offset(0, -_approachOffset),
+              child: Transform.scale(
+              scaleX: scaleX,
+              scaleY: scaleY,
               child: Stack(
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
-                  _buildTail(petSize),
-                  _buildTorso(petSize),
+                  _buildEmotionalAura(petSize, emotionalMode),
+                  _buildTail(petSize, emotionalMode),
+                  _buildTorso(petSize, isWithdrawn),
                   _buildHindLegs(petSize),
                   _buildBelly(petSize),
-                  _buildForeLegs(petSize),
-                  _buildHead(blinkValue, petSize),
+                  _buildForeLegs(petSize, isWithdrawn),
+                  _buildHead(blinkValue, petSize, emotionalMode),
                   if (_isRubbing) _buildRubHearts(),
+                  if (isWithdrawn) _buildWithdrawnOverlay(petSize),
+                  _buildParticleLayer(petSize, emotionalMode),
                 ],
+              ),
               ),
             );
           },
@@ -176,9 +358,9 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildTorso(double petSize) {
-    final torsoHeight = petSize * 0.52;
-    final torsoWidth = petSize * 0.72;
+  Widget _buildTorso(double petSize, bool isWithdrawn) {
+    final torsoHeight = petSize * (isWithdrawn ? 0.46 : 0.52);
+    final torsoWidth = petSize * (isWithdrawn ? 0.76 : 0.72);
 
     return Positioned(
       top: petSize * 0.34,
@@ -212,11 +394,18 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildTail(double petSize) {
+  Widget _buildTail(double petSize, EmotionalMode emotionalMode) {
     final mood = widget.store.mood;
-    final tailAngle = mood == PetMood.happy
-        ? -12.0 + _tailController.value * 45.0
-        : 8.0 + _tailController.value * 18.0;
+    double tailAngle;
+    if (emotionalMode == EmotionalMode.withdrawn) {
+      tailAngle = 45.0 + _tailController.value * 5.0;
+    } else if (emotionalMode == EmotionalMode.playful) {
+      tailAngle = -20.0 + _tailController.value * 55.0;
+    } else if (mood == PetMood.happy) {
+      tailAngle = -12.0 + _tailController.value * 45.0;
+    } else {
+      tailAngle = 8.0 + _tailController.value * 18.0;
+    }
     final tailLength = petSize * 0.30;
     final tailWidth = petSize * 0.055;
 
@@ -321,9 +510,9 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildForeLegs(double petSize) {
+  Widget _buildForeLegs(double petSize, bool isWithdrawn) {
     final legWidth = petSize * 0.09;
-    final legHeight = petSize * 0.22;
+    final legHeight = petSize * (isWithdrawn ? 0.16 : 0.22);
     final legSpacing = petSize * 0.50;
 
     return Positioned(
@@ -392,11 +581,15 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildHead(double blinkValue, double petSize) {
+  Widget _buildHead(double blinkValue, double petSize, EmotionalMode emotionalMode) {
     final headSize = petSize * 0.44;
     final headOffsetX = _eyeTrackX * -12;
-    final headOffsetY = _eyeTrackY * -10;
-    final headRotate = _eyeTrackX * -2.5;
+    final headOffsetY = emotionalMode == EmotionalMode.withdrawn
+        ? _eyeTrackY * -5 + 8
+        : _eyeTrackY * -10;
+    final headRotate = emotionalMode == EmotionalMode.withdrawn
+        ? _eyeTrackX * -1.0 + 3.0
+        : _eyeTrackX * -2.5 + _headTiltAngle;
 
     return Positioned(
       top: petSize * 0.02,
@@ -412,9 +605,9 @@ class _EntityLayerState extends State<EntityLayer>
               alignment: Alignment.topCenter,
               clipBehavior: Clip.none,
               children: [
-                _buildEars(headSize),
+                _buildEars(headSize, emotionalMode),
                 _buildHeadBase(headSize),
-                _buildFace(blinkValue, headSize),
+                _buildFace(blinkValue, headSize, emotionalMode),
                 _buildWhiskers(headSize),
               ],
             ),
@@ -424,9 +617,14 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildEars(double headSize) {
+  Widget _buildEars(double headSize, EmotionalMode emotionalMode) {
     final earWidth = headSize * 0.32;
     final earHeight = headSize * 0.36;
+    final isWithdrawn = emotionalMode == EmotionalMode.withdrawn;
+    final leftBaseAngle = isWithdrawn ? 15.0 : -18.0;
+    final leftAnimAngle = isWithdrawn ? 5.0 : -25.0;
+    final rightBaseAngle = isWithdrawn ? -15.0 : 18.0;
+    final rightAnimAngle = isWithdrawn ? -5.0 : 12.0;
 
     return Positioned(
       top: -earHeight * 0.55,
@@ -438,12 +636,12 @@ class _EntityLayerState extends State<EntityLayer>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Transform.rotate(
-            angle: (-18 + _earController.value * -25) * pi / 180,
+            angle: (leftBaseAngle + _earController.value * leftAnimAngle) * pi / 180,
             alignment: Alignment.bottomRight,
             child: _buildEar(earWidth, earHeight, isLeft: true),
           ),
           Transform.rotate(
-            angle: (18 + _earController.value * 12) * pi / 180,
+            angle: (rightBaseAngle + _earController.value * rightAnimAngle) * pi / 180,
             alignment: Alignment.bottomLeft,
             child: _buildEar(earWidth, earHeight, isLeft: false),
           ),
@@ -562,41 +760,56 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildFace(double blinkValue, double headSize) {
+  Widget _buildFace(double blinkValue, double headSize, EmotionalMode emotionalMode) {
     return Positioned(
       top: headSize * 0.40,
       left: 0,
       right: 0,
       child: Column(
         children: [
-          _buildEyes(blinkValue, headSize),
+          _buildEyes(blinkValue, headSize, emotionalMode),
           SizedBox(height: headSize * 0.06),
-          _buildNoseAndMouth(headSize),
+          _buildNoseAndMouth(headSize, emotionalMode),
         ],
       ),
     );
   }
 
-  Widget _buildEyes(double blinkValue, double headSize) {
+  Widget _buildEyes(double blinkValue, double headSize, EmotionalMode emotionalMode) {
     final eyeSize = headSize * 0.22;
     final eyeSpacing = headSize * 0.16;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildEye(blinkValue, eyeSize, isLeft: true),
+        _buildEye(blinkValue, eyeSize, isLeft: true, emotionalMode: emotionalMode),
         SizedBox(width: eyeSpacing),
-        _buildEye(blinkValue, eyeSize, isLeft: false),
+        _buildEye(blinkValue, eyeSize, isLeft: false, emotionalMode: emotionalMode),
       ],
     );
   }
 
   Widget _buildEye(double blinkValue, double eyeSize,
-      {required bool isLeft}) {
+      {required bool isLeft, EmotionalMode emotionalMode = EmotionalMode.normal}) {
     final pupilOffsetX = _eyeTrackX * eyeSize * 0.18;
     final pupilOffsetY = _eyeTrackY * eyeSize * 0.22;
     final irisSize = eyeSize * 0.82;
-    final pupilScaleX = _isRubbing ? 2.2 : 1.0;
+
+    double pupilScaleX;
+    double pupilScaleY;
+    if (_isRubbing) {
+      pupilScaleX = 2.2;
+      pupilScaleY = 1.0;
+    } else if (emotionalMode == EmotionalMode.withdrawn) {
+      pupilScaleX = 0.6;
+      pupilScaleY = 0.7;
+    } else if (emotionalMode == EmotionalMode.longing || emotionalMode == EmotionalMode.playful) {
+      pupilScaleX = 1.6;
+      pupilScaleY = 1.3;
+    } else {
+      pupilScaleX = 1.0;
+      pupilScaleY = 1.0;
+    }
 
     return Container(
       width: eyeSize,
@@ -631,6 +844,7 @@ class _EntityLayerState extends State<EntityLayer>
               offset: Offset(pupilOffsetX, pupilOffsetY),
               child: Transform.scale(
                 scaleX: pupilScaleX,
+                scaleY: pupilScaleY,
                 child: Container(
                   width: irisSize * 0.28,
                   height: irisSize * 0.68,
@@ -665,7 +879,7 @@ class _EntityLayerState extends State<EntityLayer>
     );
   }
 
-  Widget _buildNoseAndMouth(double headSize) {
+  Widget _buildNoseAndMouth(double headSize, EmotionalMode emotionalMode) {
     return Column(
       children: [
         Container(
@@ -679,7 +893,11 @@ class _EntityLayerState extends State<EntityLayer>
           ),
         ),
         SizedBox(height: headSize * 0.015),
-        _isRubbing ? _buildOpenMouth(headSize) : _buildClosedMouth(headSize),
+        _isRubbing
+            ? _buildOpenMouth(headSize)
+            : emotionalMode == EmotionalMode.withdrawn
+                ? _buildFrownMouth(headSize)
+                : _buildClosedMouth(headSize),
       ],
     );
   }
@@ -832,6 +1050,72 @@ class _EntityLayerState extends State<EntityLayer>
       ),
     );
   }
+
+  Widget _buildFrownMouth(double headSize) {
+    final w = headSize * 0.14;
+    return CustomPaint(
+      size: Size(w, headSize * 0.06),
+      painter: _FrownPainter(
+        color: const Color(0xFF5A3F2A),
+        strokeWidth: 2.0,
+      ),
+    );
+  }
+
+  Widget _buildWithdrawnOverlay(double petSize) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          opacity: 0.25,
+          duration: const Duration(milliseconds: 800),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 0.6,
+                colors: [
+                  Colors.transparent,
+                  Colors.blue.withValues(alpha: 0.15),
+                  Colors.indigo.withValues(alpha: 0.25),
+                ],
+                stops: const [0.4, 0.7, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(petSize * 0.3),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmotionalAura(double petSize, EmotionalMode mode) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: CustomPaint(
+          painter: _EmotionalAuraPainter(
+            mode: mode,
+            breathValue: _breathController.value,
+            size: petSize,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParticleLayer(double petSize, EmotionalMode mode) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: CustomPaint(
+          painter: _EmotionalParticlePainter(
+            mode: mode,
+            breathValue: _breathController.value,
+            tailValue: _tailController.value,
+            size: petSize,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _WhiskerPainter extends CustomPainter {
@@ -872,4 +1156,234 @@ class _WhiskerPainter extends CustomPainter {
       end != oldDelegate.end ||
       color != oldDelegate.color ||
       strokeWidth != oldDelegate.strokeWidth;
+}
+
+class _FrownPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _FrownPainter({
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(0, size.height * 0.2)
+      ..quadraticBezierTo(
+        size.width * 0.5,
+        -size.height * 0.3,
+        size.width,
+        size.height * 0.2,
+      );
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FrownPainter oldDelegate) =>
+      color != oldDelegate.color || strokeWidth != oldDelegate.strokeWidth;
+}
+
+class _EmotionalAuraPainter extends CustomPainter {
+  final EmotionalMode mode;
+  final double breathValue;
+  final double size;
+
+  _EmotionalAuraPainter({
+    required this.mode,
+    required this.breathValue,
+    required this.size,
+  });
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
+    final baseRadius = size * 0.38;
+    final pulseRadius = baseRadius + breathValue * size * 0.02;
+
+    final colors = _getAuraColors();
+    final paint = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: colors,
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: pulseRadius));
+
+    canvas.drawCircle(center, pulseRadius, paint);
+  }
+
+  List<Color> _getAuraColors() => switch (mode) {
+        EmotionalMode.withdrawn => [
+            Colors.blue.withValues(alpha: 0.08),
+            Colors.indigo.withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+        EmotionalMode.longing => [
+            Colors.pink.withValues(alpha: 0.10),
+            Colors.purple.withValues(alpha: 0.05),
+            Colors.transparent,
+          ],
+        EmotionalMode.playful => [
+            Colors.amber.withValues(alpha: 0.12),
+            Colors.orange.withValues(alpha: 0.06),
+            Colors.transparent,
+          ],
+        EmotionalMode.pensive => [
+            Colors.deepPurple.withValues(alpha: 0.08),
+            Colors.blueGrey.withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+        EmotionalMode.normal => [
+            Colors.orange.withValues(alpha: 0.06),
+            Colors.amber.withValues(alpha: 0.03),
+            Colors.transparent,
+          ],
+      };
+
+  @override
+  bool shouldRepaint(covariant _EmotionalAuraPainter oldDelegate) =>
+      mode != oldDelegate.mode || breathValue != oldDelegate.breathValue;
+}
+
+class _EmotionalParticlePainter extends CustomPainter {
+  final EmotionalMode mode;
+  final double breathValue;
+  final double tailValue;
+  final double size;
+
+  _EmotionalParticlePainter({
+    required this.mode,
+    required this.breathValue,
+    required this.tailValue,
+    required this.size,
+  });
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    final center = Offset(canvasSize.width / 2, canvasSize.height * 0.4);
+
+    switch (mode) {
+      case EmotionalMode.playful:
+        _drawSparkles(canvas, center);
+      case EmotionalMode.longing:
+        _drawFloatingDots(canvas, center);
+      case EmotionalMode.withdrawn:
+        _drawFallingFragments(canvas, center);
+      case EmotionalMode.pensive:
+        _drawCrescentMoon(canvas, center);
+      case EmotionalMode.normal:
+        break;
+    }
+  }
+
+  void _drawSparkles(Canvas canvas, Offset center) {
+    final t = breathValue;
+    final sparklePositions = [
+      Offset(center.dx - size * 0.22, center.dy - size * 0.15 + t * 3),
+      Offset(center.dx + size * 0.18, center.dy - size * 0.20 - t * 2),
+      Offset(center.dx + size * 0.25, center.dy + size * 0.05 + t * 4),
+      Offset(center.dx - size * 0.15, center.dy + size * 0.10 - t * 3),
+    ];
+
+    for (int i = 0; i < sparklePositions.length; i++) {
+      final pos = sparklePositions[i];
+      final sparkleSize = 3.0 + (i % 3) * 1.5;
+      final alpha = 0.4 + t * 0.3;
+
+      final paint = Paint()
+        ..color = Colors.amber.withValues(alpha: alpha)
+        ..style = PaintingStyle.fill;
+
+      _drawStar(canvas, pos, sparkleSize, paint);
+    }
+  }
+
+  void _drawStar(Canvas canvas, Offset center, double radius, Paint paint) {
+    final path = Path();
+    for (int i = 0; i < 4; i++) {
+      final angle = i * pi / 2;
+      final outerX = center.dx + radius * cos(angle);
+      final outerY = center.dy + radius * sin(angle);
+      final innerX = center.dx + radius * 0.3 * cos(angle + pi / 4);
+      final innerY = center.dy + radius * 0.3 * sin(angle + pi / 4);
+
+      if (i == 0) {
+        path.moveTo(outerX, outerY);
+      } else {
+        path.lineTo(outerX, outerY);
+      }
+      path.lineTo(innerX, innerY);
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawFloatingDots(Canvas canvas, Offset center) {
+    final t = breathValue;
+    for (int i = 0; i < 5; i++) {
+      final angle = (i / 5) * 2 * pi + t * 0.5;
+      final radius = size * 0.25 + i * 5.0;
+      final x = center.dx + radius * cos(angle);
+      final y = center.dy + radius * sin(angle) * 0.5;
+      final alpha = 0.15 + t * 0.1;
+
+      final paint = Paint()
+        ..color = Colors.pink.withValues(alpha: alpha)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(x, y), 2.0 + i * 0.5, paint);
+    }
+  }
+
+  void _drawFallingFragments(Canvas canvas, Offset center) {
+    final t = breathValue;
+    for (int i = 0; i < 4; i++) {
+      final x = center.dx + (i - 1.5) * size * 0.12;
+      final y = center.dy + size * 0.15 + t * size * 0.08 + i * 8.0;
+      final alpha = 0.2 - t * 0.1;
+
+      final paint = Paint()
+        ..color = Colors.blueGrey.withValues(alpha: alpha.clamp(0.0, 1.0))
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(x, y), 2.0, paint);
+    }
+  }
+
+  void _drawCrescentMoon(Canvas canvas, Offset center) {
+    final moonX = center.dx + size * 0.28;
+    final moonY = center.dy - size * 0.25;
+    final moonRadius = size * 0.04;
+    final alpha = 0.3 + breathValue * 0.15;
+
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: alpha)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(moonX, moonY), moonRadius, paint);
+
+    final maskPaint = Paint()
+      ..color = const Color(0xFFF59D4A)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+      Offset(moonX + moonRadius * 0.5, moonY - moonRadius * 0.3),
+      moonRadius * 0.85,
+      maskPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmotionalParticlePainter oldDelegate) =>
+      mode != oldDelegate.mode ||
+      breathValue != oldDelegate.breathValue ||
+      tailValue != oldDelegate.tailValue;
 }

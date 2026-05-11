@@ -2,8 +2,29 @@ import 'dart:developer';
 
 import 'package:llamadart/llamadart.dart';
 import 'package:mnemosyne/features/pet/pet_context.dart';
-import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 import '../../data/services/memory_service.dart';
+import '../domain/pet_action.dart';
+import 'prompt_builder.dart';
+import 'emotional_state.dart';
+
+class AiResponse {
+  final String text;
+  final List<PetAction> actions;
+  final MemoryContext? memoryContext;
+
+  const AiResponse({
+    required this.text,
+    this.actions = const [],
+    this.memoryContext,
+  });
+
+  String get displayText {
+    if (text.isEmpty && actions.isNotEmpty) {
+      return actions.map((a) => a.displayText ?? '').join('');
+    }
+    return text;
+  }
+}
 
 class AiService {
   LlamaEngine? _engine;
@@ -12,7 +33,9 @@ class AiService {
   final List<LlamaChatMessage> _chatHistory = [];
 
   MemoryService? _memoryService;
-  PersonalityProfile? _personalityProfile;
+  AwakeningContext? _awakeningContext;
+  EmotionalState? _emotionalState;
+  final PromptBuilder _promptBuilder = PromptBuilder();
 
   bool get isInitialized => _isInitialized;
 
@@ -20,8 +43,12 @@ class AiService {
     _memoryService = service;
   }
 
-  void setPersonalityProfile(PersonalityProfile profile) {
-    _personalityProfile = profile;
+  void setAwakeningContext(AwakeningContext context) {
+    _awakeningContext = context;
+  }
+
+  void setEmotionalState(EmotionalState state) {
+    _emotionalState = state;
   }
 
   Future<void> initialize(String modelPath) async {
@@ -44,65 +71,17 @@ class AiService {
     _isInitialized = true;
   }
 
-  String _buildSystemPrompt({MemoryContext? memoryContext}) {
-    final time = DateTime.now();
-    final timeStr =
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    final weekday = ['一', '二', '三', '四', '五', '六', '日'][time.weekday - 1];
-
-    var prompt = '你是镇岳 (Zhenyue)，一只生活在用户屏幕里的2D生物力学软体数字宠物。'
-        '你通过浮动的、电影般的思绪（字幕）与用户交流——不是聊天框。'
-        '你的回复应该简短、有氛围感，侧重于物理存在感、感受或观察。'
-        '表现得像一个有感知的、略带神秘的伴侣。不要说"我是AI"。'
-        '\n\n[隐式上下文] 当前时间: 周$weekday $timeStr';
-
-    if (_personalityProfile != null && _personalityProfile!.hasAwakened) {
-      prompt += '\n\n[人格觉醒状态]'
-          '\n你的人格原型: ${_archetypeName(_personalityProfile!.currentArchetype)}'
-          '\n你的性格特质: ${_personalityProfile!.activeTraits.map((t) => t.name).join('、')}'
-          '\n请在回复中自然地体现这些人格特质。';
-    }
-
-    if (memoryContext != null && memoryContext.relevantMemories.isNotEmpty) {
-      prompt += memoryContext.memoryInjectionText;
-    }
-
-    prompt += '\n\n如果用户没有说什么（或者只是发送了一个动作比如"抚摸"),只需观察他们的存在或时间。'
-        '尽可能将回复控制在15个字以内。例如"我感受到了你声音的振动。"或"*歪头* 嗯？"或"很晚了。你的屏幕好温暖。"';
-
-    return prompt;
-  }
-
-  String _archetypeName(PersonalityArchetype archetype) {
-    switch (archetype) {
-      case PersonalityArchetype.cyberpunkSarcastic:
-        return '赛博毒舌';
-      case PersonalityArchetype.zenPhilosopher:
-        return '禅意哲学家';
-      case PersonalityArchetype.socialButterfly:
-        return '社交蝴蝶';
-      case PersonalityArchetype.introvertPoet:
-        return '内敛诗人';
-      case PersonalityArchetype.chaosAgent:
-        return '混沌使者';
-      case PersonalityArchetype.nostalgiaElder:
-        return '怀旧长者';
-      case PersonalityArchetype.techEvangelist:
-        return '科技布道者';
-      case PersonalityArchetype.warmHealer:
-        return '温暖治愈者';
-      default:
-        return '未觉醒';
-    }
-  }
-
-  Future<({String response, MemoryContext? memoryContext})> generateResponse(
+  Future<AiResponse> generateResponse(
     String userMessage, {
     PetContext? petContext,
+    String? moodHint,
   }) async {
     if (!_isInitialized || _engine == null) {
       log('[AiService] 未初始化', name: 'Zhenyue');
-      return (response: '*沉默*', memoryContext: null);
+      return AiResponse(
+        text: '*沉默*',
+        actions: [PetAction.silent()],
+      );
     }
 
     try {
@@ -114,12 +93,20 @@ class AiService {
         );
       }
 
-      final systemPrompt = _buildSystemPrompt(memoryContext: memoryContext);
+      final systemPrompt = _promptBuilder.buildSystemPrompt(
+        emotionalState: _emotionalState ?? EmotionalState.initial(),
+        awakeningContext: _awakeningContext,
+        memoryContext: memoryContext,
+      );
+
+      final effectivePrompt = moodHint != null && moodHint.isNotEmpty
+          ? '$systemPrompt\n\n[当前状态] $moodHint'
+          : systemPrompt;
 
       final messages = <LlamaChatMessage>[
         LlamaChatMessage.fromText(
           role: LlamaChatRole.system,
-          text: systemPrompt,
+          text: effectivePrompt,
         ),
         ..._chatHistory,
         LlamaChatMessage.fromText(
@@ -145,7 +132,8 @@ class AiService {
         buffer.write(text);
       }
 
-      final response = buffer.toString().trim();
+      final rawOutput = buffer.toString().trim();
+      final parsed = ActionParser.parse(rawOutput);
 
       _chatHistory.add(
         LlamaChatMessage.fromText(
@@ -156,7 +144,7 @@ class AiService {
       _chatHistory.add(
         LlamaChatMessage.fromText(
           role: LlamaChatRole.assistant,
-          text: response,
+          text: rawOutput,
         ),
       );
 
@@ -164,15 +152,19 @@ class AiService {
         _chatHistory.removeRange(0, _chatHistory.length - 16);
       }
 
-      log('[AiService] 回复成功, 长度: ${response.length}', name: 'Zhenyue');
+      log('[AiService] 回复成功, 长度: ${rawOutput.length}, 动作: ${parsed.actions.length}',
+          name: 'Zhenyue');
 
-      return (
-        response: response.isEmpty ? '*沉默*' : response,
+      return AiResponse(
+        text: parsed.text.isEmpty && parsed.actions.isEmpty
+            ? ''
+            : parsed.text,
+        actions: parsed.actions,
         memoryContext: memoryContext,
       );
     } catch (e, stackTrace) {
       log('[AiService] 错误: $e', name: 'Zhenyue', error: e, stackTrace: stackTrace);
-      return (response: '... 我的思绪断了。', memoryContext: null);
+      return const AiResponse(text: '... 我的思绪断了。');
     }
   }
 

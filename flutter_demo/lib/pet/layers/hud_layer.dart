@@ -601,9 +601,58 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildTextPill(),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
+        _buildLensButton(),
+        const SizedBox(width: 12),
         _buildMicButton(),
       ],
+    );
+  }
+
+  Widget _buildLensButton() {
+    final isOpen = widget.store.isEmotionLensOpen;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => widget.store.toggleEmotionLens(),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: isOpen
+                    ? Colors.cyan.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: isOpen
+                      ? Colors.cyan.withValues(alpha: 0.50)
+                      : Colors.white.withValues(alpha: 0.20),
+                ),
+                boxShadow: isOpen
+                    ? [
+                        BoxShadow(
+                          color: Colors.cyan.withValues(alpha: 0.30),
+                          blurRadius: 30,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Icon(
+                Icons.visibility,
+                color: isOpen ? Colors.cyanAccent : Colors.white54,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

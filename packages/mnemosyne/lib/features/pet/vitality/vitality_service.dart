@@ -97,6 +97,33 @@ class VitalityState {
         maxSocialInteractionsPerDay:
             maxSocialInteractionsPerDay ?? this.maxSocialInteractionsPerDay,
       );
+
+  Map<String, dynamic> toJson() => {
+        'socialEnergy': socialEnergy,
+        'emotionalBattery': emotionalBattery,
+        'boredomLevel': boredomLevel,
+        'lonelinessLevel': lonelinessLevel,
+        'lastInteractionAt': lastInteractionAt.toIso8601String(),
+        'lastSocialAt': lastSocialAt.toIso8601String(),
+        'socialInteractionsToday': socialInteractionsToday,
+        'maxSocialInteractionsPerDay': maxSocialInteractionsPerDay,
+      };
+
+  factory VitalityState.fromJson(Map<String, dynamic> json) => VitalityState(
+        socialEnergy: (json['socialEnergy'] as num?)?.toDouble() ?? 1.0,
+        emotionalBattery: (json['emotionalBattery'] as num?)?.toDouble() ?? 1.0,
+        boredomLevel: (json['boredomLevel'] as num?)?.toDouble() ?? 0.0,
+        lonelinessLevel: (json['lonelinessLevel'] as num?)?.toDouble() ?? 0.0,
+        lastInteractionAt: json['lastInteractionAt'] != null
+            ? DateTime.parse(json['lastInteractionAt'] as String)
+            : DateTime.now(),
+        lastSocialAt: json['lastSocialAt'] != null
+            ? DateTime.parse(json['lastSocialAt'] as String)
+            : DateTime.now(),
+        socialInteractionsToday: json['socialInteractionsToday'] as int? ?? 0,
+        maxSocialInteractionsPerDay:
+            json['maxSocialInteractionsPerDay'] as int? ?? 20,
+      );
 }
 
 class VitalityConfig {
@@ -134,6 +161,7 @@ abstract class VitalityService {
   bool shouldStealBone(String petId);
   String getWanderingPushMessage(String petId);
   String getStealBonePushMessage(String petId);
+  void restoreState(String petId, VitalityState state);
 }
 
 class DefaultVitalityService implements VitalityService {
@@ -141,6 +169,11 @@ class DefaultVitalityService implements VitalityService {
   final Map<String, VitalityState> _states = {};
 
   DefaultVitalityService({this.config = const VitalityConfig()});
+
+  @override
+  void restoreState(String petId, VitalityState state) {
+    _states[petId] = state;
+  }
 
   @override
   VitalityState getCurrentState(String petId) {

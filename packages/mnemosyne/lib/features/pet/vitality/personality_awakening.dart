@@ -135,6 +135,38 @@ class PersonalityTraitVector {
       'future': (this[CoreTrait.curiosity] * 0.4 + this[CoreTrait.logic] * 0.35 + this[CoreTrait.energy] * 0.25),
     };
   }
+
+  Map<String, dynamic> toJson() => {
+        'values': values.map((k, v) => MapEntry(k.name, v)),
+        'lastUpdated': lastUpdated.map((k, v) => MapEntry(k.name, v.toIso8601String())),
+      };
+
+  factory PersonalityTraitVector.fromJson(Map<String, dynamic> json) {
+    final vals = <CoreTrait, double>{};
+    final times = <CoreTrait, DateTime>{};
+
+    final valuesMap = json['values'] as Map<String, dynamic>? ?? {};
+    for (final entry in valuesMap.entries) {
+      final trait = CoreTrait.values.firstWhere(
+        (t) => t.name == entry.key,
+        orElse: () => CoreTrait.warmth,
+      );
+      vals[trait] = (entry.value as num).toDouble();
+    }
+
+    final timesMap = json['lastUpdated'] as Map<String, dynamic>? ?? {};
+    for (final entry in timesMap.entries) {
+      final trait = CoreTrait.values.firstWhere(
+        (t) => t.name == entry.key,
+        orElse: () => CoreTrait.warmth,
+      );
+      if (entry.value != null) {
+        times[trait] = DateTime.parse(entry.value as String);
+      }
+    }
+
+    return PersonalityTraitVector(values: vals, lastUpdated: times);
+  }
 }
 
 class PersonalityTrait {
@@ -221,6 +253,56 @@ class PersonalityProfile {
         firstAwakenedAt: firstAwakenedAt ?? this.firstAwakenedAt,
         lastEvolvedAt: lastEvolvedAt ?? this.lastEvolvedAt,
         hasAwakened: hasAwakened ?? this.hasAwakened,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'petId': petId,
+        'traitVector': traitVector.toJson(),
+        'primaryArchetype': primaryArchetype.name,
+        'secondaryArchetype': secondaryArchetype?.name,
+        'evolutionStage': evolutionStage.name,
+        'signaturePhrases': signaturePhrases,
+        'personalityDNA': personalityDNA,
+        'totalInteractions': totalInteractions,
+        'daysActive': daysActive,
+        'firstAwakenedAt': firstAwakenedAt?.toIso8601String(),
+        'lastEvolvedAt': lastEvolvedAt?.toIso8601String(),
+        'hasAwakened': hasAwakened,
+      };
+
+  factory PersonalityProfile.fromJson(Map<String, dynamic> json) =>
+      PersonalityProfile(
+        petId: json['petId'] as String? ?? '',
+        traitVector: json['traitVector'] != null
+            ? PersonalityTraitVector.fromJson(
+                json['traitVector'] as Map<String, dynamic>)
+            : const PersonalityTraitVector(),
+        primaryArchetype: PersonalityArchetype.values.firstWhere(
+          (a) => a.name == json['primaryArchetype'],
+          orElse: () => PersonalityArchetype.defaultNeutral,
+        ),
+        secondaryArchetype: json['secondaryArchetype'] != null
+            ? PersonalityArchetype.values.firstWhere(
+                (a) => a.name == json['secondaryArchetype'],
+                orElse: () => PersonalityArchetype.defaultNeutral,
+              )
+            : null,
+        evolutionStage: EvolutionStage.values.firstWhere(
+          (s) => s.name == json['evolutionStage'],
+          orElse: () => EvolutionStage.neutral,
+        ),
+        signaturePhrases:
+            (json['signaturePhrases'] as List<dynamic>?)?.cast<String>() ?? [],
+        personalityDNA: json['personalityDNA'] as String? ?? '55555555',
+        totalInteractions: json['totalInteractions'] as int? ?? 0,
+        daysActive: json['daysActive'] as int? ?? 0,
+        firstAwakenedAt: json['firstAwakenedAt'] != null
+            ? DateTime.parse(json['firstAwakenedAt'] as String)
+            : null,
+        lastEvolvedAt: json['lastEvolvedAt'] != null
+            ? DateTime.parse(json['lastEvolvedAt'] as String)
+            : null,
+        hasAwakened: json['hasAwakened'] as bool? ?? false,
       );
 
   static const Map<CoreTrait, String> _coreTraitNames = {
@@ -311,6 +393,7 @@ abstract class PersonalityAwakeningService {
   String generatePersonalityDNA(PersonalityTraitVector traits);
   List<String> generateSignaturePhrases(PersonalityProfile profile);
   String generateHybridTitle(PersonalityArchetype primary, PersonalityArchetype? secondary);
+  void restoreProfile(String petId, PersonalityProfile profile);
 }
 
 class DefaultPersonalityAwakeningService implements PersonalityAwakeningService {
@@ -322,6 +405,11 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     this.config = const AwakeningConfig(),
     this.llmAnalyzer,
   });
+
+  @override
+  void restoreProfile(String petId, PersonalityProfile profile) {
+    _profiles[petId] = profile;
+  }
 
   @override
   PersonalityProfile getProfile(String petId) {
@@ -367,27 +455,18 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
   @override
   AwakeningResult? checkAwakening(String petId) {
     final profile = getProfile(petId);
-    final nextStage = _getNextStage(profile.evolutionStage);
+    if (profile.hasAwakened) return null;
 
-    if (nextStage == null) return null;
+    if (profile.totalInteractions < 50) return null;
+    if (profile.daysActive < 3) return null;
 
-    final minDays = config.minDaysPerStage[nextStage]!;
-    final minInteractions = config.minInteractionsPerStage[nextStage]!;
-    final minDistinctiveness = config.distinctivenessThreshold[nextStage]!;
+    final maxTrait = profile.traitVector.rankedTraits.first;
+    if (maxTrait.value < 0.55) return null;
 
-    if (profile.daysActive < minDays) return null;
-    if (profile.totalInteractions < minInteractions) return null;
-    if (profile.traitVector.distinctiveness < minDistinctiveness) return null;
-
-    if (nextStage == EvolutionStage.awakened) {
-      final maxTrait = profile.traitVector.rankedTraits.first;
-      if (maxTrait.value < config.firstAwakeningTraitThreshold) return null;
-    }
-
-    final result = _generateAwakening(profile, nextStage);
+    final result = _generateAwakening(profile, EvolutionStage.awakened);
 
     _profiles[petId] = profile.copyWith(
-      evolutionStage: nextStage,
+      evolutionStage: EvolutionStage.awakened,
       hasAwakened: true,
       firstAwakenedAt: profile.firstAwakenedAt ?? DateTime.now(),
       lastEvolvedAt: DateTime.now(),

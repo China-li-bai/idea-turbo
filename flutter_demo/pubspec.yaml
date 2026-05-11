@@ -41,6 +41,7 @@ dependencies:
   ota_update: ^7.0.2
   package_info_plus: ^8.3.0
   device_info_plus: ^11.3.2
+  shared_preferences: ^2.3.4
   mnemosyne:
     path: ../packages/mnemosyne
 

@@ -3,6 +3,11 @@ import 'package:mnemosyne/mnemosyne_class.dart';
 import 'package:mnemosyne/features/pet/pet_memory_bridge.dart';
 import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
+import 'package:mnemosyne/features/pet/vitality/resonance_service.dart';
+import 'package:mnemosyne/features/pet/domain/repositories/pet_repository.dart';
+import 'package:mnemosyne/features/pet/data/datasources/pet_local_datasource.dart';
+import 'package:mnemosyne/features/pet/data/repositories/pet_repository_impl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ServiceLocator {
   static final ServiceLocator _instance = ServiceLocator._();
@@ -13,6 +18,8 @@ class ServiceLocator {
   PetMemoryBridge? _petMemoryBridge;
   DefaultVitalityService? _vitalityService;
   DefaultPersonalityAwakeningService? _personalityService;
+  DefaultResonanceService? _resonanceService;
+  PetRepositoryImpl? _petRepository;
 
   bool _isInitialized = false;
 
@@ -36,6 +43,16 @@ class ServiceLocator {
     return _personalityService!;
   }
 
+  DefaultResonanceService get resonanceService {
+    if (_resonanceService == null) throw StateError('ServiceLocator not initialized');
+    return _resonanceService!;
+  }
+
+  PetRepository get petRepository {
+    if (_petRepository == null) throw StateError('ServiceLocator not initialized');
+    return _petRepository!;
+  }
+
   bool get isInitialized => _isInitialized;
 
   Future<void> initialize({String? directoryOverride}) async {
@@ -49,10 +66,34 @@ class ServiceLocator {
     _vitalityService = DefaultVitalityService();
     _personalityService = DefaultPersonalityAwakeningService();
 
+    final prefs = await SharedPreferences.getInstance();
+    _resonanceService = DefaultResonanceService(
+      readPreference: (key) async => prefs.getString(key) ?? '',
+      writePreference: (key, value) async => prefs.setString(key, value),
+    );
+
+    final localDataSource = PetLocalDataSource(
+      read: (key) async => prefs.getString(key) ?? '',
+      write: (key, value) async => prefs.setString(key, value),
+    );
+
+    _petRepository = PetRepositoryImpl(
+      vitalityService: _vitalityService!,
+      personalityService: _personalityService!,
+      resonanceService: _resonanceService!,
+      localDataSource: localDataSource,
+    );
+
+    await _petRepository!.loadSnapshot('zhenyue');
+
     _isInitialized = true;
   }
 
   Future<void> dispose() async {
+    if (_petRepository != null) {
+      final snapshot = _petRepository!.getCurrentSnapshot('zhenyue');
+      await _petRepository!.saveSnapshot('zhenyue', snapshot);
+    }
     if (_mnemosyne != null) {
       await _mnemosyne!.close();
     }
@@ -60,6 +101,8 @@ class ServiceLocator {
     _petMemoryBridge = null;
     _vitalityService = null;
     _personalityService = null;
+    _resonanceService = null;
+    _petRepository = null;
     _isInitialized = false;
   }
 }
