@@ -14,6 +14,7 @@ import 'services/response_gate.dart';
 import 'services/proactive_engine.dart';
 import 'domain/pet_action.dart';
 import 'domain/vitality_phase.dart';
+import 'narrative/first_time_narrative.dart';
 
 enum PetMood {
   idle,
@@ -105,6 +106,9 @@ class PetStore extends ChangeNotifier {
 
   double _vitalityDecay = 0.0;
   DateTime _lastVitalityDecayAt = DateTime.now();
+  bool _isFirstTime = true;
+  FirstTimeChoice? _firstTimeChoice;
+  String? _petName;
 
   PetMood get mood => _mood;
   Offset get lookAt => _lookAt;
@@ -123,6 +127,9 @@ class PetStore extends ChangeNotifier {
   int get interactionCount => _interactionCount;
   EmotionalState get emotionalState => _emotionalState;
   Stream<PetAction> get actionStream => _actionController.stream;
+  bool get isFirstTime => _isFirstTime;
+  FirstTimeChoice? get firstTimeChoice => _firstTimeChoice;
+  String? get petName => _petName;
 
   void dispatchAction(PetAction action) {
     if (!_actionController.isClosed) {
@@ -399,6 +406,34 @@ class PetStore extends ChangeNotifier {
 
   void dismissAwakening() {
     _isAwakeningAnimation = false;
+    notifyListeners();
+  }
+
+  void setFirstTimeChoice(FirstTimeChoice choice) {
+    _firstTimeChoice = choice;
+    _persistFirstTime();
+    notifyListeners();
+  }
+
+  void setPetName(String name) {
+    _petName = name;
+    _isFirstTime = false;
+    _persistFirstTime();
+    notifyListeners();
+  }
+
+  void _persistFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('first_pet_interaction', false);
+    if (_petName != null) {
+      await prefs.setString('pet_name', _petName!);
+    }
+  }
+
+  void loadFirstTimeState() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isFirstTime = prefs.getBool('first_pet_interaction') ?? true;
+    _petName = prefs.getString('pet_name');
     notifyListeners();
   }
 

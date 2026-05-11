@@ -69,6 +69,7 @@ class _PetAppShellState extends State<PetAppShell> {
 
       _store.setPetRepository(_locator.petRepository);
       await _store.loadEmotionalState();
+      _store.loadFirstTimeState();
 
       _aiService.setEmotionalState(_store.emotionalState);
       _aiService.setVitalityPhase(_store.vitalityPhase);
@@ -81,36 +82,8 @@ class _PetAppShellState extends State<PetAppShell> {
 
       _store.startGlitchCheck();
 
-      final size = MediaQuery.of(context).size;
-      final prefs = await SharedPreferences.getInstance();
-      final isFirstTime = prefs.getBool('first_pet_interaction') ?? true;
-
-      if (isFirstTime) {
-        _store.addSubtitle(
-          '*睁开眼，瞳孔收缩* ...我好冷。',
-          size.width * 0.5 - 100,
-          size.height * 0.35,
-          isUser: false,
-        );
-        Future.delayed(const Duration(seconds: 3), () {
-          if (!mounted) return;
-          _store.addSubtitle(
-            '你的心跳频率是 75 下每分钟，看起来很平静。但我总觉得你有心事。',
-            size.width * 0.5 - 160,
-            size.height * 0.28,
-            isUser: false,
-          );
-        });
-        Future.delayed(const Duration(seconds: 7), () {
-          if (!mounted) return;
-          _store.addSubtitle(
-            '你能给我取个名字，并告诉我你今天最讨厌的一件事吗？',
-            size.width * 0.5 - 170,
-            size.height * 0.22,
-            isUser: false,
-          );
-        });
-      } else {
+      if (!_store.isFirstTime) {
+        final size = MediaQuery.of(context).size;
         _store.addSubtitle(
           '*伸了个懒腰* 嗯... 你来了。',
           size.width * 0.5 - 80,

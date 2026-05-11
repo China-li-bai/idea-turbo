@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 import '../pet_store.dart';
 import '../domain/vitality_phase.dart';
+import '../narrative/narrative_engine.dart';
+import '../narrative/first_time_narrative.dart';
 import '../../ui/widgets/vitality_bar.dart';
 
 class HUDLayer extends StatefulWidget {
@@ -31,6 +34,16 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
   bool _isSending = false;
   bool _showVitality = false;
 
+  NarrativeEngine? _narrativeEngine;
+  StreamSubscription<NarrativeEvent>? _narrativeSub;
+  String? _narrativeSubtitle;
+  double _narrativeOpacity = 1.0;
+  bool _showChoiceButtons = false;
+  bool _showNamingInput = false;
+  List<FirstTimeChoice> _choices = [];
+  final TextEditingController _nameController = TextEditingController();
+  String? _namingError;
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +55,91 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
   }
 
   @override
+  void didUpdateWidget(HUDLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.store != oldWidget.store) {
+      _setupNarrativeEngine();
+    }
+  }
+
+  void _setupNarrativeEngine() {
+    _narrativeSub?.cancel();
+    _narrativeEngine?.dispose();
+
+    if (!widget.store.isFirstTime) return;
+
+    _narrativeEngine = NarrativeEngine();
+    _narrativeSub = _narrativeEngine!.events.listen(_onNarrativeEvent);
+    _narrativeEngine!.start();
+  }
+
+  void _onNarrativeEvent(NarrativeEvent event) {
+    if (!mounted) return;
+
+    switch (event.type) {
+      case NarrativeEventType.showText:
+        setState(() {
+          _narrativeSubtitle = event.text;
+          _narrativeOpacity = event.opacity ?? 1.0;
+        });
+        break;
+
+      case NarrativeEventType.showChoices:
+        setState(() {
+          _showChoiceButtons = true;
+          _choices = event.choices ?? [];
+        });
+        break;
+
+      case NarrativeEventType.hideChoices:
+        setState(() => _showChoiceButtons = false);
+        break;
+
+      case NarrativeEventType.askNaming:
+        setState(() => _showNamingInput = true);
+        break;
+
+      case NarrativeEventType.hideNamingInput:
+        setState(() => _showNamingInput = false);
+        break;
+
+      case NarrativeEventType.completed:
+        setState(() {
+          _narrativeSubtitle = null;
+          _showChoiceButtons = false;
+          _showNamingInput = false;
+        });
+        widget.store.setPetName(_narrativeEngine!.petName ?? '灵宠');
+        break;
+    }
+  }
+
+  void _onSelectChoice(FirstTimeChoice choice) {
+    widget.store.setFirstTimeChoice(choice);
+    _narrativeEngine?.selectChoice(choice);
+  }
+
+  void _onSubmitName() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    final result = NamingValidation.validate(name);
+    if (!result.isValid) {
+      setState(() => _namingError = result.error);
+      return;
+    }
+
+    setState(() => _namingError = null);
+    _narrativeEngine?.submitName(name);
+  }
+
+  @override
   void dispose() {
+    _narrativeSub?.cancel();
+    _narrativeEngine?.dispose();
     _inputController.dispose();
     _textController.dispose();
+    _nameController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -173,11 +268,142 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
       left: 0,
       right: 0,
       bottom: 0,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
         children: [
-          _buildTopBar(),
-          _buildBottomControls(size, bottomPadding),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildTopBar(),
+              _buildBottomControls(size, bottomPadding),
+            ],
+          ),
+          if (_narrativeSubtitle != null)
+            _buildNarrativeSubtitle(size),
+          if (_showChoiceButtons)
+            _buildChoiceButtons(size),
+          if (_showNamingInput)
+            _buildNamingInput(size),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNarrativeSubtitle(Size size) {
+    return Positioned(
+      bottom: size.height * 0.3,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 500),
+          opacity: _narrativeOpacity,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Text(
+              _narrativeSubtitle!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceButtons(Size size) {
+    return Positioned(
+      bottom: size.height * 0.15,
+      left: 24,
+      right: 24,
+      child: Column(
+        children: _choices.map((choice) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _ChoiceButton(
+              text: choice.text,
+              onTap: () => _onSelectChoice(choice),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildNamingInput(Size size) {
+    return Positioned(
+      bottom: size.height * 0.15,
+      left: 24,
+      right: 24,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
+            ),
+            child: TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: '给灵宠取个名字...',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  fontSize: 16,
+                ),
+                border: InputBorder.none,
+              ),
+              onSubmitted: (_) => _onSubmitName(),
+            ),
+          ),
+          if (_namingError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _namingError!,
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _onSubmitName,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.amber.withValues(alpha: 0.4),
+                ),
+              ),
+              child: const Text(
+                '确认',
+                style: TextStyle(
+                  color: Colors.amber,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -801,6 +1027,40 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChoiceButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onTap;
+
+  const _ChoiceButton({required this.text, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            height: 1.4,
+          ),
+          textAlign: TextAlign.center,
         ),
       ),
     );
