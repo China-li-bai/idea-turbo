@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 import '../pet_store.dart';
+import '../domain/vitality_phase.dart';
 import '../../ui/widgets/vitality_bar.dart';
 
 class HUDLayer extends StatefulWidget {
@@ -190,12 +191,71 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildMenuButton(),
-            if (widget.store.vitalityState != null)
-              _buildVitalityToggle(),
+            Row(
+              children: [
+                _buildVitalityPhaseIndicator(),
+                const SizedBox(width: 8),
+                if (widget.store.vitalityState != null)
+                  _buildVitalityToggle(),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildVitalityPhaseIndicator() {
+    final phase = widget.store.vitalityPhase;
+    final phaseColor = _phaseColor(phase);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: phaseColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: phaseColor.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: phaseColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            widget.store.vitalityState.phaseLabel,
+            style: TextStyle(
+              color: phaseColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _phaseColor(VitalityPhase phase) {
+    switch (phase) {
+      case VitalityPhase.vibrant:
+        return Colors.greenAccent;
+      case VitalityPhase.normal:
+        return Colors.blueAccent;
+      case VitalityPhase.lethargic:
+        return Colors.orangeAccent;
+      case VitalityPhase.fragile:
+        return Colors.redAccent;
+      case VitalityPhase.dormant:
+        return Colors.grey;
+    }
   }
 
   Widget _buildMenuButton() {

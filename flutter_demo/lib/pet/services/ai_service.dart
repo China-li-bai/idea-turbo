@@ -4,6 +4,7 @@ import 'package:llamadart/llamadart.dart';
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import '../../data/services/memory_service.dart';
 import '../domain/pet_action.dart';
+import '../domain/vitality_phase.dart';
 import 'prompt_builder.dart';
 import 'emotional_state.dart';
 
@@ -35,6 +36,7 @@ class AiService {
   MemoryService? _memoryService;
   AwakeningContext? _awakeningContext;
   EmotionalState? _emotionalState;
+  VitalityPhase _vitalityPhase = VitalityPhase.normal;
   final PromptBuilder _promptBuilder = PromptBuilder();
 
   bool get isInitialized => _isInitialized;
@@ -49,6 +51,10 @@ class AiService {
 
   void setEmotionalState(EmotionalState state) {
     _emotionalState = state;
+  }
+
+  void setVitalityPhase(VitalityPhase phase) {
+    _vitalityPhase = phase;
   }
 
   Future<void> initialize(String modelPath) async {
@@ -97,6 +103,7 @@ class AiService {
         emotionalState: _emotionalState ?? EmotionalState.initial(),
         awakeningContext: _awakeningContext,
         memoryContext: memoryContext,
+        vitalityPhase: _vitalityPhase,
       );
 
       final effectivePrompt = moodHint != null && moodHint.isNotEmpty

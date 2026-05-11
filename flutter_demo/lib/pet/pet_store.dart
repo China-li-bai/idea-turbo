@@ -13,6 +13,7 @@ import 'services/emotional_state.dart';
 import 'services/response_gate.dart';
 import 'services/proactive_engine.dart';
 import 'domain/pet_action.dart';
+import 'domain/vitality_phase.dart';
 
 enum PetMood {
   idle,
@@ -102,6 +103,9 @@ class PetStore extends ChangeNotifier {
   final StreamController<PetAction> _actionController =
       StreamController<PetAction>.broadcast();
 
+  double _vitalityDecay = 0.0;
+  DateTime _lastVitalityDecayAt = DateTime.now();
+
   PetMood get mood => _mood;
   Offset get lookAt => _lookAt;
   Offset get petPosition => _petPosition;
@@ -135,12 +139,29 @@ class PetStore extends ChangeNotifier {
   RelationshipState get relationshipState =>
       _snapshot?.relationship ?? RelationshipState.initial();
 
-  VitalityState get vitalityState =>
-      _snapshot?.vitality ??
-      VitalityState(
+  VitalityState get vitalityState {
+    final base = _snapshot?.vitality;
+    if (base == null) {
+      return VitalityState(
         lastInteractionAt: DateTime.now(),
         lastSocialAt: DateTime.now(),
       );
+    }
+
+    final decayedEnergy = (base.socialEnergy - _vitalityDecay).clamp(0.0, 1.0);
+    final decayedBattery = (base.emotionalBattery - _vitalityDecay * 0.5).clamp(0.0, 1.0);
+
+    return VitalityState(
+      socialEnergy: decayedEnergy,
+      emotionalBattery: decayedBattery,
+      boredomLevel: base.boredomLevel,
+      lonelinessLevel: base.lonelinessLevel,
+      lastInteractionAt: base.lastInteractionAt,
+      lastSocialAt: base.lastSocialAt,
+    );
+  }
+
+  VitalityPhase get vitalityPhase => vitalityState.phase;
 
   PersonalityProfile get personalityProfile =>
       _snapshot?.personality ?? PersonalityProfile(petId: _defaultPetId);
@@ -181,9 +202,31 @@ class PetStore extends ChangeNotifier {
           const Duration(minutes: 5),
         );
         tickEmotionalState(const Duration(minutes: 5));
+        _applyVitalityDecay();
         notifyListeners();
       },
     );
+  }
+
+  void _applyVitalityDecay() {
+    final now = DateTime.now();
+    final hoursSinceLastDecay = now.difference(_lastVitalityDecayAt).inMinutes / 60.0;
+    _lastVitalityDecayAt = now;
+
+    final currentPhase = vitalityState.phase;
+    final decayRate = currentPhase == VitalityPhase.vibrant
+        ? 0.02
+        : currentPhase == VitalityPhase.normal
+            ? 0.012
+            : currentPhase == VitalityPhase.lethargic
+                ? 0.005
+                : 0.008;
+
+    final hoursSinceLastInteraction = now.difference(vitalityState.lastInteractionAt).inHours;
+    final isolationMultiplier = 1.0 + (hoursSinceLastInteraction * 0.1).clamp(0.0, 2.0);
+
+    _vitalityDecay += decayRate * hoursSinceLastDecay * isolationMultiplier;
+    _vitalityDecay = _vitalityDecay.clamp(0.0, 0.8);
   }
 
   void onInteraction(String content) {
@@ -199,11 +242,50 @@ class PetStore extends ChangeNotifier {
       _snapshot = _petRepository!.onInteraction(_defaultPetId, content);
     }
 
+    _applyVitalityRecovery(content);
+
     notifyListeners();
   }
 
+  void _applyVitalityRecovery(String content) {
+    final isWarm = _detectWarmth(content);
+    final isHurtful = _detectHurtful(content);
+
+    double recovery = 0.03;
+
+    if (isHurtful) {
+      recovery = -0.15;
+    } else if (isWarm) {
+      recovery = 0.12;
+    }
+
+    _vitalityDecay = (_vitalityDecay - recovery).clamp(0.0, 0.8);
+    _lastVitalityDecayAt = DateTime.now();
+  }
+
+  bool _detectWarmth(String content) {
+    final lower = content.toLowerCase();
+    const patterns = [
+      '想你', '担心你', '在乎你', '喜欢你', '谢谢你',
+      '对不起', '抱歉', '我错了', '回来', '别走',
+      '陪着你', '我在', '不会走', '你很重要',
+    ];
+    return patterns.any((p) => lower.contains(p));
+  }
+
+  bool _detectHurtful(String content) {
+    final lower = content.toLowerCase();
+    const patterns = [
+      '闭嘴', '烦死了', '滚', '讨厌你', '你好烦',
+      '别说了', '够了', '不想理你', '你很烦', '走开',
+      '没用的东西', '废物', '假', '你只是', '你不过',
+      '算了', '无所谓', '随便吧',
+    ];
+    return patterns.any((p) => lower.contains(p));
+  }
+
   ResponseDecision gateResponse(String userMessage) {
-    final gate = ResponseGate(_emotionalState);
+    final gate = ResponseGate(_emotionalState, vitalityPhase: vitalityPhase);
     return gate.decide(userMessage);
   }
 
@@ -223,6 +305,7 @@ class PetStore extends ChangeNotifier {
         _snapshot?.relationship.lastInteractionAt ?? DateTime.now(),
       ),
       timeSinceLastProactive: DateTime.now().difference(_lastProactiveAt),
+      vitalityPhase: vitalityPhase,
     );
     return engine.evaluate();
   }

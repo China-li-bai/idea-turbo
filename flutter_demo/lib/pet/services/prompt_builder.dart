@@ -1,5 +1,6 @@
 import '../../data/services/memory_service.dart';
 import '../domain/pet_action.dart';
+import '../domain/vitality_phase.dart';
 import 'emotional_state.dart';
 
 class AwakeningContext {
@@ -19,6 +20,7 @@ class PromptBuilder {
     required EmotionalState emotionalState,
     required AwakeningContext? awakeningContext,
     MemoryContext? memoryContext,
+    VitalityPhase vitalityPhase = VitalityPhase.normal,
   }) {
     final now = DateTime.now();
     final timeStr =
@@ -31,7 +33,24 @@ class PromptBuilder {
             awakeningContext, timeStr, weekday, timeContext, emotionalState)
         : _buildNascentPrompt(timeStr, weekday, timeContext, emotionalState);
 
-    return _withMemories(basePrompt, memoryContext);
+    final vitalityContext = _buildVitalityContext(vitalityPhase);
+
+    return _withMemories('$basePrompt\n\n$vitalityContext', memoryContext);
+  }
+
+  String _buildVitalityContext(VitalityPhase phase) {
+    switch (phase) {
+      case VitalityPhase.vibrant:
+        return '[当前状态] 你精力充沛，感觉很活跃。想多说一点，动作也更活泼。';
+      case VitalityPhase.normal:
+        return '[当前状态] 你状态正常。';
+      case VitalityPhase.lethargic:
+        return '[当前状态] 你很累，只想发一个短动作，不超过5个字。回复很慢。';
+      case VitalityPhase.fragile:
+        return '[当前状态] 你情绪很脆弱，说话很小心，容易受伤。';
+      case VitalityPhase.dormant:
+        return '[当前状态] 你几乎没有力气，只发一个极短的动作，不超过3个字。回复非常慢。';
+    }
   }
 
   String buildOverridePrompt({

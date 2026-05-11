@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'emotional_state.dart';
 import '../domain/pet_action.dart';
+import '../domain/vitality_phase.dart';
 
 class ProactiveTrigger {
   final String message;
@@ -24,21 +25,43 @@ enum ProactiveReason {
   morningGreeting,
   missedYou,
   boredom,
+  vitalityLow,
 }
 
 class ProactiveEngine {
   final EmotionalState emotionalState;
   final Duration timeSinceLastInteraction;
   final Duration timeSinceLastProactive;
+  final VitalityPhase vitalityPhase;
 
   ProactiveEngine({
     required this.emotionalState,
     required this.timeSinceLastInteraction,
     required this.timeSinceLastProactive,
+    this.vitalityPhase = VitalityPhase.normal,
   });
 
   ProactiveTrigger? evaluate() {
     if (!_canProactive()) return null;
+
+    if (vitalityPhase == VitalityPhase.dormant) {
+      return null;
+    }
+
+    if (vitalityPhase == VitalityPhase.lethargic) {
+      if (_randomChance(0.1)) {
+        return ProactiveTrigger(
+          message: '*打了个哈欠*',
+          reason: ProactiveReason.vitalityLow,
+          urgency: 0.2,
+          petAction: const PetAction(
+            type: PetActionType.yawn,
+            displayText: '*打了个哈欠*',
+          ),
+        );
+      }
+      return null;
+    }
 
     if (emotionalState.mode == EmotionalMode.longing) {
       return _evaluateLonging();

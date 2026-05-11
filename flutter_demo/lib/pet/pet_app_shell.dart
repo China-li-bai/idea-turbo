@@ -71,6 +71,7 @@ class _PetAppShellState extends State<PetAppShell> {
       await _store.loadEmotionalState();
 
       _aiService.setEmotionalState(_store.emotionalState);
+      _aiService.setVitalityPhase(_store.vitalityPhase);
 
       if (!mounted) return;
       setState(() {
@@ -133,6 +134,7 @@ class _PetAppShellState extends State<PetAppShell> {
   ) async {
     _store.onInteraction(message);
     _aiService.setEmotionalState(_store.emotionalState);
+    _aiService.setVitalityPhase(_store.vitalityPhase);
 
     final decision = _store.gateResponse(message);
 

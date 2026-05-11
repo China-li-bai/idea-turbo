@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../pet_store.dart';
 import '../domain/pet_action.dart';
+import '../domain/vitality_phase.dart';
 import '../services/emotional_state.dart';
 
 class EntityLayer extends StatefulWidget {
@@ -31,6 +32,7 @@ class _EntityLayerState extends State<EntityLayer>
   StreamSubscription<PetAction>? _actionSubscription;
   double _headTiltAngle = 0;
   double _approachOffset = 0;
+  VitalityPhase _vitalityPhase = VitalityPhase.normal;
 
   @override
   void initState() {
@@ -218,6 +220,37 @@ class _EntityLayerState extends State<EntityLayer>
     _updateEyeTracking();
     _updateRubbingState();
     _updateEmotionalState();
+    _updateVitalityAnimations();
+  }
+
+  void _updateVitalityAnimations() {
+    final phase = widget.store.vitalityPhase;
+    if (phase == _vitalityPhase) return;
+
+    _vitalityPhase = phase;
+
+    switch (phase) {
+      case VitalityPhase.vibrant:
+        _breathController.duration = const Duration(milliseconds: 2000);
+        _tailController.duration = const Duration(milliseconds: 400);
+        break;
+      case VitalityPhase.normal:
+        _breathController.duration = const Duration(milliseconds: 2500);
+        _tailController.duration = const Duration(milliseconds: 600);
+        break;
+      case VitalityPhase.lethargic:
+        _breathController.duration = const Duration(milliseconds: 4000);
+        _tailController.duration = const Duration(milliseconds: 1200);
+        break;
+      case VitalityPhase.fragile:
+        _breathController.duration = const Duration(milliseconds: 3000);
+        _tailController.duration = const Duration(milliseconds: 800);
+        break;
+      case VitalityPhase.dormant:
+        _breathController.duration = const Duration(milliseconds: 6000);
+        _tailController.duration = const Duration(milliseconds: 2000);
+        break;
+    }
   }
 
   void _updateEmotionalState() {
@@ -303,6 +336,7 @@ class _EntityLayerState extends State<EntityLayer>
     final petSize = baseSize * 0.52;
     final emotionalMode = widget.store.emotionalState.mode;
     final isWithdrawn = widget.store.emotionalState.isWithdrawn;
+    final vitalityOpacity = _vitalityOpacity();
 
     return Center(
       child: SizedBox(
@@ -329,33 +363,51 @@ class _EntityLayerState extends State<EntityLayer>
                 ? 1.05
                 : (_isRubbing ? 1.04 : breathScaleX);
 
-            return Transform.translate(
-              offset: Offset(0, -_approachOffset),
-              child: Transform.scale(
-              scaleX: scaleX,
-              scaleY: scaleY,
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  _buildEmotionalAura(petSize, emotionalMode),
-                  _buildTail(petSize, emotionalMode),
-                  _buildTorso(petSize, isWithdrawn),
-                  _buildHindLegs(petSize),
-                  _buildBelly(petSize),
-                  _buildForeLegs(petSize, isWithdrawn),
-                  _buildHead(blinkValue, petSize, emotionalMode),
-                  if (_isRubbing) _buildRubHearts(),
-                  if (isWithdrawn) _buildWithdrawnOverlay(petSize),
-                  _buildParticleLayer(petSize, emotionalMode),
-                ],
-              ),
+            return Opacity(
+              opacity: vitalityOpacity,
+              child: Transform.translate(
+                offset: Offset(0, -_approachOffset),
+                child: Transform.scale(
+                scaleX: scaleX,
+                scaleY: scaleY,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildEmotionalAura(petSize, emotionalMode),
+                    _buildTail(petSize, emotionalMode),
+                    _buildTorso(petSize, isWithdrawn),
+                    _buildHindLegs(petSize),
+                    _buildBelly(petSize),
+                    _buildForeLegs(petSize, isWithdrawn),
+                    _buildHead(blinkValue, petSize, emotionalMode),
+                    if (_isRubbing) _buildRubHearts(),
+                    if (isWithdrawn) _buildWithdrawnOverlay(petSize),
+                    _buildParticleLayer(petSize, emotionalMode),
+                  ],
+                ),
+                ),
               ),
             );
           },
         ),
       ),
     );
+  }
+
+  double _vitalityOpacity() {
+    switch (_vitalityPhase) {
+      case VitalityPhase.vibrant:
+        return 1.0;
+      case VitalityPhase.normal:
+        return 1.0;
+      case VitalityPhase.lethargic:
+        return 0.85;
+      case VitalityPhase.fragile:
+        return 0.9;
+      case VitalityPhase.dormant:
+        return 0.6;
+    }
   }
 
   Widget _buildTorso(double petSize, bool isWithdrawn) {
