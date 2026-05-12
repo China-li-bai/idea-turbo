@@ -230,8 +230,8 @@ function SpatialHabitatInner({
     .activeOffsetX([-30, -10])
     .failOffsetY([-50, 50])
     .onEnd((e) => {
-      if (e.translationX > 80) {
-        runOnJS(handleSwipeFromLeft)()
+      if (e.translationX < -80) {
+        runOnJS(handleSwipeFromRight)()
       }
     })
 
@@ -239,8 +239,8 @@ function SpatialHabitatInner({
     .activeOffsetX([10, 30])
     .failOffsetY([-50, 50])
     .onEnd((e) => {
-      if (e.translationX < -80) {
-        runOnJS(handleSwipeFromRight)()
+      if (e.translationX > 80) {
+        runOnJS(handleSwipeFromLeft)()
       }
     })
 
@@ -274,6 +274,13 @@ function SpatialHabitatInner({
 
   const ambientIntensity = dormancy.particleMultiplier
   const timeSpeed = dormancy.animationSpeed
+  const latestPetMessage = messages.slice().reverse().find(message => message.role === 'pet')?.content
+  const connectionLabel = isThinking
+    ? '正在想怎么回应你'
+    : brainActive
+      ? '小团子醒着，随时可以聊'
+      : '正在慢慢醒来'
+  const moodLabel = getMoodLabel(currentMood)
 
   return (
     <View style={styles.container}>
@@ -300,6 +307,33 @@ function SpatialHabitatInner({
 
       {/* Layer 1: Spatial UI - Pet + Cinematic Subtitles */}
       <View style={styles.layer1}>
+        <View style={[styles.topDock, { paddingTop: insets.top + 10 }]}>
+          <CyberGlass style={styles.statusPanel} intensity={0.1}>
+            <View style={styles.statusHeader}>
+              <View style={styles.statusIdentity}>
+                <Text style={styles.petName}>{petName}</Text>
+                <View style={styles.statusLine}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      {
+                        backgroundColor: brainActive ? candy.lime[400] : dark.text.tertiary,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.statusText}>{connectionLabel}</Text>
+                </View>
+              </View>
+              <View style={styles.moodBadge}>
+                <Text style={styles.moodText}>{moodLabel}</Text>
+              </View>
+            </View>
+            <Text style={styles.statusHint} numberOfLines={1}>
+              {latestPetMessage || '轻触摸摸它，按住底部按钮说话，点记忆看它记住了什么'}
+            </Text>
+          </CyberGlass>
+        </View>
+
         <Animated.View style={[styles.petArea, petAnimatedStyle]}>
           <BreathingPet
             emoji={petEmoji}
@@ -345,6 +379,35 @@ function SpatialHabitatInner({
 
       {/* Layer 3: HUD - Sensory Pill + Menu */}
       <View style={[styles.layer3, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={styles.quickActions}>
+          <Pressable
+            onPress={() => {
+              markInteraction()
+              setShowMemorySidebar(true)
+            }}
+            style={({ pressed }) => [
+              styles.quickAction,
+              { opacity: pressed ? 0.75 : 1 },
+            ]}
+          >
+            <Text style={styles.quickActionIcon}>◌</Text>
+            <Text style={styles.quickActionText}>记忆</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              markInteraction()
+              onNavigateToSettings?.()
+            }}
+            style={({ pressed }) => [
+              styles.quickAction,
+              { opacity: pressed ? 0.75 : 1 },
+            ]}
+          >
+            <Text style={styles.quickActionIcon}>⚙</Text>
+            <Text style={styles.quickActionText}>设置</Text>
+          </Pressable>
+        </View>
+
         <SensoryPill
           mode={sensoryMode}
           onModeChange={setSensoryMode}
@@ -422,6 +485,26 @@ export function SpatialHabitat(props: SpatialHabitatProps) {
   )
 }
 
+function getMoodLabel(mood: PetMood): string {
+  const labels: Record<PetMood, string> = {
+    idle: '陪着你',
+    thinking: '思考中',
+    typing: '回应中',
+    sniffing: '感知中',
+    listening: '认真听',
+    happy: '开心',
+    excited: '兴奋',
+    sad: '低落',
+    angry: '警觉',
+    sleepy: '困困的',
+    curious: '好奇',
+    love: '被摸开心',
+    surprised: '惊讶',
+    shy: '害羞',
+  }
+  return labels[mood] || '陪着你'
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -453,8 +536,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  topDock: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    zIndex: 12,
+  },
+  statusPanel: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 20,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statusIdentity: {
+    flex: 1,
+    gap: 4,
+  },
+  petName: {
+    color: dark.text.primary,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  statusLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusText: {
+    color: dark.text.secondary,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  moodBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  moodText: {
+    color: candy.cyan[300],
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statusHint: {
+    color: dark.text.tertiary,
+    fontSize: 12,
+    marginTop: 10,
+  },
   gestureGrid: {
     flex: 1,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 92,
+  },
+  quickAction: {
+    minWidth: 78,
+    minHeight: 38,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(15, 15, 30, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  quickActionIcon: {
+    color: candy.cyan[300],
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  quickActionText: {
+    color: dark.text.secondary,
+    fontSize: 13,
+    fontWeight: '600',
   },
   sleepIndicator: {
     position: 'absolute',

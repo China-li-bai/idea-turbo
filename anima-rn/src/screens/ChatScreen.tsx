@@ -24,7 +24,7 @@ import type { PetMood } from '../components/LivingUI'
 
 export type InitPhase = 'idle' | 'downloading' | 'extracting' | 'loading' | 'memory' | 'ready' | 'error'
 
-function SpatialChatScreenInner() {
+function SpatialChatScreenInner({ navigation }: { navigation?: any }) {
   const {
     messages,
     addMessage,
@@ -353,8 +353,8 @@ function SpatialChatScreenInner() {
         onSendMessage={handleSendMessage}
         onVoiceStart={handleVoiceStart}
         onVoiceEnd={handleVoiceEnd}
-        onNavigateToMemories={() => {}}
-        onNavigateToSettings={() => {}}
+        onNavigateToMemories={() => navigation?.navigate('Memories')}
+        onNavigateToSettings={() => navigation?.navigate('System')}
       />
 
       <DevourAnimation
@@ -370,12 +370,12 @@ function SpatialChatScreenInner() {
   )
 }
 
-export function ChatScreen() {
+export function ChatScreen({ navigation }: { navigation?: any }) {
   return (
     <LivingUIProvider>
       <PetTransitionProvider>
         <PheromoneProvider>
-          <SpatialChatScreenInner />
+          <SpatialChatScreenInner navigation={navigation} />
         </PheromoneProvider>
       </PetTransitionProvider>
     </LivingUIProvider>

@@ -353,7 +353,7 @@ function ListeningBar({ delay, color }: { delay: number; color: string }) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 22,
     left: 0,
     right: 0,
     alignItems: 'center',

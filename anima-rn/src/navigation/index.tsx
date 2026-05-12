@@ -3,7 +3,6 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { StyleSheet } from 'react-native'
 import { ChatScreen, SystemScreen, MemoriesScreen } from '../screens'
-import { HomeScreen } from '../components/HomeScreen'
 import { theme, dark } from '../theme'
 
 export type RootStackParamList = {
@@ -30,7 +29,7 @@ export function AppNavigator() {
       >
         <Stack.Screen
           name="Home"
-          component={HomeScreenWrapper}
+          component={ChatScreen}
           options={{
             gestureEnabled: false,
             animation: 'none',
@@ -74,15 +73,6 @@ export function AppNavigator() {
         />
       </Stack.Navigator>
     </NavigationContainer>
-  )
-}
-
-function HomeScreenWrapper({ navigation }: any) {
-  return (
-    <HomeScreen
-      onNavigateToChat={() => navigation.navigate('Chat')}
-      onNavigateToMap={(scale) => navigation.navigate('Map', { scale })}
-    />
   )
 }
 
