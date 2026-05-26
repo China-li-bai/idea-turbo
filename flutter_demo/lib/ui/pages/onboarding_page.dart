@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../main.dart';
+import '../../data/models/model_config.dart';
 import '../../pet/pet_app_shell.dart';
 
 enum GenesisPhase {
@@ -235,6 +235,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_complete', true);
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

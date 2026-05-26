@@ -14,7 +14,6 @@ class SubliminalGlitch extends StatefulWidget {
 
 class _SubliminalGlitchState extends State<SubliminalGlitch> {
   String _lastGlitchForm = '';
-  bool _showPostGlitchDialog = false;
 
   @override
   void initState() {

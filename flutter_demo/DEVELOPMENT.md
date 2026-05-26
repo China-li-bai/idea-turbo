@@ -513,14 +513,31 @@ npx eas-cli upload \
 
 | 文件 | 说明 |
 |------|------|
-| `lib/main.dart` | 主程序，包含模型下载、聊天界面、OTA 更新 |
+| `lib/main.dart` | 应用入口，路由到 Onboarding 或 PetAppShell |
+| `lib/data/models/model_config.dart` | DevicePerformance、ModelConfig 模型定义及 availableModels 数据 |
+| `lib/data/services/device_performance_service.dart` | 设备性能评估服务 |
+| `lib/data/services/memory_service.dart` | 记忆上下文服务 |
+| `lib/core/di/service_locator.dart` | 依赖注入服务定位器 |
+| `lib/ui/pages/onboarding_page.dart` | 首次使用引导页 |
+| `lib/ui/pages/model_download_page.dart` | 模型下载页面 |
+| `lib/ui/pages/personality_page.dart` | 人格档案页面 |
+| `lib/ui/pages/memory_gallery_page.dart` | 记忆画廊页面 |
+| `lib/pet/pet_store.dart` | 宠物状态管理 (Zero-UI 核心，ChangeNotifier) |
+| `lib/pet/pet_app_shell.dart` | 宠物应用外壳，组装五层渲染 |
+| `lib/pet/layers/*.dart` | 五层渲染架构实现 |
+| `lib/pet/services/ai_service.dart` | LLM 推理服务 (llamadart) |
+| `lib/pet/services/emotional_state.dart` | 情绪状态管理引擎 |
+| `lib/pet/services/text_analysis.dart` | 共享文本分析工具 (detectWarmth/detectHurtful/randomChance) |
+| `lib/pet/services/prompt_builder.dart` | LLM Prompt 构建器 |
+| `lib/pet/services/response_gate.dart` | 响应门控决策引擎 |
+| `lib/pet/services/proactive_engine.dart` | 主动交互触发引擎 |
+| `lib/pet/narrative/narrative_engine.dart` | 叙事引擎（首次交互流程） |
+| `lib/pet/domain/pet_action.dart` | 宠物动作定义与解析 |
+| `lib/pet/domain/vitality_phase.dart` | 活力状态定义 |
 | `app.json` | Expo/EAS 项目配置 |
 | `eas.json` | EAS Submit 配置 |
 | `pubspec.yaml` | Flutter 依赖配置 |
 | `android/app/build.gradle.kts` | Android 构建配置 |
-| `lib/pet/pet_store.dart` | 宠物状态管理 (Zero-UI 核心) |
-| `lib/pet/pet_app_shell.dart` | 宠物应用外壳 |
-| `lib/pet/layers/*.dart` | 五层渲染架构实现 |
 
 ---
 
@@ -618,9 +635,169 @@ flutter analyze lib/pet/
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| **1.2.0** | 2026-05-25 | ✅ 代码重构：main.dart 拆分、死代码清理、共享工具提取、Timer 泄漏修复、flutter analyze 零问题 |
 | **1.1.0** | 2026-04-29 | ✅ Zero-UI 宠物系统（五层架构、手势交互、浮动字幕） |
 | **1.0.0** | 2026-04-27 | 初始版本（聊天界面 + 模型下载 + OTA 更新） |
 
 ---
 
-*最后更新: 2026-04-29*
+## 8. 代码架构与最佳实践 (2026-05-25 新增)
+
+### 8.1 项目目录结构
+
+```
+lib/
+├── main.dart                          # 应用入口
+├── core/di/service_locator.dart       # 依赖注入
+├── data/
+│   ├── models/model_config.dart       # 模型配置 & 设备性能数据模型
+│   └── services/
+│       ├── device_performance_service.dart  # 设备性能评估
+│       └── memory_service.dart        # 记忆上下文服务
+├── pet/
+│   ├── pet_store.dart                 # 核心状态管理 (ChangeNotifier)
+│   ├── pet_app_shell.dart             # 应用外壳 (五层渲染组装)
+│   ├── domain/                        # 领域模型
+│   │   ├── pet_action.dart            # 宠物动作定义与解析
+│   │   └── vitality_phase.dart        # 活力状态定义
+│   ├── layers/                        # 五层渲染架构
+│   │   ├── habitat_layer.dart         # 背景层
+│   │   ├── entity_layer.dart          # 实体层 (宠物本体)
+│   │   ├── gesture_layer.dart         # 手势层 (交互)
+│   │   ├── spatial_ui_layer.dart      # 空间 UI 层
+│   │   ├── hud_layer.dart             # HUD 层
+│   │   ├── emotion_lens.dart          # 情绪透镜
+│   │   ├── resonance_mandala.dart     # 共振曼陀罗
+│   │   └── subliminal_glitch.dart     # 潜意识故障
+│   ├── narrative/                     # 叙事引擎
+│   │   ├── narrative_engine.dart      # 首次交互叙事
+│   │   └── first_time_narrative.dart  # 首次交互数据
+│   └── services/                      # 业务服务
+│       ├── ai_service.dart            # LLM 推理
+│       ├── emotional_state.dart       # 情绪状态引擎
+│       ├── text_analysis.dart         # 共享文本分析 (DRY)
+│       ├── prompt_builder.dart        # Prompt 构建
+│       ├── response_gate.dart         # 响应门控
+│       └── proactive_engine.dart      # 主动交互引擎
+└── ui/
+    ├── pages/
+    │   ├── onboarding_page.dart       # 引导页
+    │   ├── model_download_page.dart   # 模型下载页
+    │   ├── personality_page.dart      # 人格档案页
+    │   └── memory_gallery_page.dart   # 记忆画廊页
+    └── widgets/
+        ├── awakening_card.dart        # 觉醒卡片
+        └── vitality_bar.dart          # 活力条
+```
+
+### 8.2 关键最佳实践
+
+#### StatelessWidget vs StatefulWidget
+
+**规则**: 如果 widget 的 `build()` 方法内有可变状态（如 `DateTime? lastTapTime`），必须使用 `StatefulWidget`，将状态移到 State 类中。StatelessWidget 的 `build()` 每次重建都会重置局部变量。
+
+```dart
+// ❌ 错误：StatelessWidget 中使用可变局部变量
+class GestureLayer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    DateTime? lastTapTime; // 每次 rebuild 都会重置！
+  }
+}
+
+// ✅ 正确：StatefulWidget 管理可变状态
+class GestureLayer extends StatefulWidget {
+  @override
+  State<GestureLayer> createState() => _GestureLayerState();
+}
+class _GestureLayerState extends State<GestureLayer> {
+  DateTime? _lastTapTime; // 状态持久化
+}
+```
+
+#### Timer 泄漏防护
+
+**规则**: 连续创建多个 Timer 时，必须先取消前一个，或使用嵌套回调确保串行执行。
+
+```dart
+// ❌ 错误：Timer 覆盖导致泄漏
+_lineTimer = Timer(Duration(milliseconds: 2000), () { /* A */ });
+_lineTimer = Timer(Duration(milliseconds: 3500), () { /* B */ }); // A 的引用丢失！
+
+// ✅ 正确：嵌套回调确保串行
+_lineTimer?.cancel();
+_lineTimer = Timer(Duration(milliseconds: 2000), () {
+  // A 完成后
+  _lineTimer?.cancel();
+  _lineTimer = Timer(Duration(milliseconds: 1500), () {
+    // B 完成后
+  });
+});
+```
+
+#### async void vs Future<void>
+
+**规则**: 异步方法必须返回 `Future<void>` 而非 `void`，否则异常无法被捕获。
+
+```dart
+// ❌ 错误：async void 异常会静默丢失
+void loadFirstTimeState() async { ... }
+
+// ✅ 正确：返回 Future<void>，调用方可 await 和 try-catch
+Future<void> loadFirstTimeState() async { ... }
+```
+
+#### DRY 原则 — 共享工具类
+
+**规则**: 重复的工具方法（如文本检测、随机概率）应提取到共享模块，避免多处维护同一逻辑。
+
+```dart
+// lib/pet/services/text_analysis.dart
+bool detectWarmth(String content) { ... }
+bool detectHurtful(String content) { ... }
+bool randomChance(double probability) { ... }
+
+// 各处使用
+import 'text_analysis.dart';
+bool _detectWarmth(String content) => detectWarmth(content);
+```
+
+#### BuildContext 跨 async 使用
+
+**规则**: 在 `await` 之后使用 `context` 前，必须检查 `mounted`。
+
+```dart
+await someAsyncOperation();
+if (!mounted) return; // 必须检查！
+Navigator.push(context, ...);
+```
+
+#### 单一职责 — main.dart 保持精简
+
+**规则**: `main.dart` 只包含入口逻辑（MyApp + _AppEntry），所有页面、模型、服务拆分到对应目录。
+
+### 8.3 Flutter SDK 安装 (macOS)
+
+```bash
+# 使用中国镜像下载（约 10MB/s）
+curl -L -o flutter_sdk.zip \
+  "https://storage.flutter-io.cn/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.32.5-stable.zip"
+
+# 解压
+unzip flutter_sdk.zip
+
+# 配置环境变量（写入 ~/.zshrc）
+echo 'export PUB_HOSTED_URL=https://pub.flutter-io.cn' >> ~/.zshrc
+echo 'export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn' >> ~/.zshrc
+echo 'export PATH="$HOME/flutter/bin:$PATH"' >> ~/.zshrc
+
+# 升级到最新版
+flutter upgrade
+
+# 验证
+flutter --version   # Flutter 3.44.0 • Dart 3.12.0
+```
+
+---
+
+*最后更新: 2026-05-25*

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'emotional_state.dart';
+import 'text_analysis.dart';
 import '../domain/pet_action.dart';
 import '../domain/vitality_phase.dart';
 
@@ -196,7 +197,5 @@ class ResponseGate {
     return actions[Random().nextInt(actions.length)];
   }
 
-  bool _randomChance(double probability) {
-    return Random().nextDouble() < probability;
-  }
+  bool _randomChance(double probability) => randomChance(probability);
 }

@@ -103,7 +103,6 @@ class ActionParser {
   static ParsedResponse parse(String rawOutput) {
     final actions = <PetAction>[];
     final textParts = <String>[];
-    var remaining = rawOutput;
 
     for (final match in _actionPattern.allMatches(rawOutput)) {
       final actionText = match.group(1)!;

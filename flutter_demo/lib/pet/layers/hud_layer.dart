@@ -421,7 +421,7 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
               children: [
                 _buildVitalityPhaseIndicator(),
                 const SizedBox(width: 8),
-                if (widget.store.vitalityState != null)
+                if (widget.store.vitalityState case _)
                   _buildVitalityToggle(),
               ],
             ),
@@ -711,12 +711,12 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (vitality != null) ...[
-                    _reportRow('⚡ 能量', '${(vitality.socialEnergy * 100).toInt()}%'),
-                    _reportRow('💛 心情', '${(vitality.emotionalBattery * 100).toInt()}%'),
+                  if (vitality case final v) ...[
+                    _reportRow('⚡ 能量', '${(v.socialEnergy * 100).toInt()}%'),
+                    _reportRow('💛 心情', '${(v.emotionalBattery * 100).toInt()}%'),
                     _reportRow('💬 互动', '${widget.store.interactionCount} 次'),
                   ],
-                  if (personality != null && personality.hasAwakened) ...[
+                  if (personality.hasAwakened) ...[
                     const SizedBox(height: 8),
                     _reportRow('🌟 人格', _archetypeShortName(personality.currentArchetype)),
                   ],
@@ -787,10 +787,10 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_showVitality && widget.store.vitalityState != null)
+          if (_showVitality)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: VitalityBar(state: widget.store.vitalityState!),
+              child: VitalityBar(state: widget.store.vitalityState),
             ),
           AnimatedBuilder(
             animation: _inputController,

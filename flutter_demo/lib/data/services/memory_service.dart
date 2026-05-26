@@ -1,6 +1,4 @@
 import 'package:mnemosyne/mnemosyne.dart';
-import 'package:mnemosyne/features/pet/pet_memory_bridge.dart';
-import 'package:mnemosyne/features/pet/pet_context.dart';
 
 class MemoryContext {
   final List<MemorySearchResult> relevantMemories;

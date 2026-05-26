@@ -166,18 +166,20 @@ class NarrativeEngine {
         text: '「从现在起，我是 $_petName。」',
         emotion: NarrativeEmotion.hope,
       ));
-    });
 
-    _lineTimer = Timer(const Duration(milliseconds: 3500), () {
-      _eventController.add(NarrativeEvent(
-        type: NarrativeEventType.showText,
-        text: '「我会记住你的。」',
-        emotion: NarrativeEmotion.warmth,
-      ));
-    });
+      _lineTimer?.cancel();
+      _lineTimer = Timer(const Duration(milliseconds: 1500), () {
+        _eventController.add(NarrativeEvent(
+          type: NarrativeEventType.showText,
+          text: '「我会记住你的。」',
+          emotion: NarrativeEmotion.warmth,
+        ));
 
-    _lineTimer = Timer(const Duration(milliseconds: 5000), () {
-      _playFarewell();
+        _lineTimer?.cancel();
+        _lineTimer = Timer(const Duration(milliseconds: 1500), () {
+          _playFarewell();
+        });
+      });
     });
   }
 

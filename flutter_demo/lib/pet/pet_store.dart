@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/emotional_state.dart';
 import 'services/response_gate.dart';
 import 'services/proactive_engine.dart';
+import 'services/text_analysis.dart';
 import 'domain/pet_action.dart';
 import 'domain/vitality_phase.dart';
 import 'narrative/first_time_narrative.dart';
@@ -270,26 +271,9 @@ class PetStore extends ChangeNotifier {
     _lastVitalityDecayAt = DateTime.now();
   }
 
-  bool _detectWarmth(String content) {
-    final lower = content.toLowerCase();
-    const patterns = [
-      '想你', '担心你', '在乎你', '喜欢你', '谢谢你',
-      '对不起', '抱歉', '我错了', '回来', '别走',
-      '陪着你', '我在', '不会走', '你很重要',
-    ];
-    return patterns.any((p) => lower.contains(p));
-  }
+  bool _detectWarmth(String content) => detectWarmth(content);
 
-  bool _detectHurtful(String content) {
-    final lower = content.toLowerCase();
-    const patterns = [
-      '闭嘴', '烦死了', '滚', '讨厌你', '你好烦',
-      '别说了', '够了', '不想理你', '你很烦', '走开',
-      '没用的东西', '废物', '假', '你只是', '你不过',
-      '算了', '无所谓', '随便吧',
-    ];
-    return patterns.any((p) => lower.contains(p));
-  }
+  bool _detectHurtful(String content) => detectHurtful(content);
 
   ResponseDecision gateResponse(String userMessage) {
     final gate = ResponseGate(_emotionalState, vitalityPhase: vitalityPhase);
@@ -380,10 +364,10 @@ class PetStore extends ChangeNotifier {
     final depth = (relationshipState.echoDepth * 100).toStringAsFixed(1);
     final instability = (geneticInstability * 100).toStringAsFixed(1);
     final phase = relationshipState.phase.displayName;
-    _emotionLensLine = '[分析交互流...] -> 回响深度: ${depth}% '
+    _emotionLensLine = '[分析交互流...] -> 回响深度: $depth% '
         '-> 当前阶段: $phase '
         '-> 回响数量: ${relationshipState.echoes.length} '
-        '-> 基因不稳定性: ${instability}%';
+        '-> 基因不稳定性: $instability%';
   }
 
   void refreshEmotionLens() {
@@ -422,7 +406,7 @@ class PetStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _persistFirstTime() async {
+  Future<void> _persistFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('first_pet_interaction', false);
     if (_petName != null) {
@@ -430,7 +414,7 @@ class PetStore extends ChangeNotifier {
     }
   }
 
-  void loadFirstTimeState() async {
+  Future<void> loadFirstTimeState() async {
     final prefs = await SharedPreferences.getInstance();
     _isFirstTime = prefs.getBool('first_pet_interaction') ?? true;
     _petName = prefs.getString('pet_name');

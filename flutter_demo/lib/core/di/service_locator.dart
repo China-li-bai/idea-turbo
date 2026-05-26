@@ -1,6 +1,4 @@
 import 'package:mnemosyne/mnemosyne.dart';
-import 'package:mnemosyne/mnemosyne_class.dart';
-import 'package:mnemosyne/features/pet/pet_memory_bridge.dart';
 import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 import 'package:mnemosyne/features/pet/vitality/resonance_service.dart';
