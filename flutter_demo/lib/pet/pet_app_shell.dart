@@ -22,6 +22,7 @@ import '../core/di/service_locator.dart';
 import '../data/services/memory_service.dart';
 import '../ui/pages/memory_gallery_page.dart';
 import '../ui/pages/personality_page.dart';
+import '../ui/pages/diary_page.dart';
 import '../ui/widgets/awakening_card.dart';
 
 class PetAppShell extends StatefulWidget {
@@ -73,6 +74,7 @@ class _PetAppShellState extends State<PetAppShell> {
 
       _aiService.setEmotionalState(_store.emotionalState);
       _aiService.setVitalityPhase(_store.vitalityPhase);
+      _aiService.setPersonalityProfile(_store.personalityProfile);
 
       if (!mounted) return;
       setState(() {
@@ -108,6 +110,7 @@ class _PetAppShellState extends State<PetAppShell> {
     _store.onInteraction(message);
     _aiService.setEmotionalState(_store.emotionalState);
     _aiService.setVitalityPhase(_store.vitalityPhase);
+    _aiService.setPersonalityProfile(_store.personalityProfile);
 
     final decision = _store.gateResponse(message);
 
@@ -137,6 +140,7 @@ class _PetAppShellState extends State<PetAppShell> {
     final moodHint = _promptBuilder.buildOverridePrompt(
       emotionalState: _store.emotionalState,
       additionalHint: decision.moodHint,
+      personalityProfile: _store.personalityProfile,
     );
 
     final result = await _aiService.generateResponse(
@@ -301,6 +305,28 @@ class _PetAppShellState extends State<PetAppShell> {
     );
   }
 
+  void _openDiary() {
+    final diaryService = _locator.diaryService;
+    final entries = diaryService.getAllEntries('zhenyue');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DiaryPage(
+          entries: entries,
+          onGenerateDiary: () async {
+            final petContext = _buildPetContext();
+            final profile = _store.personalityProfile;
+            await diaryService.generateDailyDiary(
+              'zhenyue',
+              petContext,
+              [],
+              personality: profile,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
@@ -335,6 +361,7 @@ class _PetAppShellState extends State<PetAppShell> {
               onSendMessage: _handleSendMessage,
               onOpenGallery: _openGallery,
               onOpenPersonality: _openPersonality,
+              onOpenDiary: _openDiary,
             ),
             if (_store.isAwakeningAnimation && _store.awakeningResult != null)
               AwakeningCard(

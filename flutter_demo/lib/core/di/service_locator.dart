@@ -18,6 +18,7 @@ class ServiceLocator {
   DefaultPersonalityAwakeningService? _personalityService;
   DefaultResonanceService? _resonanceService;
   PetRepositoryImpl? _petRepository;
+  DefaultPetDiaryService? _diaryService;
 
   bool _isInitialized = false;
 
@@ -51,6 +52,11 @@ class ServiceLocator {
     return _petRepository!;
   }
 
+  DefaultPetDiaryService get diaryService {
+    if (_diaryService == null) throw StateError('ServiceLocator not initialized');
+    return _diaryService!;
+  }
+
   bool get isInitialized => _isInitialized;
 
   Future<void> initialize({String? directoryOverride}) async {
@@ -63,6 +69,8 @@ class ServiceLocator {
 
     _vitalityService = DefaultVitalityService();
     _personalityService = DefaultPersonalityAwakeningService();
+
+    _diaryService = DefaultPetDiaryService();
 
     final prefs = await SharedPreferences.getInstance();
     _resonanceService = DefaultResonanceService(
@@ -101,6 +109,7 @@ class ServiceLocator {
     _personalityService = null;
     _resonanceService = null;
     _petRepository = null;
+    _diaryService = null;
     _isInitialized = false;
   }
 }

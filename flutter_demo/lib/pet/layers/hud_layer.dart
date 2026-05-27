@@ -14,6 +14,7 @@ class HUDLayer extends StatefulWidget {
   final Future<({String response, dynamic memoryContext})> Function(String) onSendMessage;
   final VoidCallback? onOpenGallery;
   final VoidCallback? onOpenPersonality;
+  final VoidCallback? onOpenDiary;
 
   const HUDLayer({
     super.key,
@@ -21,6 +22,7 @@ class HUDLayer extends StatefulWidget {
     required this.onSendMessage,
     this.onOpenGallery,
     this.onOpenPersonality,
+    this.onOpenDiary,
   });
 
   @override
@@ -597,6 +599,16 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onOpenPersonality?.call();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _menuItem(
+                  icon: Icons.auto_stories,
+                  label: '内心独白',
+                  subtitle: '阅读宠物的日记与梦境',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    widget.onOpenDiary?.call();
                   },
                 ),
                 const SizedBox(height: 12),
