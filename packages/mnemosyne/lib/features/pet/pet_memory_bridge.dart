@@ -123,16 +123,20 @@ class PetMemoryBridge {
       topics: topics,
       embedding: embedding,
       xiangContext: xiangContext,
-      weather: petContext.weather,
-      temperature: petContext.temperature,
-      activity: petContext.activity ?? petContext.activityDescription,
-      location: petContext.location ?? petContext.locationDescription,
-      ambientMood: petContext.ambientMood,
-      innerState: innerState,
-      relationshipState: relationshipState,
-      eventShape: eventShape,
-      changeSignal: changeSignal,
-      recallCues: recallCues,
+      weather: config.enableXiangContext ? petContext.weather : null,
+      temperature: config.enableXiangContext ? petContext.temperature : null,
+      activity: config.enableXiangContext
+          ? petContext.activity ?? petContext.activityDescription
+          : null,
+      location: config.enableXiangContext
+          ? petContext.location ?? petContext.locationDescription
+          : null,
+      ambientMood: config.enableXiangContext ? petContext.ambientMood : null,
+      innerState: config.enableXiangContext ? innerState : null,
+      relationshipState: config.enableXiangContext ? relationshipState : null,
+      eventShape: config.enableXiangContext ? eventShape : null,
+      changeSignal: config.enableXiangContext ? changeSignal : null,
+      recallCues: config.enableXiangContext ? recallCues : null,
       metadata: metadata,
     );
   }
