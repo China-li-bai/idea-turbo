@@ -17,7 +17,8 @@ class XiangProfile {
     required this.blurredTags,
   });
 
-  double clarityFor(String category) => fieldClarity[category] ?? overallClarity;
+  double clarityFor(String category) =>
+      fieldClarity[category] ?? overallClarity;
 
   bool get isFuzzy => overallClarity < 0.5;
 
@@ -42,11 +43,11 @@ class ResonanceResult {
   });
 
   static ResonanceResult noResonance(String memoryId) => ResonanceResult(
-        memoryId: memoryId,
-        resonanceScore: 0.0,
-        boost: 1.0,
-        dimensionScores: const {},
-        triggeredDimensions: const [],
-        isSceneTriggered: false,
-      );
+    memoryId: memoryId,
+    resonanceScore: 0.0,
+    boost: 1.0,
+    dimensionScores: const {},
+    triggeredDimensions: const [],
+    isSceneTriggered: false,
+  );
 }

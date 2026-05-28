@@ -23,16 +23,19 @@ class Mnemosyne {
     required MemoryService memoryService,
     required KeywordExtractorService keywordExtractor,
     XiangPlugin? xiangPlugin,
-  })  : _memoryService = memoryService,
-        _keywordExtractor = keywordExtractor,
-        _xiangPlugin = xiangPlugin;
+  }) : _memoryService = memoryService,
+       _keywordExtractor = keywordExtractor,
+       _xiangPlugin = xiangPlugin;
 
   factory Mnemosyne({
     MnemosyneConfig config = const MnemosyneConfig(),
     XiangPlugin? xiangPlugin,
     String? directoryOverride,
   }) {
-    final datasource = ObjectBoxMemoryDataSource(config, directoryOverride: directoryOverride);
+    final datasource = ObjectBoxMemoryDataSource(
+      config,
+      directoryOverride: directoryOverride,
+    );
     return Mnemosyne._internal(
       config: config,
       memoryService: MemoryService.withDatasource(
@@ -79,19 +82,31 @@ class Mnemosyne {
     String? activity,
     String? location,
     String? ambientMood,
+    String? innerState,
+    String? relationshipState,
+    String? eventShape,
+    String? changeSignal,
     List<SensoryTag>? sensoryTags,
+    List<SensoryTag>? recallCues,
   }) async {
     _ensureInitialized();
-    final extractedKeywords = keywords ?? _keywordExtractor.extractKeywords(content);
+    final extractedKeywords =
+        keywords ?? _keywordExtractor.extractKeywords(content);
 
     XiangContext? effectiveXiang = xiangContext;
     if (effectiveXiang == null && _xiangPlugin != null) {
-      final hasAnyContext = weather != null ||
+      final hasAnyContext =
+          weather != null ||
           temperature != null ||
           activity != null ||
           location != null ||
           ambientMood != null ||
-          (sensoryTags != null && sensoryTags.isNotEmpty);
+          innerState != null ||
+          relationshipState != null ||
+          eventShape != null ||
+          changeSignal != null ||
+          (sensoryTags != null && sensoryTags.isNotEmpty) ||
+          (recallCues != null && recallCues.isNotEmpty);
       if (hasAnyContext) {
         effectiveXiang = _xiangPlugin.captureContext(
           weather: weather,
@@ -99,7 +114,12 @@ class Mnemosyne {
           activity: activity,
           location: location,
           ambientMood: ambientMood,
+          innerState: innerState,
+          relationshipState: relationshipState,
+          eventShape: eventShape,
+          changeSignal: changeSignal,
           sensoryTags: sensoryTags,
+          recallCues: recallCues,
         );
       }
     }
@@ -142,14 +162,25 @@ class Mnemosyne {
   }) async {
     _ensureInitialized();
 
-    if (_xiangRetrievalEngine != null && queryEmbedding != null && queryEmbedding.isNotEmpty) {
-      return await _xiangRetrievalEngine!.retrieve(
-        query: query,
-        queryEmbedding: queryEmbedding,
-        currentContext: currentContext ?? EncodingContext.capture(),
-        currentXiangContext: currentXiangContext,
-        limit: limit,
-      );
+    if (_xiangRetrievalEngine != null) {
+      if (queryEmbedding != null && queryEmbedding.isNotEmpty) {
+        return await _xiangRetrievalEngine!.retrieve(
+          query: query,
+          queryEmbedding: queryEmbedding,
+          currentContext: currentContext ?? EncodingContext.capture(),
+          currentXiangContext: currentXiangContext,
+          limit: limit,
+        );
+      }
+
+      if (currentXiangContext != null) {
+        return await recallByXiang(
+          query: query,
+          currentXiangContext: currentXiangContext,
+          currentContext: currentContext,
+          limit: limit,
+        );
+      }
     }
 
     return await _memoryService.searchMemories(
@@ -158,6 +189,63 @@ class Mnemosyne {
       currentContext: currentContext ?? EncodingContext.capture(),
       limit: limit,
     );
+  }
+
+  Future<List<MemorySearchResult>> recallByXiang({
+    String query = '',
+    required XiangContext currentXiangContext,
+    EncodingContext? currentContext,
+    int limit = 10,
+    bool includeWeakMatches = false,
+  }) async {
+    _ensureInitialized();
+    final plugin = _xiangPlugin;
+    if (plugin == null) return [];
+
+    final memories = await _memoryService.getActiveMemories();
+    final now = DateTime.now();
+    final queryTokens = _tokenizeQuery(query);
+
+    final candidates = <MemorySearchResult>[];
+    for (final memory in memories) {
+      final xiangContext = XiangContext.fromMemoryMetadata(memory.metadata);
+      if (xiangContext == null) continue;
+
+      final textSignal = queryTokens.isEmpty
+          ? 0.0
+          : _textSignal(memory, queryTokens);
+      final baseline = (0.15 + memory.importance * 0.5 + textSignal * 0.35)
+          .clamp(0.05, 1.0)
+          .toDouble();
+
+      candidates.add(
+        MemorySearchResult(
+          memory: memory,
+          totalScore: baseline,
+          semanticScore: 0.0,
+          keywordScore: textSignal,
+          recencyScore: 0.0,
+          importanceScore: memory.importance,
+          contextMatchScore: 0.0,
+        ),
+      );
+    }
+
+    final rescored = plugin.rescore(
+      candidates,
+      currentContext ?? EncodingContext.capture(),
+      currentXiangContext,
+      now,
+    );
+
+    final threshold = plugin.config.resonanceThreshold;
+    return rescored
+        .where(
+          (result) =>
+              includeWeakMatches || result.contextMatchScore >= threshold,
+        )
+        .take(limit)
+        .toList();
   }
 
   Future<List<MemorySearchResult>> recallWithScene({
@@ -169,7 +257,12 @@ class Mnemosyne {
     String? activity,
     String? location,
     String? ambientMood,
+    String? innerState,
+    String? relationshipState,
+    String? eventShape,
+    String? changeSignal,
     List<SensoryTag>? sensoryTags,
+    List<SensoryTag>? recallCues,
     int limit = 10,
   }) async {
     _ensureInitialized();
@@ -182,7 +275,12 @@ class Mnemosyne {
         activity: activity,
         location: location,
         ambientMood: ambientMood,
+        innerState: innerState,
+        relationshipState: relationshipState,
+        eventShape: eventShape,
+        changeSignal: changeSignal,
         sensoryTags: sensoryTags,
+        recallCues: recallCues,
       );
     }
 
@@ -193,6 +291,31 @@ class Mnemosyne {
       currentXiangContext: xiangCtx,
       limit: limit,
     );
+  }
+
+  List<String> _tokenizeQuery(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return const [];
+    return normalized
+        .split(RegExp(r'[\s,，。.!！？?;；:：]+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+  }
+
+  double _textSignal(MemoryItem memory, List<String> tokens) {
+    if (tokens.isEmpty) return 0.0;
+    final searchable = [
+      memory.content,
+      ...memory.keywords,
+      ...memory.entities,
+      ...memory.topics,
+    ].join(' ').toLowerCase();
+
+    var matches = 0;
+    for (final token in tokens) {
+      if (searchable.contains(token)) matches++;
+    }
+    return (matches / tokens.length).clamp(0.0, 1.0).toDouble();
   }
 
   Future<List<MemoryItem>> getRecent({int limit = 20}) async {
@@ -279,7 +402,9 @@ class Mnemosyne {
 
   void _ensureInitialized() {
     if (!_isInitialized) {
-      throw StateError('Mnemosyne is not initialized. Call initialize() first.');
+      throw StateError(
+        'Mnemosyne is not initialized. Call initialize() first.',
+      );
     }
   }
 }

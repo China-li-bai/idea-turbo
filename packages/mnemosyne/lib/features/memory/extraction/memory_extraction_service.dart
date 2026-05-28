@@ -28,14 +28,25 @@ class ExtractionConfig {
   "entities": ["实体1", "实体2"],
   "topics": ["话题1", "话题2"],
   "emotionalValence": -0.6,
-  "importance": 0.7
+  "importance": 0.7,
+  "extra": {
+    "xiang": {
+      "innerState": "用户内在状态，如孤独、期待、烦躁、安心",
+      "relationshipState": "关系状态，如信任、疏远、依赖、试探",
+      "eventShape": "事件之象，如confession、promise、conflict、ritual、preference",
+      "changeSignal": "变化之象，如becoming_closer、withdrawing、awakening",
+      "recallCues": ["后续可触发回忆的词、场景、时间、地点、语气"]
+    }
+  }
 }
 
 规则：
 1. emotionalValence 范围 [-1.0, 1.0]，负面情绪为负值
 2. importance 范围 [0.0, 1.0]，涉及核心偏好/重大事件时更高
 3. 如果对话中没有有价值的信息，返回空JSON: {}
-4. 绝不编造对话中不存在的信息
+4. extra.xiang 只提取对话中明确出现或强烈暗示的象，不确定就省略字段
+5. recallCues 应该短、具体、可复现，例如"雨夜"、"不想回消息"、"小灯"
+6. 绝不编造对话中不存在的信息
 
 用户对话：
 """;
@@ -47,7 +58,13 @@ abstract class LlmExtractor {
 }
 
 abstract class MemoryExtractionService {
-  Future<RawMessage> ingest(String content, {String? speakerId, String? petId, String source = 'conversation', Map<String, dynamic>? metadata});
+  Future<RawMessage> ingest(
+    String content, {
+    String? speakerId,
+    String? petId,
+    String source = 'conversation',
+    Map<String, dynamic>? metadata,
+  });
   Future<ExtractedInsight?> extractInsight(RawMessage message);
   Future<List<ExtractedInsight>> processBatch(List<RawMessage> messages);
   List<RawMessage> getPendingMessages({int? limit});
@@ -67,7 +84,13 @@ class DefaultMemoryExtractionService implements MemoryExtractionService {
   }) : _llmExtractor = llmExtractor;
 
   @override
-  Future<RawMessage> ingest(String content, {String? speakerId, String? petId, String source = 'conversation', Map<String, dynamic>? metadata}) async {
+  Future<RawMessage> ingest(
+    String content, {
+    String? speakerId,
+    String? petId,
+    String source = 'conversation',
+    Map<String, dynamic>? metadata,
+  }) async {
     final message = RawMessage(
       id: 'raw_${DateTime.now().millisecondsSinceEpoch}_${content.hashCode.abs()}',
       content: content,

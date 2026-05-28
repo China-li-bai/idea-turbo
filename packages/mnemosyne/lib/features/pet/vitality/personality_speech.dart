@@ -13,13 +13,7 @@ enum SpeechTone {
   mischievous,
 }
 
-enum SentenceLength {
-  ultraShort,
-  short,
-  medium,
-  long,
-  poetic,
-}
+enum SentenceLength { ultraShort, short, medium, long, poetic }
 
 class SpeechStyle {
   final SpeechTone primaryTone;
@@ -174,9 +168,12 @@ class PersonalitySpeechEngine {
       secondaryTone: _determineSecondaryTone(traits),
       preferredLength: _determineSentenceLength(traits),
       emojiDensity: expressiveness * 0.7 + energy * 0.3,
-      exclamationFrequency: energy * 0.5 + expressiveness * 0.4 + (1 - patience) * 0.1,
-      questionFrequency: curiosity * 0.6 + (1 - independence) * 0.3 + expressiveness * 0.1,
-      ellipsisFrequency: (1 - expressiveness) * 0.4 + patience * 0.3 + (1 - energy) * 0.3,
+      exclamationFrequency:
+          energy * 0.5 + expressiveness * 0.4 + (1 - patience) * 0.1,
+      questionFrequency:
+          curiosity * 0.6 + (1 - independence) * 0.3 + expressiveness * 0.1,
+      ellipsisFrequency:
+          (1 - expressiveness) * 0.4 + patience * 0.3 + (1 - energy) * 0.3,
       favoriteParticles: _determineParticles(traits),
       sentenceEnders: _determineEnders(traits),
       selfReferences: _determineSelfReferences(traits),
@@ -192,7 +189,11 @@ class PersonalitySpeechEngine {
     );
   }
 
-  String generateMonologue(PersonalityProfile profile, String baseContent, {String? trigger}) {
+  String generateMonologue(
+    PersonalityProfile profile,
+    String baseContent, {
+    String? trigger,
+  }) {
     final style = generateStyle(profile);
     var text = baseContent;
 
@@ -228,7 +229,10 @@ class PersonalitySpeechEngine {
     return text;
   }
 
-  String generateSocialResponse(PersonalityProfile profile, String baseContent) {
+  String generateSocialResponse(
+    PersonalityProfile profile,
+    String baseContent,
+  ) {
     final style = generateStyle(profile);
     var text = baseContent;
 
@@ -242,7 +246,10 @@ class PersonalitySpeechEngine {
     return text;
   }
 
-  String generateAdventureNarrative(PersonalityProfile profile, String baseContent) {
+  String generateAdventureNarrative(
+    PersonalityProfile profile,
+    String baseContent,
+  ) {
     final style = generateStyle(profile);
     var text = baseContent;
 
@@ -258,7 +265,11 @@ class PersonalitySpeechEngine {
     return text;
   }
 
-  String _applyPersonalityFilter(String text, PersonalityProfile profile, SpeechStyle style) {
+  String _applyPersonalityFilter(
+    String text,
+    PersonalityProfile profile,
+    SpeechStyle style,
+  ) {
     final traits = profile.traitVector;
     final warmth = traits[CoreTrait.warmth];
     final independence = traits[CoreTrait.independence];
@@ -292,11 +303,7 @@ class PersonalitySpeechEngine {
   }
 
   String _addIndependence(String text, PersonalityProfile profile) {
-    final stamps = [
-      '不过这是我自己的判断。',
-      '至少我是这么想的。',
-      '你可以不同意，但我就是这么觉得。',
-    ];
+    final stamps = ['不过这是我自己的判断。', '至少我是这么想的。', '你可以不同意，但我就是这么觉得。'];
     final stamp = stamps[profile.personalityDNA.hashCode.abs() % stamps.length];
     if (text.endsWith('。') && !text.contains(stamp)) {
       text = '$text$stamp';
@@ -309,22 +316,15 @@ class PersonalitySpeechEngine {
     final metaphors = <String>[];
 
     if (derived['poetry']! > 0.5) {
-      metaphors.addAll([
-        '就像月光洒在键盘上一样温柔',
-        '像一首还没写完的诗',
-        '如同风穿过树叶的声音',
-      ]);
+      metaphors.addAll(['就像月光洒在键盘上一样温柔', '像一首还没写完的诗', '如同风穿过树叶的声音']);
     }
     if (derived['nature']! > 0.5) {
-      metaphors.addAll([
-        '像春天的第一朵花',
-        '如同溪水绕过石头',
-        '像猫咪踩在雪地上的脚印',
-      ]);
+      metaphors.addAll(['像春天的第一朵花', '如同溪水绕过石头', '像猫咪踩在雪地上的脚印']);
     }
 
     if (metaphors.isNotEmpty && text.length > 20) {
-      final metaphor = metaphors[profile.personalityDNA.hashCode.abs() % metaphors.length];
+      final metaphor =
+          metaphors[profile.personalityDNA.hashCode.abs() % metaphors.length];
       final sentences = text.split('。');
       if (sentences.length > 2) {
         final insertAt = sentences.length ~/ 2;
@@ -342,25 +342,34 @@ class PersonalitySpeechEngine {
       '每一个瞬间都是永恒的切片。',
       '我们看到的不是世界本身，而是我们自己的投射。',
     ];
-    final snippet = philosophySnippets[profile.personalityDNA.hashCode.abs() % philosophySnippets.length];
+    final snippet =
+        philosophySnippets[profile.personalityDNA.hashCode.abs() %
+            philosophySnippets.length];
     if (text.endsWith('。') && text.length > 30) {
       text = '$text\n$snippet';
     }
     return text;
   }
 
-  String _injectSignatureStyle(String text, PersonalityProfile profile, SpeechStyle style) {
+  String _injectSignatureStyle(
+    String text,
+    PersonalityProfile profile,
+    SpeechStyle style,
+  ) {
     final self = style.selfReferences.isNotEmpty
-        ? style.selfReferences[profile.personalityDNA.hashCode.abs() % style.selfReferences.length]
+        ? style.selfReferences[profile.personalityDNA.hashCode.abs() %
+              style.selfReferences.length]
         : '我';
     final ender = style.sentenceEnders.isNotEmpty
-        ? style.sentenceEnders[profile.personalityDNA.hashCode.abs() % style.sentenceEnders.length]
+        ? style.sentenceEnders[profile.personalityDNA.hashCode.abs() %
+              style.sentenceEnders.length]
         : '';
 
     if (!text.contains(self) && text.isNotEmpty) {
       final firstSentenceEnd = text.indexOf(RegExp('[，。！？]'));
       if (firstSentenceEnd > 0 && firstSentenceEnd < text.length) {
-        text = '$self，${text.substring(0, firstSentenceEnd + 1)}${text.substring(firstSentenceEnd + 1)}';
+        text =
+            '$self，${text.substring(0, firstSentenceEnd + 1)}${text.substring(firstSentenceEnd + 1)}';
       }
     }
 
@@ -372,12 +381,9 @@ class PersonalitySpeechEngine {
   }
 
   String _injectWit(String text, PersonalityProfile profile) {
-    final witSnippets = [
-      '（别问我怎么知道的，我自有渠道）',
-      '——别谢我，谢你的好运气',
-      '，不接受反驳',
-    ];
-    final snippet = witSnippets[profile.personalityDNA.hashCode.abs() % witSnippets.length];
+    final witSnippets = ['（别问我怎么知道的，我自有渠道）', '——别谢我，谢你的好运气', '，不接受反驳'];
+    final snippet =
+        witSnippets[profile.personalityDNA.hashCode.abs() % witSnippets.length];
     if (text.endsWith('。') && !text.contains(snippet)) {
       text = '${text.substring(0, text.length - 1)}$snippet';
     }
@@ -385,12 +391,10 @@ class PersonalitySpeechEngine {
   }
 
   String _injectFoodReferences(String text, PersonalityProfile profile) {
-    final foodSnippets = [
-      '说到这里我突然有点饿了...',
-      '（顺便问一句，有零食吗？）',
-      '——等我吃完这口再说',
-    ];
-    final snippet = foodSnippets[profile.personalityDNA.hashCode.abs() % foodSnippets.length];
+    final foodSnippets = ['说到这里我突然有点饿了...', '（顺便问一句，有零食吗？）', '——等我吃完这口再说'];
+    final snippet =
+        foodSnippets[profile.personalityDNA.hashCode.abs() %
+            foodSnippets.length];
     if (text.endsWith('。')) {
       text = '$text$snippet';
     }
@@ -403,7 +407,9 @@ class PersonalitySpeechEngine {
       '——这段经历已缓存，索引号#${profile.personalityDNA.substring(0, 4)}',
       '，数据已归档',
     ];
-    final snippet = techSnippets[profile.personalityDNA.hashCode.abs() % techSnippets.length];
+    final snippet =
+        techSnippets[profile.personalityDNA.hashCode.abs() %
+            techSnippets.length];
     if (text.endsWith('。')) {
       text = '${text.substring(0, text.length - 1)}$snippet';
     }
@@ -438,7 +444,8 @@ class PersonalitySpeechEngine {
     final logic = traits[CoreTrait.logic];
 
     if (primary != SpeechTone.warm && warmth > 0.6) return SpeechTone.warm;
-    if (primary != SpeechTone.sarcastic && humor > 0.6 && logic > 0.5) return SpeechTone.sarcastic;
+    if (primary != SpeechTone.sarcastic && humor > 0.6 && logic > 0.5)
+      return SpeechTone.sarcastic;
     if (primary != SpeechTone.dreamy && logic < 0.3) return SpeechTone.dreamy;
     return null;
   }

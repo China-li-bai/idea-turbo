@@ -27,27 +27,73 @@ class DefaultXiangDecayService implements XiangDecayService {
     final blurredTags = <SensoryTag>[];
 
     if (context.weather != null) {
-      fieldClarity['weather'] = _decayClarity(age, config.weatherDecayHalfLifeDays);
+      fieldClarity['weather'] = _decayClarity(
+        age,
+        config.weatherDecayHalfLifeDays,
+      );
     }
     if (context.temperature != null) {
-      fieldClarity['temperature'] =
-          _decayClarity(age, config.weatherDecayHalfLifeDays * 0.8);
+      fieldClarity['temperature'] = _decayClarity(
+        age,
+        config.weatherDecayHalfLifeDays * 0.8,
+      );
     }
     if (context.activity != null) {
-      fieldClarity['activity'] = _decayClarity(age, config.activityDecayHalfLifeDays);
+      fieldClarity['activity'] = _decayClarity(
+        age,
+        config.activityDecayHalfLifeDays,
+      );
     }
     if (context.location != null) {
-      fieldClarity['location'] = _decayClarity(age, config.locationDecayHalfLifeDays);
+      fieldClarity['location'] = _decayClarity(
+        age,
+        config.locationDecayHalfLifeDays,
+      );
     }
     if (context.ambientMood != null) {
-      fieldClarity['ambientMood'] =
-          _decayClarity(age, config.ambientMoodDecayHalfLifeDays);
+      fieldClarity['ambientMood'] = _decayClarity(
+        age,
+        config.ambientMoodDecayHalfLifeDays,
+      );
+    }
+    if (context.innerState != null) {
+      fieldClarity['innerState'] = _decayClarity(
+        age,
+        config.innerStateDecayHalfLifeDays,
+      );
+    }
+    if (context.relationshipState != null) {
+      fieldClarity['relationshipState'] = _decayClarity(
+        age,
+        config.relationshipStateDecayHalfLifeDays,
+      );
+    }
+    if (context.eventShape != null) {
+      fieldClarity['eventShape'] = _decayClarity(
+        age,
+        config.eventShapeDecayHalfLifeDays,
+      );
+    }
+    if (context.changeSignal != null) {
+      fieldClarity['changeSignal'] = _decayClarity(
+        age,
+        config.changeSignalDecayHalfLifeDays,
+      );
     }
 
     for (final tag in context.sensoryTags) {
       final halfLife = config.decayHalfLifeFor(tag.category);
       final clarity = _decayClarity(age, halfLife);
       blurredTags.add(tag.copyWith(intensity: tag.intensity * clarity));
+    }
+    for (final cue in context.recallCues) {
+      final clarity = _decayClarity(age, config.recallCueDecayHalfLifeDays);
+      blurredTags.add(
+        cue.copyWith(
+          category: cue.category == 'recallCue' ? cue.category : 'recallCue',
+          intensity: cue.intensity * clarity,
+        ),
+      );
     }
 
     final overallClarity = fieldClarity.isEmpty

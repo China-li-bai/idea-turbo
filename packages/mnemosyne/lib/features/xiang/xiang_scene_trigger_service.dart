@@ -25,8 +25,9 @@ class DefaultXiangSceneTriggerService implements XiangSceneTriggerService {
     this.config = const XiangConfig(),
     XiangDecayService? decayService,
     XiangMatcherService? matcherService,
-  })  : decayService = decayService ?? DefaultXiangDecayService(config: config),
-        matcherService = matcherService ?? DefaultXiangMatcherService(config: config);
+  }) : decayService = decayService ?? DefaultXiangDecayService(config: config),
+       matcherService =
+           matcherService ?? DefaultXiangMatcherService(config: config);
 
   @override
   ResonanceResult evaluate(
@@ -58,7 +59,8 @@ class DefaultXiangSceneTriggerService implements XiangSceneTriggerService {
       'encoding': encodingScore,
     };
 
-    final combinedScore = xiangScore * (1.0 - config.encodingContextBridgeWeight) +
+    final combinedScore =
+        xiangScore * (1.0 - config.encodingContextBridgeWeight) +
         encodingScore * config.encodingContextBridgeWeight;
 
     final triggeredDimensions = <String>[];

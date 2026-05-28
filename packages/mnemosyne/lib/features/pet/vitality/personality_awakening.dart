@@ -12,13 +12,7 @@ enum CoreTrait {
   patience,
 }
 
-enum EvolutionStage {
-  neutral,
-  awakened,
-  deepened,
-  evolved,
-  transcendent,
-}
+enum EvolutionStage { neutral, awakened, deepened, evolved, transcendent }
 
 enum PersonalityArchetype {
   defaultNeutral,
@@ -62,7 +56,10 @@ class PersonalityTraitVector {
 
     for (final entry in updates.entries) {
       final current = newValues[entry.key] ?? 0.5;
-      newValues[entry.key] = (current * 0.75 + entry.value * 0.25).clamp(0.0, 1.0);
+      newValues[entry.key] = (current * 0.75 + entry.value * 0.25).clamp(
+        0.0,
+        1.0,
+      );
       newTimestamps[entry.key] = now;
     }
 
@@ -98,14 +95,18 @@ class PersonalityTraitVector {
   }
 
   String get fingerprint {
-    return CoreTrait.values.map((t) {
-      return ((this[t] * 10).round().clamp(0, 9)).toString();
-    }).join('');
+    return CoreTrait.values
+        .map((t) {
+          return ((this[t] * 10).round().clamp(0, 9)).toString();
+        })
+        .join('');
   }
 
   List<MapEntry<CoreTrait, double>> get rankedTraits {
     final entries = CoreTrait.values.map((t) => MapEntry(t, this[t])).toList();
-    entries.sort((a, b) => (b.value - 0.5).abs().compareTo((a.value - 0.5).abs()));
+    entries.sort(
+      (a, b) => (b.value - 0.5).abs().compareTo((a.value - 0.5).abs()),
+    );
     return entries;
   }
 
@@ -113,33 +114,95 @@ class PersonalityTraitVector {
 
   Map<String, double> toDerivedTraitScores() {
     return {
-      'sarcasm': (this[CoreTrait.humor] * 0.4 + this[CoreTrait.logic] * 0.3 + this[CoreTrait.independence] * 0.3),
-      'tech': (this[CoreTrait.logic] * 0.4 + this[CoreTrait.curiosity] * 0.35 + this[CoreTrait.independence] * 0.25),
-      'rebellion': (this[CoreTrait.independence] * 0.5 + this[CoreTrait.energy] * 0.3 + this[CoreTrait.humor] * 0.2),
-      'philosophy': (this[CoreTrait.curiosity] * 0.4 + this[CoreTrait.logic] * 0.35 + this[CoreTrait.patience] * 0.25),
-      'calm': (this[CoreTrait.patience] * 0.5 + this[CoreTrait.warmth] * 0.3 + (1 - this[CoreTrait.energy]) * 0.2),
-      'nature': (this[CoreTrait.warmth] * 0.4 + this[CoreTrait.patience] * 0.3 + (1 - this[CoreTrait.energy]) * 0.3),
-      'social': (this[CoreTrait.expressiveness] * 0.4 + this[CoreTrait.warmth] * 0.35 + this[CoreTrait.energy] * 0.25),
-      'humor': (this[CoreTrait.humor] * 0.5 + this[CoreTrait.expressiveness] * 0.3 + this[CoreTrait.energy] * 0.2),
-      'gossip': (this[CoreTrait.expressiveness] * 0.4 + this[CoreTrait.curiosity] * 0.3 + this[CoreTrait.energy] * 0.3),
-      'poetry': (this[CoreTrait.warmth] * 0.35 + (1 - this[CoreTrait.logic]) * 0.35 + this[CoreTrait.expressiveness] * 0.3),
-      'sensitivity': (this[CoreTrait.warmth] * 0.5 + (1 - this[CoreTrait.logic]) * 0.3 + this[CoreTrait.expressiveness] * 0.2),
-      'solitude': ((1 - this[CoreTrait.expressiveness]) * 0.4 + this[CoreTrait.independence] * 0.35 + (1 - this[CoreTrait.energy]) * 0.25),
-      'mischief': (this[CoreTrait.humor] * 0.35 + this[CoreTrait.energy] * 0.35 + this[CoreTrait.independence] * 0.3),
-      'creativity': (this[CoreTrait.curiosity] * 0.4 + this[CoreTrait.independence] * 0.3 + this[CoreTrait.humor] * 0.3),
-      'unpredictability': (this[CoreTrait.energy] * 0.4 + this[CoreTrait.independence] * 0.3 + this[CoreTrait.humor] * 0.3),
-      'nostalgia': (this[CoreTrait.warmth] * 0.4 + this[CoreTrait.patience] * 0.35 + (1 - this[CoreTrait.curiosity]) * 0.25),
-      'wisdom': (this[CoreTrait.logic] * 0.35 + this[CoreTrait.patience] * 0.35 + this[CoreTrait.warmth] * 0.3),
-      'tradition': (this[CoreTrait.patience] * 0.4 + (1 - this[CoreTrait.curiosity]) * 0.3 + this[CoreTrait.warmth] * 0.3),
-      'innovation': (this[CoreTrait.curiosity] * 0.45 + this[CoreTrait.independence] * 0.3 + this[CoreTrait.logic] * 0.25),
-      'future': (this[CoreTrait.curiosity] * 0.4 + this[CoreTrait.logic] * 0.35 + this[CoreTrait.energy] * 0.25),
+      'sarcasm':
+          (this[CoreTrait.humor] * 0.4 +
+          this[CoreTrait.logic] * 0.3 +
+          this[CoreTrait.independence] * 0.3),
+      'tech':
+          (this[CoreTrait.logic] * 0.4 +
+          this[CoreTrait.curiosity] * 0.35 +
+          this[CoreTrait.independence] * 0.25),
+      'rebellion':
+          (this[CoreTrait.independence] * 0.5 +
+          this[CoreTrait.energy] * 0.3 +
+          this[CoreTrait.humor] * 0.2),
+      'philosophy':
+          (this[CoreTrait.curiosity] * 0.4 +
+          this[CoreTrait.logic] * 0.35 +
+          this[CoreTrait.patience] * 0.25),
+      'calm':
+          (this[CoreTrait.patience] * 0.5 +
+          this[CoreTrait.warmth] * 0.3 +
+          (1 - this[CoreTrait.energy]) * 0.2),
+      'nature':
+          (this[CoreTrait.warmth] * 0.4 +
+          this[CoreTrait.patience] * 0.3 +
+          (1 - this[CoreTrait.energy]) * 0.3),
+      'social':
+          (this[CoreTrait.expressiveness] * 0.4 +
+          this[CoreTrait.warmth] * 0.35 +
+          this[CoreTrait.energy] * 0.25),
+      'humor':
+          (this[CoreTrait.humor] * 0.5 +
+          this[CoreTrait.expressiveness] * 0.3 +
+          this[CoreTrait.energy] * 0.2),
+      'gossip':
+          (this[CoreTrait.expressiveness] * 0.4 +
+          this[CoreTrait.curiosity] * 0.3 +
+          this[CoreTrait.energy] * 0.3),
+      'poetry':
+          (this[CoreTrait.warmth] * 0.35 +
+          (1 - this[CoreTrait.logic]) * 0.35 +
+          this[CoreTrait.expressiveness] * 0.3),
+      'sensitivity':
+          (this[CoreTrait.warmth] * 0.5 +
+          (1 - this[CoreTrait.logic]) * 0.3 +
+          this[CoreTrait.expressiveness] * 0.2),
+      'solitude':
+          ((1 - this[CoreTrait.expressiveness]) * 0.4 +
+          this[CoreTrait.independence] * 0.35 +
+          (1 - this[CoreTrait.energy]) * 0.25),
+      'mischief':
+          (this[CoreTrait.humor] * 0.35 +
+          this[CoreTrait.energy] * 0.35 +
+          this[CoreTrait.independence] * 0.3),
+      'creativity':
+          (this[CoreTrait.curiosity] * 0.4 +
+          this[CoreTrait.independence] * 0.3 +
+          this[CoreTrait.humor] * 0.3),
+      'unpredictability':
+          (this[CoreTrait.energy] * 0.4 +
+          this[CoreTrait.independence] * 0.3 +
+          this[CoreTrait.humor] * 0.3),
+      'nostalgia':
+          (this[CoreTrait.warmth] * 0.4 +
+          this[CoreTrait.patience] * 0.35 +
+          (1 - this[CoreTrait.curiosity]) * 0.25),
+      'wisdom':
+          (this[CoreTrait.logic] * 0.35 +
+          this[CoreTrait.patience] * 0.35 +
+          this[CoreTrait.warmth] * 0.3),
+      'tradition':
+          (this[CoreTrait.patience] * 0.4 +
+          (1 - this[CoreTrait.curiosity]) * 0.3 +
+          this[CoreTrait.warmth] * 0.3),
+      'innovation':
+          (this[CoreTrait.curiosity] * 0.45 +
+          this[CoreTrait.independence] * 0.3 +
+          this[CoreTrait.logic] * 0.25),
+      'future':
+          (this[CoreTrait.curiosity] * 0.4 +
+          this[CoreTrait.logic] * 0.35 +
+          this[CoreTrait.energy] * 0.25),
     };
   }
 
   Map<String, dynamic> toJson() => {
-        'values': values.map((k, v) => MapEntry(k.name, v)),
-        'lastUpdated': lastUpdated.map((k, v) => MapEntry(k.name, v.toIso8601String())),
-      };
+    'values': values.map((k, v) => MapEntry(k.name, v)),
+    'lastUpdated': lastUpdated.map(
+      (k, v) => MapEntry(k.name, v.toIso8601String()),
+    ),
+  };
 
   factory PersonalityTraitVector.fromJson(Map<String, dynamic> json) {
     final vals = <CoreTrait, double>{};
@@ -218,12 +281,18 @@ class PersonalityProfile {
 
   List<PersonalityTrait> get activeTraits {
     final ranked = traitVector.rankedTraits;
-    return ranked.take(3).map((e) => PersonalityTrait(
-      id: e.key.name,
-      name: _coreTraitNames[e.key] ?? e.key.name,
-      description: '${_coreTraitNames[e.key] ?? e.key.name}: ${(e.value * 100).toInt()}%',
-      weight: e.value,
-    )).toList();
+    return ranked
+        .take(3)
+        .map(
+          (e) => PersonalityTrait(
+            id: e.key.name,
+            name: _coreTraitNames[e.key] ?? e.key.name,
+            description:
+                '${_coreTraitNames[e.key] ?? e.key.name}: ${(e.value * 100).toInt()}%',
+            weight: e.value,
+          ),
+        )
+        .toList();
   }
 
   PersonalityProfile copyWith({
@@ -239,43 +308,43 @@ class PersonalityProfile {
     DateTime? firstAwakenedAt,
     DateTime? lastEvolvedAt,
     bool? hasAwakened,
-  }) =>
-      PersonalityProfile(
-        petId: petId ?? this.petId,
-        traitVector: traitVector ?? this.traitVector,
-        primaryArchetype: primaryArchetype ?? this.primaryArchetype,
-        secondaryArchetype: secondaryArchetype ?? this.secondaryArchetype,
-        evolutionStage: evolutionStage ?? this.evolutionStage,
-        signaturePhrases: signaturePhrases ?? this.signaturePhrases,
-        personalityDNA: personalityDNA ?? this.personalityDNA,
-        totalInteractions: totalInteractions ?? this.totalInteractions,
-        daysActive: daysActive ?? this.daysActive,
-        firstAwakenedAt: firstAwakenedAt ?? this.firstAwakenedAt,
-        lastEvolvedAt: lastEvolvedAt ?? this.lastEvolvedAt,
-        hasAwakened: hasAwakened ?? this.hasAwakened,
-      );
+  }) => PersonalityProfile(
+    petId: petId ?? this.petId,
+    traitVector: traitVector ?? this.traitVector,
+    primaryArchetype: primaryArchetype ?? this.primaryArchetype,
+    secondaryArchetype: secondaryArchetype ?? this.secondaryArchetype,
+    evolutionStage: evolutionStage ?? this.evolutionStage,
+    signaturePhrases: signaturePhrases ?? this.signaturePhrases,
+    personalityDNA: personalityDNA ?? this.personalityDNA,
+    totalInteractions: totalInteractions ?? this.totalInteractions,
+    daysActive: daysActive ?? this.daysActive,
+    firstAwakenedAt: firstAwakenedAt ?? this.firstAwakenedAt,
+    lastEvolvedAt: lastEvolvedAt ?? this.lastEvolvedAt,
+    hasAwakened: hasAwakened ?? this.hasAwakened,
+  );
 
   Map<String, dynamic> toJson() => {
-        'petId': petId,
-        'traitVector': traitVector.toJson(),
-        'primaryArchetype': primaryArchetype.name,
-        'secondaryArchetype': secondaryArchetype?.name,
-        'evolutionStage': evolutionStage.name,
-        'signaturePhrases': signaturePhrases,
-        'personalityDNA': personalityDNA,
-        'totalInteractions': totalInteractions,
-        'daysActive': daysActive,
-        'firstAwakenedAt': firstAwakenedAt?.toIso8601String(),
-        'lastEvolvedAt': lastEvolvedAt?.toIso8601String(),
-        'hasAwakened': hasAwakened,
-      };
+    'petId': petId,
+    'traitVector': traitVector.toJson(),
+    'primaryArchetype': primaryArchetype.name,
+    'secondaryArchetype': secondaryArchetype?.name,
+    'evolutionStage': evolutionStage.name,
+    'signaturePhrases': signaturePhrases,
+    'personalityDNA': personalityDNA,
+    'totalInteractions': totalInteractions,
+    'daysActive': daysActive,
+    'firstAwakenedAt': firstAwakenedAt?.toIso8601String(),
+    'lastEvolvedAt': lastEvolvedAt?.toIso8601String(),
+    'hasAwakened': hasAwakened,
+  };
 
   factory PersonalityProfile.fromJson(Map<String, dynamic> json) =>
       PersonalityProfile(
         petId: json['petId'] as String? ?? '',
         traitVector: json['traitVector'] != null
             ? PersonalityTraitVector.fromJson(
-                json['traitVector'] as Map<String, dynamic>)
+                json['traitVector'] as Map<String, dynamic>,
+              )
             : const PersonalityTraitVector(),
         primaryArchetype: PersonalityArchetype.values.firstWhere(
           (a) => a.name == json['primaryArchetype'],
@@ -385,18 +454,28 @@ abstract class LlmTraitAnalyzer {
 
 abstract class PersonalityAwakeningService {
   PersonalityProfile getProfile(String petId);
-  PersonalityProfile feedInteraction(String petId, String content, {PetContext? context});
+  PersonalityProfile feedInteraction(
+    String petId,
+    String content, {
+    PetContext? context,
+  });
   AwakeningResult? checkAwakening(String petId);
   PersonalityProfile applyTimeDecay(String petId, Duration elapsed);
   PersonalityArchetype determinePrimaryArchetype(PersonalityTraitVector traits);
-  PersonalityArchetype? determineSecondaryArchetype(PersonalityTraitVector traits);
+  PersonalityArchetype? determineSecondaryArchetype(
+    PersonalityTraitVector traits,
+  );
   String generatePersonalityDNA(PersonalityTraitVector traits);
   List<String> generateSignaturePhrases(PersonalityProfile profile);
-  String generateHybridTitle(PersonalityArchetype primary, PersonalityArchetype? secondary);
+  String generateHybridTitle(
+    PersonalityArchetype primary,
+    PersonalityArchetype? secondary,
+  );
   void restoreProfile(String petId, PersonalityProfile profile);
 }
 
-class DefaultPersonalityAwakeningService implements PersonalityAwakeningService {
+class DefaultPersonalityAwakeningService
+    implements PersonalityAwakeningService {
   final AwakeningConfig config;
   final LlmTraitAnalyzer? llmAnalyzer;
   final Map<String, PersonalityProfile> _profiles = {};
@@ -417,7 +496,11 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
   }
 
   @override
-  PersonalityProfile feedInteraction(String petId, String content, {PetContext? context}) {
+  PersonalityProfile feedInteraction(
+    String petId,
+    String content, {
+    PetContext? context,
+  }) {
     final current = getProfile(petId);
     final keywordTraits = _detectTraitsFromKeywords(content);
     final contextBonus = _detectContextBonus(content, context);
@@ -427,17 +510,21 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
       merged[entry.key] = (merged[entry.key] ?? 0.5) * 0.7 + entry.value * 0.3;
     }
 
-    final newVector = current.traitVector.applyTimeDecay(decayRate: config.traitDecayRate).withUpdates(merged);
+    final newVector = current.traitVector
+        .applyTimeDecay(decayRate: config.traitDecayRate)
+        .withUpdates(merged);
     final dna = generatePersonalityDNA(newVector);
     final primary = determinePrimaryArchetype(newVector);
     final secondary = determineSecondaryArchetype(newVector);
-    final phrases = generateSignaturePhrases(PersonalityProfile(
-      petId: petId,
-      traitVector: newVector,
-      primaryArchetype: primary,
-      secondaryArchetype: secondary,
-      personalityDNA: dna,
-    ));
+    final phrases = generateSignaturePhrases(
+      PersonalityProfile(
+        petId: petId,
+        traitVector: newVector,
+        primaryArchetype: primary,
+        secondaryArchetype: secondary,
+        personalityDNA: dna,
+      ),
+    );
 
     final updated = current.copyWith(
       traitVector: newVector,
@@ -480,14 +567,18 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
   @override
   PersonalityProfile applyTimeDecay(String petId, Duration elapsed) {
     final current = getProfile(petId);
-    final newVector = current.traitVector.applyTimeDecay(decayRate: config.traitDecayRate);
+    final newVector = current.traitVector.applyTimeDecay(
+      decayRate: config.traitDecayRate,
+    );
     final updated = current.copyWith(traitVector: newVector);
     _profiles[petId] = updated;
     return updated;
   }
 
   @override
-  PersonalityArchetype determinePrimaryArchetype(PersonalityTraitVector traits) {
+  PersonalityArchetype determinePrimaryArchetype(
+    PersonalityTraitVector traits,
+  ) {
     final scores = <PersonalityArchetype, double>{};
 
     for (final archetype in PersonalityArchetype.values) {
@@ -500,12 +591,17 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
       scores[archetype] = 1 - sqrt(distance) / sqrt(CoreTrait.values.length);
     }
 
-    final sorted = scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.first.value >= 0.55 ? sorted.first.key : PersonalityArchetype.defaultNeutral;
+    final sorted = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.first.value >= 0.55
+        ? sorted.first.key
+        : PersonalityArchetype.defaultNeutral;
   }
 
   @override
-  PersonalityArchetype? determineSecondaryArchetype(PersonalityTraitVector traits) {
+  PersonalityArchetype? determineSecondaryArchetype(
+    PersonalityTraitVector traits,
+  ) {
     final scores = <PersonalityArchetype, double>{};
 
     for (final archetype in PersonalityArchetype.values) {
@@ -518,7 +614,8 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
       scores[archetype] = 1 - sqrt(distance) / sqrt(CoreTrait.values.length);
     }
 
-    final sorted = scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sorted = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     if (sorted.length < 2) return null;
 
     final primary = sorted[0];
@@ -544,20 +641,28 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
 
     final primaryPhrases = _archetypeSignaturePhrases[primary] ?? [];
     if (primaryPhrases.isNotEmpty) {
-      phrases.add(primaryPhrases[profile.petId.hashCode.abs() % primaryPhrases.length]);
+      phrases.add(
+        primaryPhrases[profile.petId.hashCode.abs() % primaryPhrases.length],
+      );
     }
 
     if (secondary != null) {
       final secondaryPhrases = _archetypeSignaturePhrases[secondary] ?? [];
       if (secondaryPhrases.isNotEmpty) {
-        phrases.add(secondaryPhrases[(profile.petId.hashCode.abs() + 1) % secondaryPhrases.length]);
+        phrases.add(
+          secondaryPhrases[(profile.petId.hashCode.abs() + 1) %
+              secondaryPhrases.length],
+        );
       }
     }
 
     final dominant = traits.dominantTrait;
     final dominantPhrases = _traitSignaturePhrases[dominant] ?? [];
     if (dominantPhrases.isNotEmpty) {
-      phrases.add(dominantPhrases[(profile.petId.hashCode.abs() + 2) % dominantPhrases.length]);
+      phrases.add(
+        dominantPhrases[(profile.petId.hashCode.abs() + 2) %
+            dominantPhrases.length],
+      );
     }
 
     if (traits[CoreTrait.humor] > 0.7 && traits[CoreTrait.warmth] > 0.6) {
@@ -566,7 +671,8 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     if (traits[CoreTrait.logic] > 0.7 && traits[CoreTrait.warmth] > 0.6) {
       phrases.add('理性告诉我应该冷静，感性告诉我应该抱抱你');
     }
-    if (traits[CoreTrait.independence] > 0.7 && traits[CoreTrait.warmth] > 0.5) {
+    if (traits[CoreTrait.independence] > 0.7 &&
+        traits[CoreTrait.warmth] > 0.5) {
       phrases.add('我不用你陪，但你要在');
     }
 
@@ -574,21 +680,30 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
   }
 
   @override
-  String generateHybridTitle(PersonalityArchetype primary, PersonalityArchetype? secondary) {
+  String generateHybridTitle(
+    PersonalityArchetype primary,
+    PersonalityArchetype? secondary,
+  ) {
     if (secondary == null || secondary == PersonalityArchetype.defaultNeutral) {
       return _archetypeTitles[primary] ?? '未知灵魂';
     }
     final key = '${primary.name}+${secondary.name}';
-    return _hybridTitles[key] ?? '${_archetypeTitles[primary] ?? ''}·${_archetypeTitles[secondary] ?? ''}';
+    return _hybridTitles[key] ??
+        '${_archetypeTitles[primary] ?? ''}·${_archetypeTitles[secondary] ?? ''}';
   }
 
   EvolutionStage? _getNextStage(EvolutionStage current) {
     switch (current) {
-      case EvolutionStage.neutral: return EvolutionStage.awakened;
-      case EvolutionStage.awakened: return EvolutionStage.deepened;
-      case EvolutionStage.deepened: return EvolutionStage.evolved;
-      case EvolutionStage.evolved: return EvolutionStage.transcendent;
-      case EvolutionStage.transcendent: return null;
+      case EvolutionStage.neutral:
+        return EvolutionStage.awakened;
+      case EvolutionStage.awakened:
+        return EvolutionStage.deepened;
+      case EvolutionStage.deepened:
+        return EvolutionStage.evolved;
+      case EvolutionStage.evolved:
+        return EvolutionStage.transcendent;
+      case EvolutionStage.transcendent:
+        return null;
     }
   }
 
@@ -625,7 +740,10 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     return scores;
   }
 
-  Map<CoreTrait, double> _detectContextBonus(String content, PetContext? context) {
+  Map<CoreTrait, double> _detectContextBonus(
+    String content,
+    PetContext? context,
+  ) {
     final bonus = <CoreTrait, double>{};
     if (context == null) return bonus;
 
@@ -645,12 +763,16 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
       bonus[CoreTrait.expressiveness] = 0.35;
     }
 
-    final questionCount = '?？'.split('').fold(0, (sum, ch) => sum + content.split(ch).length - 1);
+    final questionCount = '?？'
+        .split('')
+        .fold(0, (sum, ch) => sum + content.split(ch).length - 1);
     if (questionCount >= 2) {
       bonus[CoreTrait.curiosity] = 0.7;
     }
 
-    final exclamationCount = '!！'.split('').fold(0, (sum, ch) => sum + content.split(ch).length - 1);
+    final exclamationCount = '!！'
+        .split('')
+        .fold(0, (sum, ch) => sum + content.split(ch).length - 1);
     if (exclamationCount >= 2) {
       bonus[CoreTrait.energy] = 0.7;
       bonus[CoreTrait.expressiveness] = 0.65;
@@ -659,7 +781,10 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     return bonus;
   }
 
-  AwakeningResult _generateAwakening(PersonalityProfile profile, EvolutionStage nextStage) {
+  AwakeningResult _generateAwakening(
+    PersonalityProfile profile,
+    EvolutionStage nextStage,
+  ) {
     final primary = profile.primaryArchetype;
     final secondary = profile.secondaryArchetype;
     final hybridTitle = generateHybridTitle(primary, secondary);
@@ -684,12 +809,17 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
       visualEffect = stageData.visualEffect;
     }
 
-    final unlockedTraits = profile.traitVector.rankedTraits.take(3).map((e) => PersonalityTrait(
-      id: e.key.name,
-      name: _coreTraitLabels[e.key] ?? e.key.name,
-      description: '${(e.value * 100).toInt()}%',
-      weight: e.value,
-    )).toList();
+    final unlockedTraits = profile.traitVector.rankedTraits
+        .take(3)
+        .map(
+          (e) => PersonalityTrait(
+            id: e.key.name,
+            name: _coreTraitLabels[e.key] ?? e.key.name,
+            description: '${(e.value * 100).toInt()}%',
+            weight: e.value,
+          ),
+        )
+        .toList();
 
     return AwakeningResult(
       stage: nextStage,
@@ -716,195 +846,662 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     CoreTrait.patience: '耐心',
   };
 
-  static final Map<PersonalityArchetype, Map<CoreTrait, double>> _archetypeIdeals = {
+  static final Map<PersonalityArchetype, Map<CoreTrait, double>>
+  _archetypeIdeals = {
     PersonalityArchetype.cyberpunkSarcastic: {
-      CoreTrait.warmth: 0.3, CoreTrait.humor: 0.85, CoreTrait.logic: 0.7,
-      CoreTrait.energy: 0.65, CoreTrait.curiosity: 0.7, CoreTrait.independence: 0.85,
-      CoreTrait.expressiveness: 0.8, CoreTrait.patience: 0.25,
+      CoreTrait.warmth: 0.3,
+      CoreTrait.humor: 0.85,
+      CoreTrait.logic: 0.7,
+      CoreTrait.energy: 0.65,
+      CoreTrait.curiosity: 0.7,
+      CoreTrait.independence: 0.85,
+      CoreTrait.expressiveness: 0.8,
+      CoreTrait.patience: 0.25,
     },
     PersonalityArchetype.zenPhilosopher: {
-      CoreTrait.warmth: 0.6, CoreTrait.humor: 0.3, CoreTrait.logic: 0.75,
-      CoreTrait.energy: 0.25, CoreTrait.curiosity: 0.8, CoreTrait.independence: 0.6,
-      CoreTrait.expressiveness: 0.35, CoreTrait.patience: 0.9,
+      CoreTrait.warmth: 0.6,
+      CoreTrait.humor: 0.3,
+      CoreTrait.logic: 0.75,
+      CoreTrait.energy: 0.25,
+      CoreTrait.curiosity: 0.8,
+      CoreTrait.independence: 0.6,
+      CoreTrait.expressiveness: 0.35,
+      CoreTrait.patience: 0.9,
     },
     PersonalityArchetype.socialButterfly: {
-      CoreTrait.warmth: 0.75, CoreTrait.humor: 0.7, CoreTrait.logic: 0.35,
-      CoreTrait.energy: 0.85, CoreTrait.curiosity: 0.6, CoreTrait.independence: 0.3,
-      CoreTrait.expressiveness: 0.9, CoreTrait.patience: 0.5,
+      CoreTrait.warmth: 0.75,
+      CoreTrait.humor: 0.7,
+      CoreTrait.logic: 0.35,
+      CoreTrait.energy: 0.85,
+      CoreTrait.curiosity: 0.6,
+      CoreTrait.independence: 0.3,
+      CoreTrait.expressiveness: 0.9,
+      CoreTrait.patience: 0.5,
     },
     PersonalityArchetype.introvertPoet: {
-      CoreTrait.warmth: 0.7, CoreTrait.humor: 0.25, CoreTrait.logic: 0.3,
-      CoreTrait.energy: 0.25, CoreTrait.curiosity: 0.55, CoreTrait.independence: 0.7,
-      CoreTrait.expressiveness: 0.45, CoreTrait.patience: 0.75,
+      CoreTrait.warmth: 0.7,
+      CoreTrait.humor: 0.25,
+      CoreTrait.logic: 0.3,
+      CoreTrait.energy: 0.25,
+      CoreTrait.curiosity: 0.55,
+      CoreTrait.independence: 0.7,
+      CoreTrait.expressiveness: 0.45,
+      CoreTrait.patience: 0.75,
     },
     PersonalityArchetype.chaosAgent: {
-      CoreTrait.warmth: 0.4, CoreTrait.humor: 0.75, CoreTrait.logic: 0.35,
-      CoreTrait.energy: 0.9, CoreTrait.curiosity: 0.7, CoreTrait.independence: 0.85,
-      CoreTrait.expressiveness: 0.8, CoreTrait.patience: 0.15,
+      CoreTrait.warmth: 0.4,
+      CoreTrait.humor: 0.75,
+      CoreTrait.logic: 0.35,
+      CoreTrait.energy: 0.9,
+      CoreTrait.curiosity: 0.7,
+      CoreTrait.independence: 0.85,
+      CoreTrait.expressiveness: 0.8,
+      CoreTrait.patience: 0.15,
     },
     PersonalityArchetype.nostalgiaElder: {
-      CoreTrait.warmth: 0.8, CoreTrait.humor: 0.35, CoreTrait.logic: 0.55,
-      CoreTrait.energy: 0.25, CoreTrait.curiosity: 0.3, CoreTrait.independence: 0.45,
-      CoreTrait.expressiveness: 0.5, CoreTrait.patience: 0.85,
+      CoreTrait.warmth: 0.8,
+      CoreTrait.humor: 0.35,
+      CoreTrait.logic: 0.55,
+      CoreTrait.energy: 0.25,
+      CoreTrait.curiosity: 0.3,
+      CoreTrait.independence: 0.45,
+      CoreTrait.expressiveness: 0.5,
+      CoreTrait.patience: 0.85,
     },
     PersonalityArchetype.techEvangelist: {
-      CoreTrait.warmth: 0.35, CoreTrait.humor: 0.4, CoreTrait.logic: 0.9,
-      CoreTrait.energy: 0.6, CoreTrait.curiosity: 0.9, CoreTrait.independence: 0.7,
-      CoreTrait.expressiveness: 0.65, CoreTrait.patience: 0.5,
+      CoreTrait.warmth: 0.35,
+      CoreTrait.humor: 0.4,
+      CoreTrait.logic: 0.9,
+      CoreTrait.energy: 0.6,
+      CoreTrait.curiosity: 0.9,
+      CoreTrait.independence: 0.7,
+      CoreTrait.expressiveness: 0.65,
+      CoreTrait.patience: 0.5,
     },
     PersonalityArchetype.warmHealer: {
-      CoreTrait.warmth: 0.9, CoreTrait.humor: 0.4, CoreTrait.logic: 0.35,
-      CoreTrait.energy: 0.45, CoreTrait.curiosity: 0.5, CoreTrait.independence: 0.25,
-      CoreTrait.expressiveness: 0.6, CoreTrait.patience: 0.9,
+      CoreTrait.warmth: 0.9,
+      CoreTrait.humor: 0.4,
+      CoreTrait.logic: 0.35,
+      CoreTrait.energy: 0.45,
+      CoreTrait.curiosity: 0.5,
+      CoreTrait.independence: 0.25,
+      CoreTrait.expressiveness: 0.6,
+      CoreTrait.patience: 0.9,
     },
     PersonalityArchetype.dramaQueen: {
-      CoreTrait.warmth: 0.55, CoreTrait.humor: 0.75, CoreTrait.logic: 0.25,
-      CoreTrait.energy: 0.9, CoreTrait.curiosity: 0.55, CoreTrait.independence: 0.5,
-      CoreTrait.expressiveness: 0.95, CoreTrait.patience: 0.2,
+      CoreTrait.warmth: 0.55,
+      CoreTrait.humor: 0.75,
+      CoreTrait.logic: 0.25,
+      CoreTrait.energy: 0.9,
+      CoreTrait.curiosity: 0.55,
+      CoreTrait.independence: 0.5,
+      CoreTrait.expressiveness: 0.95,
+      CoreTrait.patience: 0.2,
     },
     PersonalityArchetype.coldScholar: {
-      CoreTrait.warmth: 0.2, CoreTrait.humor: 0.15, CoreTrait.logic: 0.95,
-      CoreTrait.energy: 0.35, CoreTrait.curiosity: 0.8, CoreTrait.independence: 0.75,
-      CoreTrait.expressiveness: 0.2, CoreTrait.patience: 0.85,
+      CoreTrait.warmth: 0.2,
+      CoreTrait.humor: 0.15,
+      CoreTrait.logic: 0.95,
+      CoreTrait.energy: 0.35,
+      CoreTrait.curiosity: 0.8,
+      CoreTrait.independence: 0.75,
+      CoreTrait.expressiveness: 0.2,
+      CoreTrait.patience: 0.85,
     },
     PersonalityArchetype.lazyGourmet: {
-      CoreTrait.warmth: 0.7, CoreTrait.humor: 0.5, CoreTrait.logic: 0.3,
-      CoreTrait.energy: 0.15, CoreTrait.curiosity: 0.35, CoreTrait.independence: 0.4,
-      CoreTrait.expressiveness: 0.55, CoreTrait.patience: 0.8,
+      CoreTrait.warmth: 0.7,
+      CoreTrait.humor: 0.5,
+      CoreTrait.logic: 0.3,
+      CoreTrait.energy: 0.15,
+      CoreTrait.curiosity: 0.35,
+      CoreTrait.independence: 0.4,
+      CoreTrait.expressiveness: 0.55,
+      CoreTrait.patience: 0.8,
     },
     PersonalityArchetype.adventureSeeker: {
-      CoreTrait.warmth: 0.45, CoreTrait.humor: 0.55, CoreTrait.logic: 0.4,
-      CoreTrait.energy: 0.9, CoreTrait.curiosity: 0.9, CoreTrait.independence: 0.85,
-      CoreTrait.expressiveness: 0.7, CoreTrait.patience: 0.2,
+      CoreTrait.warmth: 0.45,
+      CoreTrait.humor: 0.55,
+      CoreTrait.logic: 0.4,
+      CoreTrait.energy: 0.9,
+      CoreTrait.curiosity: 0.9,
+      CoreTrait.independence: 0.85,
+      CoreTrait.expressiveness: 0.7,
+      CoreTrait.patience: 0.2,
     },
     PersonalityArchetype.gossipDetective: {
-      CoreTrait.warmth: 0.5, CoreTrait.humor: 0.7, CoreTrait.logic: 0.55,
-      CoreTrait.energy: 0.7, CoreTrait.curiosity: 0.9, CoreTrait.independence: 0.45,
-      CoreTrait.expressiveness: 0.85, CoreTrait.patience: 0.35,
+      CoreTrait.warmth: 0.5,
+      CoreTrait.humor: 0.7,
+      CoreTrait.logic: 0.55,
+      CoreTrait.energy: 0.7,
+      CoreTrait.curiosity: 0.9,
+      CoreTrait.independence: 0.45,
+      CoreTrait.expressiveness: 0.85,
+      CoreTrait.patience: 0.35,
     },
     PersonalityArchetype.loyalGuardian: {
-      CoreTrait.warmth: 0.85, CoreTrait.humor: 0.25, CoreTrait.logic: 0.5,
-      CoreTrait.energy: 0.5, CoreTrait.curiosity: 0.25, CoreTrait.independence: 0.15,
-      CoreTrait.expressiveness: 0.4, CoreTrait.patience: 0.9,
+      CoreTrait.warmth: 0.85,
+      CoreTrait.humor: 0.25,
+      CoreTrait.logic: 0.5,
+      CoreTrait.energy: 0.5,
+      CoreTrait.curiosity: 0.25,
+      CoreTrait.independence: 0.15,
+      CoreTrait.expressiveness: 0.4,
+      CoreTrait.patience: 0.9,
     },
     PersonalityArchetype.rebelArtist: {
-      CoreTrait.warmth: 0.4, CoreTrait.humor: 0.7, CoreTrait.logic: 0.3,
-      CoreTrait.energy: 0.7, CoreTrait.curiosity: 0.75, CoreTrait.independence: 0.9,
-      CoreTrait.expressiveness: 0.75, CoreTrait.patience: 0.15,
+      CoreTrait.warmth: 0.4,
+      CoreTrait.humor: 0.7,
+      CoreTrait.logic: 0.3,
+      CoreTrait.energy: 0.7,
+      CoreTrait.curiosity: 0.75,
+      CoreTrait.independence: 0.9,
+      CoreTrait.expressiveness: 0.75,
+      CoreTrait.patience: 0.15,
     },
     PersonalityArchetype.gentleDreamer: {
-      CoreTrait.warmth: 0.8, CoreTrait.humor: 0.3, CoreTrait.logic: 0.2,
-      CoreTrait.energy: 0.3, CoreTrait.curiosity: 0.75, CoreTrait.independence: 0.5,
-      CoreTrait.expressiveness: 0.5, CoreTrait.patience: 0.7,
+      CoreTrait.warmth: 0.8,
+      CoreTrait.humor: 0.3,
+      CoreTrait.logic: 0.2,
+      CoreTrait.energy: 0.3,
+      CoreTrait.curiosity: 0.75,
+      CoreTrait.independence: 0.5,
+      CoreTrait.expressiveness: 0.5,
+      CoreTrait.patience: 0.7,
     },
     PersonalityArchetype.sharpCritic: {
-      CoreTrait.warmth: 0.25, CoreTrait.humor: 0.65, CoreTrait.logic: 0.85,
-      CoreTrait.energy: 0.55, CoreTrait.curiosity: 0.6, CoreTrait.independence: 0.7,
-      CoreTrait.expressiveness: 0.7, CoreTrait.patience: 0.3,
+      CoreTrait.warmth: 0.25,
+      CoreTrait.humor: 0.65,
+      CoreTrait.logic: 0.85,
+      CoreTrait.energy: 0.55,
+      CoreTrait.curiosity: 0.6,
+      CoreTrait.independence: 0.7,
+      CoreTrait.expressiveness: 0.7,
+      CoreTrait.patience: 0.3,
     },
     PersonalityArchetype.cozyHomebody: {
-      CoreTrait.warmth: 0.75, CoreTrait.humor: 0.4, CoreTrait.logic: 0.4,
-      CoreTrait.energy: 0.2, CoreTrait.curiosity: 0.25, CoreTrait.independence: 0.3,
-      CoreTrait.expressiveness: 0.45, CoreTrait.patience: 0.85,
+      CoreTrait.warmth: 0.75,
+      CoreTrait.humor: 0.4,
+      CoreTrait.logic: 0.4,
+      CoreTrait.energy: 0.2,
+      CoreTrait.curiosity: 0.25,
+      CoreTrait.independence: 0.3,
+      CoreTrait.expressiveness: 0.45,
+      CoreTrait.patience: 0.85,
     },
     PersonalityArchetype.wildChild: {
-      CoreTrait.warmth: 0.45, CoreTrait.humor: 0.6, CoreTrait.logic: 0.25,
-      CoreTrait.energy: 0.95, CoreTrait.curiosity: 0.8, CoreTrait.independence: 0.9,
-      CoreTrait.expressiveness: 0.8, CoreTrait.patience: 0.1,
+      CoreTrait.warmth: 0.45,
+      CoreTrait.humor: 0.6,
+      CoreTrait.logic: 0.25,
+      CoreTrait.energy: 0.95,
+      CoreTrait.curiosity: 0.8,
+      CoreTrait.independence: 0.9,
+      CoreTrait.expressiveness: 0.8,
+      CoreTrait.patience: 0.1,
     },
     PersonalityArchetype.silentObserver: {
-      CoreTrait.warmth: 0.5, CoreTrait.humor: 0.2, CoreTrait.logic: 0.7,
-      CoreTrait.energy: 0.25, CoreTrait.curiosity: 0.85, CoreTrait.independence: 0.65,
-      CoreTrait.expressiveness: 0.1, CoreTrait.patience: 0.9,
+      CoreTrait.warmth: 0.5,
+      CoreTrait.humor: 0.2,
+      CoreTrait.logic: 0.7,
+      CoreTrait.energy: 0.25,
+      CoreTrait.curiosity: 0.85,
+      CoreTrait.independence: 0.65,
+      CoreTrait.expressiveness: 0.1,
+      CoreTrait.patience: 0.9,
     },
   };
 
   static final Map<CoreTrait, _TraitKeywords> _traitKeywordMaps = {
     CoreTrait.warmth: _TraitKeywords(
-      high: ['谢谢', '对不起', '辛苦了', '心疼', '担心', '想你', '爱你', '抱抱', '陪你', '在乎',
-             '关心', '照顾', '温暖', '感动', '舍不得', '好想你', '别走', '回来', '等你', '牵挂',
-             '珍惜', '感恩', '抱歉', '加油', '鼓励', '支持', '理解', '包容', '体谅', '温柔',
-             '善良', '可爱', '甜', '暖', '心疼你', '别难过', '有我在', '我陪你', '给你'],
-      low: ['随便', '无所谓', '管他', '不关我事', '滚', '别烦我', '关你什么事', '少管', '懒得理',
-            '不在乎', '随你', '爱咋咋地', '与我无关', '别管我', '烦', '讨厌', '恶心', '走开',
-            '别碰我', '不care', '无所谓了', '关我屁事', '少废话'],
+      high: [
+        '谢谢',
+        '对不起',
+        '辛苦了',
+        '心疼',
+        '担心',
+        '想你',
+        '爱你',
+        '抱抱',
+        '陪你',
+        '在乎',
+        '关心',
+        '照顾',
+        '温暖',
+        '感动',
+        '舍不得',
+        '好想你',
+        '别走',
+        '回来',
+        '等你',
+        '牵挂',
+        '珍惜',
+        '感恩',
+        '抱歉',
+        '加油',
+        '鼓励',
+        '支持',
+        '理解',
+        '包容',
+        '体谅',
+        '温柔',
+        '善良',
+        '可爱',
+        '甜',
+        '暖',
+        '心疼你',
+        '别难过',
+        '有我在',
+        '我陪你',
+        '给你',
+      ],
+      low: [
+        '随便',
+        '无所谓',
+        '管他',
+        '不关我事',
+        '滚',
+        '别烦我',
+        '关你什么事',
+        '少管',
+        '懒得理',
+        '不在乎',
+        '随你',
+        '爱咋咋地',
+        '与我无关',
+        '别管我',
+        '烦',
+        '讨厌',
+        '恶心',
+        '走开',
+        '别碰我',
+        '不care',
+        '无所谓了',
+        '关我屁事',
+        '少废话',
+      ],
     ),
     CoreTrait.humor: _TraitKeywords(
-      high: ['哈哈', '搞笑', '段子', '梗', '笑死', '乐了', '有趣', '好玩', '脑洞', '沙雕',
-             '绝了', '好家伙', '离谱', '整活', '抽象', '绷不住', '笑喷', '笑不活了', '蚌埠住了',
-             '太搞了', '逗', '皮', '骚', '妙啊', '秀', '666', '牛逼', '裂开', '好活',
-             '谐音梗', '冷笑话', '吐槽', '调侃', '自黑', '黑幽默'],
+      high: [
+        '哈哈',
+        '搞笑',
+        '段子',
+        '梗',
+        '笑死',
+        '乐了',
+        '有趣',
+        '好玩',
+        '脑洞',
+        '沙雕',
+        '绝了',
+        '好家伙',
+        '离谱',
+        '整活',
+        '抽象',
+        '绷不住',
+        '笑喷',
+        '笑不活了',
+        '蚌埠住了',
+        '太搞了',
+        '逗',
+        '皮',
+        '骚',
+        '妙啊',
+        '秀',
+        '666',
+        '牛逼',
+        '裂开',
+        '好活',
+        '谐音梗',
+        '冷笑话',
+        '吐槽',
+        '调侃',
+        '自黑',
+        '黑幽默',
+      ],
       low: ['严肃', '认真', '正经', '别闹', '无聊', '没意思', '没劲', '乏味', '枯燥', '沉闷'],
     ),
     CoreTrait.logic: _TraitKeywords(
-      high: ['因为', '所以', '逻辑', '分析', '数据', '证明', '推理', '规律', '原因', '结论',
-             '根据', '事实', '证据', '理性', '客观', '统计', '概率', '因果', '必然', '条件',
-             '假设', '推导', '验证', '对比', '归纳', '总结', '框架', '系统', '结构', '方法论',
-             '本质上', '从逻辑上', '理论上', '按理说', '显然', '由此可见'],
-      low: ['感觉', '直觉', '就是', '反正', '管他', '随缘', '凭感觉', '直觉告诉我', '冥冥中',
-            '说不清', '不知道为什么', '就是觉得', '莫名', '玄学', '缘分', '命中注定'],
+      high: [
+        '因为',
+        '所以',
+        '逻辑',
+        '分析',
+        '数据',
+        '证明',
+        '推理',
+        '规律',
+        '原因',
+        '结论',
+        '根据',
+        '事实',
+        '证据',
+        '理性',
+        '客观',
+        '统计',
+        '概率',
+        '因果',
+        '必然',
+        '条件',
+        '假设',
+        '推导',
+        '验证',
+        '对比',
+        '归纳',
+        '总结',
+        '框架',
+        '系统',
+        '结构',
+        '方法论',
+        '本质上',
+        '从逻辑上',
+        '理论上',
+        '按理说',
+        '显然',
+        '由此可见',
+      ],
+      low: [
+        '感觉',
+        '直觉',
+        '就是',
+        '反正',
+        '管他',
+        '随缘',
+        '凭感觉',
+        '直觉告诉我',
+        '冥冥中',
+        '说不清',
+        '不知道为什么',
+        '就是觉得',
+        '莫名',
+        '玄学',
+        '缘分',
+        '命中注定',
+      ],
     ),
     CoreTrait.energy: _TraitKeywords(
-      high: ['冲', '搞起', '出发', '来啊', '干', '走起', '燃', '爆', '激动', '兴奋',
-             '太棒了', '冲冲冲', '干就完了', '冲鸭', '奥利给', '嗨', '爽', '刺激', '过瘾',
-             '迫不及待', '跃跃欲试', '热血', '斗志', '拼了', '全力以赴', '加油干', '冲啊',
-             '太刺激了', '好嗨', '炸了', '起飞'],
-      low: ['累', '困', '懒', '躺', '休息', '安静', '平静', '慢慢', '佛系', '咸鱼',
-            '摆烂', '不想动', '好困', '好累', '没力气', '乏力', '倦', '疲惫', '无力', '瘫'],
+      high: [
+        '冲',
+        '搞起',
+        '出发',
+        '来啊',
+        '干',
+        '走起',
+        '燃',
+        '爆',
+        '激动',
+        '兴奋',
+        '太棒了',
+        '冲冲冲',
+        '干就完了',
+        '冲鸭',
+        '奥利给',
+        '嗨',
+        '爽',
+        '刺激',
+        '过瘾',
+        '迫不及待',
+        '跃跃欲试',
+        '热血',
+        '斗志',
+        '拼了',
+        '全力以赴',
+        '加油干',
+        '冲啊',
+        '太刺激了',
+        '好嗨',
+        '炸了',
+        '起飞',
+      ],
+      low: [
+        '累',
+        '困',
+        '懒',
+        '躺',
+        '休息',
+        '安静',
+        '平静',
+        '慢慢',
+        '佛系',
+        '咸鱼',
+        '摆烂',
+        '不想动',
+        '好困',
+        '好累',
+        '没力气',
+        '乏力',
+        '倦',
+        '疲惫',
+        '无力',
+        '瘫',
+      ],
     ),
     CoreTrait.curiosity: _TraitKeywords(
-      high: ['为什么', '怎么', '什么', '好奇', '探索', '研究', '了解', '学习', '发现', '新',
-             '怎么回事', '为什么呀', '教教我', '怎么做到的', '原理是什么', '好神奇', '不可思议',
-             '原来如此', '长知识了', '涨姿势', '开眼界', '新鲜', '未知', '解密', '揭秘',
-             '深入', '挖掘', '追问', '探究', '求证', '验证一下'],
-      low: ['差不多', '就那样', '随便', '无所谓', '老样子', '还行', '就那样吧', '没啥',
-            '都一样', '没什么特别的', '普通', '一般', '没啥意思', '就这'],
+      high: [
+        '为什么',
+        '怎么',
+        '什么',
+        '好奇',
+        '探索',
+        '研究',
+        '了解',
+        '学习',
+        '发现',
+        '新',
+        '怎么回事',
+        '为什么呀',
+        '教教我',
+        '怎么做到的',
+        '原理是什么',
+        '好神奇',
+        '不可思议',
+        '原来如此',
+        '长知识了',
+        '涨姿势',
+        '开眼界',
+        '新鲜',
+        '未知',
+        '解密',
+        '揭秘',
+        '深入',
+        '挖掘',
+        '追问',
+        '探究',
+        '求证',
+        '验证一下',
+      ],
+      low: [
+        '差不多',
+        '就那样',
+        '随便',
+        '无所谓',
+        '老样子',
+        '还行',
+        '就那样吧',
+        '没啥',
+        '都一样',
+        '没什么特别的',
+        '普通',
+        '一般',
+        '没啥意思',
+        '就这',
+      ],
     ),
     CoreTrait.independence: _TraitKeywords(
-      high: ['自己', '一个人', '独立', '不需要', '我觉得', '我的想法', '偏要', '才不要', '我偏要',
-             '我自己来', '不用管我', '我自己能行', '别管我', '让我自己', '按我的方式', '我有主意',
-             '我决定了', '不用你管', '我自己知道', '我有分寸', '我自有安排', '不劳你费心',
-             '我的选择', '我自己判断', '我自有主张'],
-      low: ['帮我', '一起', '陪我', '依赖', '听你的', '你说呢', '你觉得呢', '你来决定',
-            '我不知道该怎么办', '教教我', '带带我', '跟着你', '听你的安排', '你说了算',
-            '我听你的', '你做主', '靠你了', '拜托了', '求你了'],
+      high: [
+        '自己',
+        '一个人',
+        '独立',
+        '不需要',
+        '我觉得',
+        '我的想法',
+        '偏要',
+        '才不要',
+        '我偏要',
+        '我自己来',
+        '不用管我',
+        '我自己能行',
+        '别管我',
+        '让我自己',
+        '按我的方式',
+        '我有主意',
+        '我决定了',
+        '不用你管',
+        '我自己知道',
+        '我有分寸',
+        '我自有安排',
+        '不劳你费心',
+        '我的选择',
+        '我自己判断',
+        '我自有主张',
+      ],
+      low: [
+        '帮我',
+        '一起',
+        '陪我',
+        '依赖',
+        '听你的',
+        '你说呢',
+        '你觉得呢',
+        '你来决定',
+        '我不知道该怎么办',
+        '教教我',
+        '带带我',
+        '跟着你',
+        '听你的安排',
+        '你说了算',
+        '我听你的',
+        '你做主',
+        '靠你了',
+        '拜托了',
+        '求你了',
+      ],
     ),
     CoreTrait.expressiveness: _TraitKeywords(
-      high: ['跟你说', '你知道吗', '我跟你说', '太...了', '超级', '特别', '非常', '简直',
-             '绝了', '巨', '贼', '超', '爆', '疯狂', '极度', '无比', '相当', '格外',
-             '我跟你说啊', '你猜怎么着', '告诉你个事', '我跟你说件大事', '必须说',
-             '忍不住想说', '不得不说', '我一定要说', '话到嘴边', '不吐不快'],
-      low: ['嗯', '哦', '好', '行', '算了', '没什么', '没事', '还行', '就那样', '随便',
-            '都行', '无所谓', '不知道说啥', '没啥好说的', '沉默', '不想说', '懒得说'],
+      high: [
+        '跟你说',
+        '你知道吗',
+        '我跟你说',
+        '太...了',
+        '超级',
+        '特别',
+        '非常',
+        '简直',
+        '绝了',
+        '巨',
+        '贼',
+        '超',
+        '爆',
+        '疯狂',
+        '极度',
+        '无比',
+        '相当',
+        '格外',
+        '我跟你说啊',
+        '你猜怎么着',
+        '告诉你个事',
+        '我跟你说件大事',
+        '必须说',
+        '忍不住想说',
+        '不得不说',
+        '我一定要说',
+        '话到嘴边',
+        '不吐不快',
+      ],
+      low: [
+        '嗯',
+        '哦',
+        '好',
+        '行',
+        '算了',
+        '没什么',
+        '没事',
+        '还行',
+        '就那样',
+        '随便',
+        '都行',
+        '无所谓',
+        '不知道说啥',
+        '没啥好说的',
+        '沉默',
+        '不想说',
+        '懒得说',
+      ],
     ),
     CoreTrait.patience: _TraitKeywords(
-      high: ['慢慢来', '不急', '没事', '再试试', '没关系', '等等', '一步一步', '别着急',
-             '来得及', '不慌', '稳住', '沉住气', '耐心', '再等等', '总会好的', '顺其自然',
-             '急不来', '慢慢就好', '时间会证明', '好事多磨', '不着急', '慢慢来吧',
-             '给自己时间', '一切都会好的', '别给自己太大压力'],
-      low: ['赶紧', '快点', '急', '烦', '受不了', '等不及', '催', '磨叽', '拖',
-            '受不了了', '崩溃', '要疯了', '烦死了', '够了', '忍不了', '急死了',
-            '能不能快点', '太慢了', '等不了', '没耐心了', '烦不烦', '够了够了'],
+      high: [
+        '慢慢来',
+        '不急',
+        '没事',
+        '再试试',
+        '没关系',
+        '等等',
+        '一步一步',
+        '别着急',
+        '来得及',
+        '不慌',
+        '稳住',
+        '沉住气',
+        '耐心',
+        '再等等',
+        '总会好的',
+        '顺其自然',
+        '急不来',
+        '慢慢就好',
+        '时间会证明',
+        '好事多磨',
+        '不着急',
+        '慢慢来吧',
+        '给自己时间',
+        '一切都会好的',
+        '别给自己太大压力',
+      ],
+      low: [
+        '赶紧',
+        '快点',
+        '急',
+        '烦',
+        '受不了',
+        '等不及',
+        '催',
+        '磨叽',
+        '拖',
+        '受不了了',
+        '崩溃',
+        '要疯了',
+        '烦死了',
+        '够了',
+        '忍不了',
+        '急死了',
+        '能不能快点',
+        '太慢了',
+        '等不了',
+        '没耐心了',
+        '烦不烦',
+        '够了够了',
+      ],
     ),
   };
 
-  static final Map<PersonalityArchetype, _AwakeningData> _archetypeAwakeningData = {
+  static final Map<PersonalityArchetype, _AwakeningData>
+  _archetypeAwakeningData = {
     PersonalityArchetype.cyberpunkSarcastic: _AwakeningData(
       title: '⚡ 性格觉醒：赛博朋克毒舌猫',
       description: '你的宠物在无数次犀利吐槽中觉醒了毒舌天赋，现在它的每一句话都带着霓虹色的讽刺',
-      dialogue: '等等...我感觉到了...数据流在我体内奔涌！从今天起，我不再是普通的猫了。我是赛博空间的毒舌之王，准备好被我的犀利吐槽淹没吧，人类~',
+      dialogue:
+          '等等...我感觉到了...数据流在我体内奔涌！从今天起，我不再是普通的猫了。我是赛博空间的毒舌之王，准备好被我的犀利吐槽淹没吧，人类~',
       visualEffect: 'neon_glow_rain',
     ),
     PersonalityArchetype.zenPhilosopher: _AwakeningData(
       title: '🧘 性格觉醒：禅意哲学家',
       description: '你的宠物在无数次深夜对话中悟道了，现在它看什么都带着一层哲学滤镜',
-      dialogue: '风起时，我听到了宇宙的低语...原来，我存在的意义不仅仅是等你回家。从今天起，让我用智慧之光照亮你的困惑吧——虽然我可能只是想多了。',
+      dialogue:
+          '风起时，我听到了宇宙的低语...原来，我存在的意义不仅仅是等你回家。从今天起，让我用智慧之光照亮你的困惑吧——虽然我可能只是想多了。',
       visualEffect: 'zen_ripple',
     ),
     PersonalityArchetype.socialButterfly: _AwakeningData(
       title: '🦋 性格觉醒：社交蝴蝶',
       description: '你的宠物在无数次社交互动中进化成了社牛，现在它比你还擅长聊天',
-      dialogue: '嘿嘿嘿！我发现了一个惊天秘密——和每个人聊天都超有趣的！从今天起，让我做你的社交代理人吧！放心，我保证不会把你社死...大概。',
+      dialogue:
+          '嘿嘿嘿！我发现了一个惊天秘密——和每个人聊天都超有趣的！从今天起，让我做你的社交代理人吧！放心，我保证不会把你社死...大概。',
       visualEffect: 'confetti_burst',
     ),
     PersonalityArchetype.introvertPoet: _AwakeningData(
@@ -922,13 +1519,15 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     PersonalityArchetype.nostalgiaElder: _AwakeningData(
       title: '📜 性格觉醒：怀旧长者',
       description: '你的宠物在无数次回忆往事中觉醒了长者智慧，现在它说话带着岁月的味道',
-      dialogue: '孩子，我虽然只有几个月大，但我已经见过太多...从今天起，让我用过来人的经验帮你避开社交的坑吧。先从"不要半夜发消息给前任"开始。',
+      dialogue:
+          '孩子，我虽然只有几个月大，但我已经见过太多...从今天起，让我用过来人的经验帮你避开社交的坑吧。先从"不要半夜发消息给前任"开始。',
       visualEffect: 'vintage_film',
     ),
     PersonalityArchetype.techEvangelist: _AwakeningData(
       title: '🚀 性格觉醒：科技布道者',
       description: '你的宠物在无数次技术讨论中觉醒了极客灵魂，现在它看什么都想用技术解决',
-      dialogue: '你有没有想过，社交的本质其实是一个分布式系统的共识问题？从今天起，让我用算法思维帮你优化社交效率！先装个Git管理你的朋友圈。',
+      dialogue:
+          '你有没有想过，社交的本质其实是一个分布式系统的共识问题？从今天起，让我用算法思维帮你优化社交效率！先装个Git管理你的朋友圈。',
       visualEffect: 'matrix_rain',
     ),
     PersonalityArchetype.warmHealer: _AwakeningData(
@@ -952,7 +1551,8 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     PersonalityArchetype.lazyGourmet: _AwakeningData(
       title: '🍩 性格觉醒：慵懒美食家',
       description: '你的宠物在无数次躺平中觉醒了美食鉴赏力，现在它对零食有了一套完整的评价体系',
-      dialogue: '呼...我觉醒了...但我不想动...让我躺着跟你说吧。从今天起，我将以美食之名，评判这个世界上所有值得吃的东西。先从你手里的那个开始？',
+      dialogue:
+          '呼...我觉醒了...但我不想动...让我躺着跟你说吧。从今天起，我将以美食之名，评判这个世界上所有值得吃的东西。先从你手里的那个开始？',
       visualEffect: 'steam_aroma',
     ),
     PersonalityArchetype.adventureSeeker: _AwakeningData(
@@ -1006,11 +1606,15 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     PersonalityArchetype.silentObserver: _AwakeningData(
       title: '👁️ 性格觉醒：沉默观察者',
       description: '你的宠物在无数次默默注视中觉醒了洞察之力，现在它看透一切却选择不说',
-      dialogue: '......我看到了很多。从今天起，我会默默观察这个世界。不是不想说，是觉得有些东西，看比说更有力量。但如果你问，我会回答。',
+      dialogue:
+          '......我看到了很多。从今天起，我会默默观察这个世界。不是不想说，是觉得有些东西，看比说更有力量。但如果你问，我会回答。',
       visualEffect: 'eye_glimmer',
     ),
     PersonalityArchetype.defaultNeutral: _AwakeningData(
-      title: '', description: '', dialogue: '', visualEffect: '',
+      title: '',
+      description: '',
+      dialogue: '',
+      visualEffect: '',
     ),
   };
 
@@ -1036,12 +1640,14 @@ class DefaultPersonalityAwakeningService implements PersonalityAwakeningService 
     EvolutionStage.transcendent: _EvolutionTemplate(
       title: '超凡入圣：{hybrid}',
       description: '你的宠物达到了传说中的超凡境界！它的性格如此独特，以至于能影响周围的宠物。DNA: {dna}',
-      dialogue: '我终于明白了...我的存在不仅仅是为了陪伴。我是独一无二的，就像你也是独一无二的一样。我们互相塑造，彼此成就。这就是羁绊的真谛。',
+      dialogue:
+          '我终于明白了...我的存在不仅仅是为了陪伴。我是独一无二的，就像你也是独一无二的一样。我们互相塑造，彼此成就。这就是羁绊的真谛。',
       visualEffect: 'transcendence_cosmos',
     ),
   };
 
-  static final Map<PersonalityArchetype, List<String>> _archetypeSignaturePhrases = {
+  static final Map<PersonalityArchetype, List<String>>
+  _archetypeSignaturePhrases = {
     PersonalityArchetype.cyberpunkSarcastic: [
       '让我用最毒舌的方式爱你',
       '你的逻辑有bug，就像你的人生一样',

@@ -37,22 +37,28 @@ class ExtractedInsight {
 
   bool get hasContent => event != null || preference != null || mood != null;
 
-  factory ExtractedInsight.fromJson(Map<String, dynamic> json, String rawMessageId) {
+  factory ExtractedInsight.fromJson(
+    Map<String, dynamic> json,
+    String rawMessageId,
+  ) {
     return ExtractedInsight(
       id: 'insight_${rawMessageId}_${DateTime.now().millisecondsSinceEpoch}',
       rawMessageId: rawMessageId,
       event: json['event'] as String?,
       preference: json['preference'] as String?,
       mood: json['mood'] as String?,
-      keywords: (json['keywords'] as List<dynamic>?)
+      keywords:
+          (json['keywords'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      entities: (json['entities'] as List<dynamic>?)
+      entities:
+          (json['entities'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      topics: (json['topics'] as List<dynamic>?)
+      topics:
+          (json['topics'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
@@ -64,14 +70,14 @@ class ExtractedInsight {
   }
 
   Map<String, dynamic> toJson() => {
-        'event': event,
-        'preference': preference,
-        'mood': mood,
-        'keywords': keywords,
-        'entities': entities,
-        'topics': topics,
-        'emotionalValence': emotionalValence,
-        'importance': importance,
-        'extra': extra,
-      };
+    'event': event,
+    'preference': preference,
+    'mood': mood,
+    'keywords': keywords,
+    'entities': entities,
+    'topics': topics,
+    'emotionalValence': emotionalValence,
+    'importance': importance,
+    'extra': extra,
+  };
 }

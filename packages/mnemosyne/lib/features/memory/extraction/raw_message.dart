@@ -22,16 +22,16 @@ class RawMessage {
   });
 
   RawMessage markProcessed() => RawMessage(
-        id: id,
-        content: content,
-        source: source,
-        speakerId: speakerId,
-        petId: petId,
-        timestamp: timestamp,
-        isProcessed: true,
-        processedAt: DateTime.now(),
-        metadata: metadata,
-      );
+    id: id,
+    content: content,
+    source: source,
+    speakerId: speakerId,
+    petId: petId,
+    timestamp: timestamp,
+    isProcessed: true,
+    processedAt: DateTime.now(),
+    metadata: metadata,
+  );
 
   RawMessage copyWith({
     String? id,
@@ -43,16 +43,15 @@ class RawMessage {
     bool? isProcessed,
     DateTime? processedAt,
     Map<String, dynamic>? metadata,
-  }) =>
-      RawMessage(
-        id: id ?? this.id,
-        content: content ?? this.content,
-        source: source ?? this.source,
-        speakerId: speakerId ?? this.speakerId,
-        petId: petId ?? this.petId,
-        timestamp: timestamp ?? this.timestamp,
-        isProcessed: isProcessed ?? this.isProcessed,
-        processedAt: processedAt ?? this.processedAt,
-        metadata: metadata ?? this.metadata,
-      );
+  }) => RawMessage(
+    id: id ?? this.id,
+    content: content ?? this.content,
+    source: source ?? this.source,
+    speakerId: speakerId ?? this.speakerId,
+    petId: petId ?? this.petId,
+    timestamp: timestamp ?? this.timestamp,
+    isProcessed: isProcessed ?? this.isProcessed,
+    processedAt: processedAt ?? this.processedAt,
+    metadata: metadata ?? this.metadata,
+  );
 }

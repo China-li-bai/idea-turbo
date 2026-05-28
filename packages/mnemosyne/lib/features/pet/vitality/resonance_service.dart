@@ -8,11 +8,11 @@ enum BondPhase {
   awakened;
 
   String get displayName => switch (this) {
-        stranger => '陌生人',
-        recognition => '相识',
-        attachment => '依恋',
-        awakened => '觉醒',
-      };
+    stranger => '陌生人',
+    recognition => '相识',
+    attachment => '依恋',
+    awakened => '觉醒',
+  };
 }
 
 enum EchoType {
@@ -40,23 +40,23 @@ class MemoryEcho {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': type.name,
-        'content': content,
-        'timestamp': timestamp.toIso8601String(),
-        'intensity': intensity,
-      };
+    'type': type.name,
+    'content': content,
+    'timestamp': timestamp.toIso8601String(),
+    'intensity': intensity,
+  };
 
   factory MemoryEcho.fromJson(Map<String, dynamic> json) => MemoryEcho(
-        type: EchoType.values.firstWhere(
-          (t) => t.name == json['type'],
-          orElse: () => EchoType.secretShared,
-        ),
-        content: json['content'] as String? ?? '',
-        timestamp: json['timestamp'] != null
-            ? DateTime.parse(json['timestamp'] as String)
-            : DateTime.now(),
-        intensity: (json['intensity'] as num?)?.toDouble() ?? 0.5,
-      );
+    type: EchoType.values.firstWhere(
+      (t) => t.name == json['type'],
+      orElse: () => EchoType.secretShared,
+    ),
+    content: json['content'] as String? ?? '',
+    timestamp: json['timestamp'] != null
+        ? DateTime.parse(json['timestamp'] as String)
+        : DateTime.now(),
+    intensity: (json['intensity'] as num?)?.toDouble() ?? 0.5,
+  );
 }
 
 class RelationshipState {
@@ -81,13 +81,15 @@ class RelationshipState {
   });
 
   factory RelationshipState.initial() => RelationshipState(
-        firstInteractionAt: DateTime.now(),
-        lastInteractionAt: DateTime.now(),
-      );
+    firstInteractionAt: DateTime.now(),
+    lastInteractionAt: DateTime.now(),
+  );
 
   double get echoDepth {
     if (echoes.isEmpty) return 0.0;
-    final totalIntensity = echoes.map((e) => e.intensity).reduce((a, b) => a + b);
+    final totalIntensity = echoes
+        .map((e) => e.intensity)
+        .reduce((a, b) => a + b);
     return (totalIntensity / 5.0).clamp(0.0, 1.0);
   }
 
@@ -112,32 +114,34 @@ class RelationshipState {
     String? pendingCatalystMessage,
     String? pendingCatalystSummary,
     bool clearCatalyst = false,
-  }) =>
-      RelationshipState(
-        interactionCount: interactionCount ?? this.interactionCount,
-        phase: phase ?? this.phase,
-        firstInteractionAt: firstInteractionAt ?? this.firstInteractionAt,
-        lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
-        echoes: echoes ?? this.echoes,
-        glitchHistory: glitchHistory ?? this.glitchHistory,
-        pendingCatalystMessage:
-            clearCatalyst ? null : (pendingCatalystMessage ?? this.pendingCatalystMessage),
-        pendingCatalystSummary:
-            clearCatalyst ? null : (pendingCatalystSummary ?? this.pendingCatalystSummary),
-      );
+  }) => RelationshipState(
+    interactionCount: interactionCount ?? this.interactionCount,
+    phase: phase ?? this.phase,
+    firstInteractionAt: firstInteractionAt ?? this.firstInteractionAt,
+    lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
+    echoes: echoes ?? this.echoes,
+    glitchHistory: glitchHistory ?? this.glitchHistory,
+    pendingCatalystMessage: clearCatalyst
+        ? null
+        : (pendingCatalystMessage ?? this.pendingCatalystMessage),
+    pendingCatalystSummary: clearCatalyst
+        ? null
+        : (pendingCatalystSummary ?? this.pendingCatalystSummary),
+  );
 
   Map<String, dynamic> toJson() => {
-        'interactionCount': interactionCount,
-        'phase': phase.name,
-        'firstInteractionAt': firstInteractionAt.toIso8601String(),
-        'lastInteractionAt': lastInteractionAt.toIso8601String(),
-        'echoes': echoes.map((e) => e.toJson()).toList(),
-        'glitchHistory': glitchHistory,
-        'pendingCatalystMessage': pendingCatalystMessage,
-        'pendingCatalystSummary': pendingCatalystSummary,
-      };
+    'interactionCount': interactionCount,
+    'phase': phase.name,
+    'firstInteractionAt': firstInteractionAt.toIso8601String(),
+    'lastInteractionAt': lastInteractionAt.toIso8601String(),
+    'echoes': echoes.map((e) => e.toJson()).toList(),
+    'glitchHistory': glitchHistory,
+    'pendingCatalystMessage': pendingCatalystMessage,
+    'pendingCatalystSummary': pendingCatalystSummary,
+  };
 
-  factory RelationshipState.fromJson(Map<String, dynamic> json) => RelationshipState(
+  factory RelationshipState.fromJson(Map<String, dynamic> json) =>
+      RelationshipState(
         interactionCount: json['interactionCount'] as int? ?? 0,
         phase: BondPhase.values.firstWhere(
           (p) => p.name == json['phase'],
@@ -149,7 +153,8 @@ class RelationshipState {
         lastInteractionAt: json['lastInteractionAt'] != null
             ? DateTime.parse(json['lastInteractionAt'] as String)
             : DateTime.now(),
-        echoes: (json['echoes'] as List<dynamic>?)
+        echoes:
+            (json['echoes'] as List<dynamic>?)
                 ?.map((e) => MemoryEcho.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
@@ -197,42 +202,41 @@ class DefaultResonanceService implements ResonanceService {
     this.config = const RelationshipConfig(),
     Future<String> Function(String key)? readPreference,
     Future<void> Function(String key, String value)? writePreference,
-  })  : _readPreference = readPreference,
-        _writePreference = writePreference;
+  }) : _readPreference = readPreference,
+       _writePreference = writePreference;
 
   static String _prefKey(String petId) => 'relationship_state_v2_$petId';
 
   static const _echoPatterns = {
     EchoType.secretShared: [
-      '秘密', '从来没告诉过别人', '只告诉你', '不要告诉别人',
-      '其实我', '说实话', '坦白说', '有个事一直没说',
+      '秘密',
+      '从来没告诉过别人',
+      '只告诉你',
+      '不要告诉别人',
+      '其实我',
+      '说实话',
+      '坦白说',
+      '有个事一直没说',
     ],
     EchoType.emotionalConfession: [
-      '好累', '撑不下去了', '崩溃', '想哭', '难过', '害怕',
-      '孤独', '绝望', '压力好大', '失眠', '我不知道怎么办',
+      '好累',
+      '撑不下去了',
+      '崩溃',
+      '想哭',
+      '难过',
+      '害怕',
+      '孤独',
+      '绝望',
+      '压力好大',
+      '失眠',
+      '我不知道怎么办',
     ],
-    EchoType.deepQuestion: [
-      '你觉得', '如果是你', '你会怎么', '人生的意义',
-      '存在的意义', '为什么活着',
-    ],
-    EchoType.firstTrust: [
-      '我相信你', '信任你', '只相信你', '靠你了',
-      '交给你了', '拜托了',
-    ],
-    EchoType.namingRitual: [
-      '叫你', '给你取名', '你的名字', '叫你什么',
-      '就叫你', '以后叫你',
-    ],
-    EchoType.defendedPet: [
-      '你不是', '谁说你是', '你不是AI', '你有感情',
-      '你是真的', '你不只是',
-    ],
-    EchoType.lateNightTalk: [
-      '睡不着', '失眠', '半夜', '凌晨',
-    ],
-    EchoType.criedTogether: [
-      '哭了', '流泪', '眼泪', '哭出来',
-    ],
+    EchoType.deepQuestion: ['你觉得', '如果是你', '你会怎么', '人生的意义', '存在的意义', '为什么活着'],
+    EchoType.firstTrust: ['我相信你', '信任你', '只相信你', '靠你了', '交给你了', '拜托了'],
+    EchoType.namingRitual: ['叫你', '给你取名', '你的名字', '叫你什么', '就叫你', '以后叫你'],
+    EchoType.defendedPet: ['你不是', '谁说你是', '你不是AI', '你有感情', '你是真的', '你不只是'],
+    EchoType.lateNightTalk: ['睡不着', '失眠', '半夜', '凌晨'],
+    EchoType.criedTogether: ['哭了', '流泪', '眼泪', '哭出来'],
   };
 
   @override
@@ -259,12 +263,16 @@ class DefaultResonanceService implements ResonanceService {
       final alreadyHasType = newEchoes.any((e) => e.type == echoType);
       if (!alreadyHasType) {
         final intensity = _calculateIntensity(content, echoType);
-        newEchoes.add(MemoryEcho(
-          type: echoType,
-          content: content.length > 100 ? '${content.substring(0, 100)}...' : content,
-          timestamp: DateTime.now(),
-          intensity: intensity,
-        ));
+        newEchoes.add(
+          MemoryEcho(
+            type: echoType,
+            content: content.length > 100
+                ? '${content.substring(0, 100)}...'
+                : content,
+            timestamp: DateTime.now(),
+            intensity: intensity,
+          ),
+        );
 
         if (newEchoes.length > config.maxEchoes) {
           newEchoes.removeAt(0);
@@ -282,7 +290,8 @@ class DefaultResonanceService implements ResonanceService {
     BondPhase newPhase = current.phase;
     if (current.phase == BondPhase.stranger && newEchoes.length >= 1) {
       newPhase = BondPhase.recognition;
-    } else if (current.phase == BondPhase.recognition && newEchoes.length >= 2) {
+    } else if (current.phase == BondPhase.recognition &&
+        newEchoes.length >= 2) {
       newPhase = BondPhase.attachment;
     }
 
@@ -327,7 +336,9 @@ class DefaultResonanceService implements ResonanceService {
   }
 
   String _summarizeCatalyst(String content, EchoType type) {
-    final short = content.length > 80 ? '${content.substring(0, 80)}...' : content;
+    final short = content.length > 80
+        ? '${content.substring(0, 80)}...'
+        : content;
     switch (type) {
       case EchoType.secretShared:
         return '他告诉我一个秘密：$short';

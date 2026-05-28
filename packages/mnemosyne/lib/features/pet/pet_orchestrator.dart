@@ -14,6 +14,7 @@ import 'package:mnemosyne/features/social/report/daily_report_service.dart';
 import 'package:mnemosyne/features/social/report/daily_report_entity.dart';
 import 'package:mnemosyne/features/social/llm/llm_service.dart';
 import 'package:mnemosyne/features/commerce/subscription/subscription_service.dart';
+import 'package:mnemosyne/features/xiang/xiang_context.dart';
 import 'package:mnemosyne/mnemosyne_class.dart';
 
 class PetOrchestratorConfig {
@@ -72,20 +73,22 @@ class PetOrchestrator {
     DailyReportService? reportService,
     CloudLlmService? cloudLlm,
     SubscriptionService? subscriptionService,
-  })  : _mnemosyne = mnemosyne,
-        _memoryBridge = memoryBridge,
-        _extractionService = extractionService ?? DefaultMemoryExtractionService(),
-        _embeddingService = embeddingService,
-        _vitalityService = vitalityService ?? DefaultVitalityService(),
-        _personalityService = personalityService ?? DefaultPersonalityAwakeningService(),
-        _speechEngine = speechEngine ?? const PersonalitySpeechEngine(),
-        _diaryService = diaryService ?? DefaultPetDiaryService(),
-        _monologueService = monologueService ?? DefaultPetMonologueService(),
-        _socialProxyService = socialProxyService ?? DefaultSocialProxyService(),
-        _socialShield = socialShield ?? DefaultSocialShield(),
-        _reportService = reportService ?? DefaultDailyReportService(),
-        _cloudLlm = cloudLlm,
-        _subscriptionService = subscriptionService ?? SubscriptionService();
+  }) : _mnemosyne = mnemosyne,
+       _memoryBridge = memoryBridge,
+       _extractionService =
+           extractionService ?? DefaultMemoryExtractionService(),
+       _embeddingService = embeddingService,
+       _vitalityService = vitalityService ?? DefaultVitalityService(),
+       _personalityService =
+           personalityService ?? DefaultPersonalityAwakeningService(),
+       _speechEngine = speechEngine ?? const PersonalitySpeechEngine(),
+       _diaryService = diaryService ?? DefaultPetDiaryService(),
+       _monologueService = monologueService ?? DefaultPetMonologueService(),
+       _socialProxyService = socialProxyService ?? DefaultSocialProxyService(),
+       _socialShield = socialShield ?? DefaultSocialShield(),
+       _reportService = reportService ?? DefaultDailyReportService(),
+       _cloudLlm = cloudLlm,
+       _subscriptionService = subscriptionService ?? SubscriptionService();
 
   Mnemosyne get mnemosyne => _mnemosyne;
   PetMemoryBridge get memoryBridge => _memoryBridge;
@@ -98,7 +101,10 @@ class PetOrchestrator {
   DailyReportService get reportService => _reportService;
   SubscriptionService get subscriptionService => _subscriptionService;
 
-  Future<String> ingestConversation(String content, {PetContext? petContext}) async {
+  Future<String> ingestConversation(
+    String content, {
+    PetContext? petContext,
+  }) async {
     petContext ??= PetContext.capture();
 
     final rawMessage = await _extractionService.ingest(
@@ -113,7 +119,9 @@ class PetOrchestrator {
     List<double>? embedding;
     final embeddingService = _embeddingService;
     if (embeddingService != null) {
-      final summary = insight != null && insight.summary.isNotEmpty ? insight.summary : content;
+      final summary = insight != null && insight.summary.isNotEmpty
+          ? insight.summary
+          : content;
       embedding = await embeddingService.embed(summary);
     }
 
@@ -125,6 +133,11 @@ class PetOrchestrator {
       entities: insight?.entities,
       topics: insight?.topics,
       embedding: embedding,
+      innerState: _xiangString(insight?.extra, 'innerState') ?? insight?.mood,
+      relationshipState: _xiangString(insight?.extra, 'relationshipState'),
+      eventShape: _xiangString(insight?.extra, 'eventShape') ?? insight?.event,
+      changeSignal: _xiangString(insight?.extra, 'changeSignal'),
+      recallCues: _xiangRecallCues(insight?.extra),
     );
 
     _vitalityService.onOwnerInteraction(petId);
@@ -163,7 +176,9 @@ class PetOrchestrator {
     return response;
   }
 
-  Future<LlmResponse?> generateCloudResponse(ProxyResponse proxyResponse) async {
+  Future<LlmResponse?> generateCloudResponse(
+    ProxyResponse proxyResponse,
+  ) async {
     final cloudLlm = _cloudLlm;
     if (cloudLlm == null) return null;
 
@@ -187,30 +202,73 @@ class PetOrchestrator {
     _personalityService.applyTimeDecay(petId, elapsed);
   }
 
-  Future<DiaryEntry?> generateDailyDiary(PetContext context, List<String> recentMemories) async {
-    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
-    return await _diaryService.generateDailyDiary(petId, context, recentMemories, personality: personality);
+  Future<DiaryEntry?> generateDailyDiary(
+    PetContext context,
+    List<String> recentMemories,
+  ) async {
+    final personality = config.enablePersonalityTracking
+        ? _personalityService.getProfile(petId)
+        : null;
+    return await _diaryService.generateDailyDiary(
+      petId,
+      context,
+      recentMemories,
+      personality: personality,
+    );
   }
 
-  Future<DiaryEntry?> generateObservation(PetContext context, String target) async {
-    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
-    return await _diaryService.generateObservation(petId, context, target, personality: personality);
+  Future<DiaryEntry?> generateObservation(
+    PetContext context,
+    String target,
+  ) async {
+    final personality = config.enablePersonalityTracking
+        ? _personalityService.getProfile(petId)
+        : null;
+    return await _diaryService.generateObservation(
+      petId,
+      context,
+      target,
+      personality: personality,
+    );
   }
 
-  PetMonologue? generateMonologue(MonologueTrigger trigger, PetContext context) {
-    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
-    return _monologueService.generateMonologue(petId, trigger, context, personality: personality);
+  PetMonologue? generateMonologue(
+    MonologueTrigger trigger,
+    PetContext context,
+  ) {
+    final personality = config.enablePersonalityTracking
+        ? _personalityService.getProfile(petId)
+        : null;
+    return _monologueService.generateMonologue(
+      petId,
+      trigger,
+      context,
+      personality: personality,
+    );
   }
 
   PetMonologue? generateBoredomMonologue(PetContext context) {
     final vitality = _vitalityService.getCurrentState(petId);
-    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
-    return _monologueService.generateBoredomMonologue(petId, vitality, context, personality: personality);
+    final personality = config.enablePersonalityTracking
+        ? _personalityService.getProfile(petId)
+        : null;
+    return _monologueService.generateBoredomMonologue(
+      petId,
+      vitality,
+      context,
+      personality: personality,
+    );
   }
 
   PetMonologue? generateTimeBasedMonologue(PetContext context) {
-    final personality = config.enablePersonalityTracking ? _personalityService.getProfile(petId) : null;
-    return _monologueService.generateTimeBasedMonologue(petId, context, personality: personality);
+    final personality = config.enablePersonalityTracking
+        ? _personalityService.getProfile(petId)
+        : null;
+    return _monologueService.generateTimeBasedMonologue(
+      petId,
+      context,
+      personality: personality,
+    );
   }
 
   String generatePersonalityResponse(String baseContent) {
@@ -224,14 +282,18 @@ class PetOrchestrator {
 
   bool shouldWander() => _vitalityService.shouldWander(petId);
   bool shouldStealBone() => _vitalityService.shouldStealBone(petId);
-  String getWanderingPushMessage() => _vitalityService.getWanderingPushMessage(petId);
-  String getStealBonePushMessage() => _vitalityService.getStealBonePushMessage(petId);
+  String getWanderingPushMessage() =>
+      _vitalityService.getWanderingPushMessage(petId);
+  String getStealBonePushMessage() =>
+      _vitalityService.getStealBonePushMessage(petId);
 
   ShieldState setShieldMode(ShieldConfig shieldConfig) {
     return _socialShield.setMode(userId, shieldConfig);
   }
 
-  Future<DailyReport> generateDailyReport(List<SocialInteractionRecord> interactions) async {
+  Future<DailyReport> generateDailyReport(
+    List<SocialInteractionRecord> interactions,
+  ) async {
     return await _reportService.generateReport(petId, interactions);
   }
 
@@ -241,5 +303,29 @@ class PetOrchestrator {
 
   bool checkMemoryLimit(int currentCount) {
     return _subscriptionService.checkMemoryLimit(userId, currentCount);
+  }
+
+  String? _xiangString(Map<String, dynamic>? extra, String key) {
+    final xiang = extra?['xiang'];
+    if (xiang is! Map) return null;
+    final value = xiang[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+    return null;
+  }
+
+  List<SensoryTag>? _xiangRecallCues(Map<String, dynamic>? extra) {
+    final xiang = extra?['xiang'];
+    if (xiang is! Map) return null;
+    final values = xiang['recallCues'];
+    if (values is! List) return null;
+
+    final cues = values
+        .whereType<Object>()
+        .map((value) => value.toString().trim())
+        .where((value) => value.isNotEmpty)
+        .map((value) => SensoryTag(category: 'recallCue', value: value))
+        .toList();
+
+    return cues.isEmpty ? null : cues;
   }
 }

@@ -37,15 +37,19 @@ class XiangPlugin implements MemoryScoringPlugin {
     XiangDecayService? decayService,
     XiangMatcherService? matcherService,
     XiangSceneTriggerService? sceneTriggerService,
-  })  : captureService = captureService ?? DefaultXiangCaptureService(),
-        decayService = decayService ?? DefaultXiangDecayService(config: config),
-        matcherService = matcherService ?? DefaultXiangMatcherService(config: config),
-        sceneTriggerService = sceneTriggerService ??
-            DefaultXiangSceneTriggerService(
-              config: config,
-              decayService: decayService ?? DefaultXiangDecayService(config: config),
-              matcherService: matcherService ?? DefaultXiangMatcherService(config: config),
-            );
+  }) : captureService = captureService ?? DefaultXiangCaptureService(),
+       decayService = decayService ?? DefaultXiangDecayService(config: config),
+       matcherService =
+           matcherService ?? DefaultXiangMatcherService(config: config),
+       sceneTriggerService =
+           sceneTriggerService ??
+           DefaultXiangSceneTriggerService(
+             config: config,
+             decayService:
+                 decayService ?? DefaultXiangDecayService(config: config),
+             matcherService:
+                 matcherService ?? DefaultXiangMatcherService(config: config),
+           );
 
   XiangContext captureContext({
     String? weather,
@@ -53,7 +57,12 @@ class XiangPlugin implements MemoryScoringPlugin {
     String? activity,
     String? location,
     String? ambientMood,
+    String? innerState,
+    String? relationshipState,
+    String? eventShape,
+    String? changeSignal,
     List<SensoryTag>? sensoryTags,
+    List<SensoryTag>? recallCues,
   }) {
     return captureService.capture(
       weather: weather,
@@ -61,7 +70,12 @@ class XiangPlugin implements MemoryScoringPlugin {
       activity: activity,
       location: location,
       ambientMood: ambientMood,
+      innerState: innerState,
+      relationshipState: relationshipState,
+      eventShape: eventShape,
+      changeSignal: changeSignal,
       sensoryTags: sensoryTags,
+      recallCues: recallCues,
     );
   }
 
@@ -77,7 +91,11 @@ class XiangPlugin implements MemoryScoringPlugin {
     return XiangContext.fromMemoryMetadata(memory.metadata);
   }
 
-  XiangProfile computeProfile(String memoryId, XiangContext context, DateTime now) {
+  XiangProfile computeProfile(
+    String memoryId,
+    XiangContext context,
+    DateTime now,
+  ) {
     return decayService.computeProfile(memoryId, context, now);
   }
 
@@ -122,23 +140,29 @@ class XiangPlugin implements MemoryScoringPlugin {
           now: now,
         );
 
-        rescored.add(result.copyWith(
-          totalScore: result.totalScore * resonance.boost,
-          contextMatchScore: resonance.resonanceScore,
-        ));
+        rescored.add(
+          result.copyWith(
+            totalScore: result.totalScore * resonance.boost,
+            contextMatchScore: resonance.resonanceScore,
+          ),
+        );
       } else if (currentEncodingContext != null) {
-        final encodingScore = result.memory.encodingContext
-                ?.calculateMatchScore(currentEncodingContext) ??
+        final encodingScore =
+            result.memory.encodingContext?.calculateMatchScore(
+              currentEncodingContext,
+            ) ??
             0.0;
 
         final boost = encodingScore >= config.sceneTriggerThreshold
             ? 1.0 + (encodingScore * (config.maxResonanceBoost - 1.0))
             : 1.0 + (encodingScore * 0.2);
 
-        rescored.add(result.copyWith(
-          totalScore: result.totalScore * boost,
-          contextMatchScore: encodingScore,
-        ));
+        rescored.add(
+          result.copyWith(
+            totalScore: result.totalScore * boost,
+            contextMatchScore: encodingScore,
+          ),
+        );
       }
     }
 
@@ -154,8 +178,8 @@ class XiangRetrievalEngine {
   XiangRetrievalEngine({
     required RetrievalEngine inner,
     required XiangPlugin plugin,
-  })  : _inner = inner,
-        _plugin = plugin;
+  }) : _inner = inner,
+       _plugin = plugin;
 
   Future<List<MemorySearchResult>> retrieve({
     required String query,
@@ -167,7 +191,8 @@ class XiangRetrievalEngine {
   }) async {
     now ??= DateTime.now();
 
-    final overRetrievedLimit = (limit * _plugin.config.overRetrievalFactor).ceil();
+    final overRetrievedLimit = (limit * _plugin.config.overRetrievalFactor)
+        .ceil();
 
     final rawResults = await _inner.retrieve(
       query: query,

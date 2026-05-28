@@ -2,10 +2,14 @@
 
 A cognitive memory system for Flutter applications, inspired by human memory architecture.
 
+See [MEMORY_PHILOSOPHY.md](MEMORY_PHILOSOPHY.md) for the guiding principle:
+Mnemosyne remembers through Xiang, then recalls through resonant triggers.
+
 ## Features
 
 - **Memory Types**: Episodic, Semantic, Preference, Instruction
 - **Encoding Context**: Captures mood, time, topic, and social context for better recall
+- **Xiang Recall**: Stores scene, inner state, relationship, event shape, change, and recall cues
 - **Decay & Forgetting**: Memories decay over time, emotionally charged memories last longer
 - **Hybrid Search**: Combines keyword search and (future) semantic search with context matching
 - **Importance Scoring**: Prioritize important memories

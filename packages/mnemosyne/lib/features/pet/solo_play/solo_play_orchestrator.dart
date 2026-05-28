@@ -74,11 +74,11 @@ class SoloPlayOrchestrator {
     PetAdventureService? adventureService,
     PetLetterService? letterService,
     StoryBeatService? storyBeatService,
-  })  : _diaryService = diaryService ?? DefaultPetDiaryService(),
-        _monologueService = monologueService ?? DefaultPetMonologueService(),
-        _adventureService = adventureService ?? DefaultPetAdventureService(),
-        _letterService = letterService ?? DefaultPetLetterService(),
-        _storyBeatService = storyBeatService ?? DefaultStoryBeatService();
+  }) : _diaryService = diaryService ?? DefaultPetDiaryService(),
+       _monologueService = monologueService ?? DefaultPetMonologueService(),
+       _adventureService = adventureService ?? DefaultPetAdventureService(),
+       _letterService = letterService ?? DefaultPetLetterService(),
+       _storyBeatService = storyBeatService ?? DefaultStoryBeatService();
 
   PetDiaryService get diary => _diaryService;
   PetMonologueService get monologue => _monologueService;
@@ -93,11 +93,15 @@ class SoloPlayOrchestrator {
 
     return SoloPlayState(
       petId: petId,
-      lastDiaryTime: diaryEntries.isNotEmpty ? diaryEntries.last.writtenAt : DateTime.now(),
+      lastDiaryTime: diaryEntries.isNotEmpty
+          ? diaryEntries.last.writtenAt
+          : DateTime.now(),
       lastMonologueTime: _monologueService.getRecentMonologues(petId).isNotEmpty
           ? _monologueService.getRecentMonologues(petId).last.spokenAt
           : DateTime.now(),
-      lastAdventureTime: postcards.isNotEmpty ? postcards.last.sentAt : DateTime.now(),
+      lastAdventureTime: postcards.isNotEmpty
+          ? postcards.last.sentAt
+          : DateTime.now(),
       totalDiaryEntries: diaryEntries.length,
       totalMonologues: _monologueService.getRecentMonologues(petId).length,
       totalAdventures: postcards.length,
@@ -108,59 +112,167 @@ class SoloPlayOrchestrator {
     );
   }
 
-  PetMonologue? tickMonologue(String petId, VitalityState vitality, PetContext context, {PersonalityProfile? personality}) {
+  PetMonologue? tickMonologue(
+    String petId,
+    VitalityState vitality,
+    PetContext context, {
+    PersonalityProfile? personality,
+  }) {
     if (!config.enableMonologue) return null;
 
     if (vitality.isBored) {
-      return _monologueService.generateBoredomMonologue(petId, vitality, context, personality: personality);
+      return _monologueService.generateBoredomMonologue(
+        petId,
+        vitality,
+        context,
+        personality: personality,
+      );
     }
     if (vitality.isLonely) {
-      return _monologueService.generateLonelinessMonologue(petId, vitality, context, personality: personality);
+      return _monologueService.generateLonelinessMonologue(
+        petId,
+        vitality,
+        context,
+        personality: personality,
+      );
     }
 
-    return _monologueService.generateRandomThought(petId, context, personality: personality);
+    return _monologueService.generateRandomThought(
+      petId,
+      context,
+      personality: personality,
+    );
   }
 
-  Future<DiaryEntry?> tickDiary(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality}) async {
+  Future<DiaryEntry?> tickDiary(
+    String petId,
+    PetContext context,
+    List<String> recentMemories, {
+    PersonalityProfile? personality,
+  }) async {
     if (!config.enableDiary) return null;
-    return await _diaryService.generateDailyDiary(petId, context, recentMemories, personality: personality);
+    return await _diaryService.generateDailyDiary(
+      petId,
+      context,
+      recentMemories,
+      personality: personality,
+    );
   }
 
-  AdventurePostcard? tickAdventure(String petId, PetContext context, double boredomLevel, {PersonalityProfile? personality}) {
+  AdventurePostcard? tickAdventure(
+    String petId,
+    PetContext context,
+    double boredomLevel, {
+    PersonalityProfile? personality,
+  }) {
     if (!config.enableAdventure) return null;
-    return _adventureService.startAdventure(petId, context, boredomLevel, personality: personality);
+    return _adventureService.startAdventure(
+      petId,
+      context,
+      boredomLevel,
+      personality: personality,
+    );
   }
 
-  PetMonologue? onOwnerReturned(String petId, PetContext context, {PersonalityProfile? personality}) {
-    return _monologueService.generateOwnerEventMonologue(petId, MonologueTrigger.ownerReturned, context, personality: personality);
+  PetMonologue? onOwnerReturned(
+    String petId,
+    PetContext context, {
+    PersonalityProfile? personality,
+  }) {
+    return _monologueService.generateOwnerEventMonologue(
+      petId,
+      MonologueTrigger.ownerReturned,
+      context,
+      personality: personality,
+    );
   }
 
-  PetMonologue? onOwnerLeaving(String petId, PetContext context, {PersonalityProfile? personality}) {
-    return _monologueService.generateOwnerEventMonologue(petId, MonologueTrigger.ownerLeaving, context, personality: personality);
+  PetMonologue? onOwnerLeaving(
+    String petId,
+    PetContext context, {
+    PersonalityProfile? personality,
+  }) {
+    return _monologueService.generateOwnerEventMonologue(
+      petId,
+      MonologueTrigger.ownerLeaving,
+      context,
+      personality: personality,
+    );
   }
 
-  PetMonologue? onAfterInteraction(String petId, PetContext context, {PersonalityProfile? personality}) {
-    return _monologueService.generateMonologue(petId, MonologueTrigger.afterInteraction, context, personality: personality);
+  PetMonologue? onAfterInteraction(
+    String petId,
+    PetContext context, {
+    PersonalityProfile? personality,
+  }) {
+    return _monologueService.generateMonologue(
+      petId,
+      MonologueTrigger.afterInteraction,
+      context,
+      personality: personality,
+    );
   }
 
-  PetLetter? onSpecialOccasion(String petId, String userId, LetterOccasion occasion, PetContext context, {PersonalityProfile? personality}) {
+  PetLetter? onSpecialOccasion(
+    String petId,
+    String userId,
+    LetterOccasion occasion,
+    PetContext context, {
+    PersonalityProfile? personality,
+  }) {
     if (!config.enableLetters) return null;
-    return _letterService.generateLetter(petId, userId, occasion, context, personality: personality);
+    return _letterService.generateLetter(
+      petId,
+      userId,
+      occasion,
+      context,
+      personality: personality,
+    );
   }
 
-  PetLetter? onWeeklyReflection(String petId, String userId, PetContext context, List<String> highlights, {PersonalityProfile? personality}) {
+  PetLetter? onWeeklyReflection(
+    String petId,
+    String userId,
+    PetContext context,
+    List<String> highlights, {
+    PersonalityProfile? personality,
+  }) {
     if (!config.enableLetters) return null;
-    return _letterService.generateWeeklyLetter(petId, userId, context, highlights, personality: personality);
+    return _letterService.generateWeeklyLetter(
+      petId,
+      userId,
+      context,
+      highlights,
+      personality: personality,
+    );
   }
 
-  Future<DiaryEntry?> generateDreamRecord(String petId, PetContext context, List<String> recentMemories, {PersonalityProfile? personality}) async {
+  Future<DiaryEntry?> generateDreamRecord(
+    String petId,
+    PetContext context,
+    List<String> recentMemories, {
+    PersonalityProfile? personality,
+  }) async {
     if (!config.enableDiary) return null;
-    return await _diaryService.generateDreamRecord(petId, context, recentMemories, personality: personality);
+    return await _diaryService.generateDreamRecord(
+      petId,
+      context,
+      recentMemories,
+      personality: personality,
+    );
   }
 
-  Future<DiaryEntry?> generateHabitAnalysis(String petId, List<String> ownerHabits, {PersonalityProfile? personality}) async {
+  Future<DiaryEntry?> generateHabitAnalysis(
+    String petId,
+    List<String> ownerHabits, {
+    PersonalityProfile? personality,
+  }) async {
     if (!config.enableDiary) return null;
-    return await _diaryService.generateHabitAnalysis(petId, ownerHabits, personality: personality);
+    return await _diaryService.generateHabitAnalysis(
+      petId,
+      ownerHabits,
+      personality: personality,
+    );
   }
 
   List<PetMonologue> getRecentMonologues(String petId, {int? limit}) {
@@ -179,12 +291,20 @@ class SoloPlayOrchestrator {
     return _letterService.getUnreadLetters(userId);
   }
 
-  StoryBeat? checkStoryBeat(String petId, PersonalityProfile profile, PetContext context) {
+  StoryBeat? checkStoryBeat(
+    String petId,
+    PersonalityProfile profile,
+    PetContext context,
+  ) {
     if (!config.enableStoryBeats) return null;
     return _storyBeatService.checkTrigger(petId, profile, context);
   }
 
-  StoryBeatResult resolveStoryBeat(String petId, StoryBeat beat, StoryChoice? choice) {
+  StoryBeatResult resolveStoryBeat(
+    String petId,
+    StoryBeat beat,
+    StoryChoice? choice,
+  ) {
     return _storyBeatService.resolveBeat(petId, beat, choice);
   }
 

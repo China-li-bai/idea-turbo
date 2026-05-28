@@ -39,7 +39,10 @@ class EmotionalMemoryResult {
 }
 
 abstract class PetEmotionalGating {
-  EmotionalMemoryResult evaluateEncoding(PetContext context, {double baseImportance = 0.5});
+  EmotionalMemoryResult evaluateEncoding(
+    PetContext context, {
+    double baseImportance = 0.5,
+  });
   double computeDecayResistance(PetMood encodingMood, double emotionalValence);
   double computeMoodCongruency(PetMood currentMood, PetMood memoryMood);
 }
@@ -70,10 +73,17 @@ class DefaultPetEmotionalGating implements PetEmotionalGating {
       importanceBoost += config.positiveValenceConsolidationBoost * valence;
     }
 
-    final adjustedImportance = (baseImportance + importanceBoost).clamp(0.0, 1.0);
+    final adjustedImportance = (baseImportance + importanceBoost).clamp(
+      0.0,
+      1.0,
+    );
     final decayResistance = computeDecayResistance(context.mood, valence);
 
-    final emotionalTag = _generateEmotionalTag(context.mood, isHighArousal, isStrongValence);
+    final emotionalTag = _generateEmotionalTag(
+      context.mood,
+      isHighArousal,
+      isStrongValence,
+    );
 
     return EmotionalMemoryResult(
       adjustedImportance: adjustedImportance,
@@ -111,13 +121,18 @@ class DefaultPetEmotionalGating implements PetEmotionalGating {
     final currentArousal = currentMood.arousalLevel;
     final memoryArousal = memoryMood.arousalLevel;
 
-    final valenceSimilarity = 1.0 - (currentValence - memoryValence).abs() / 2.0;
+    final valenceSimilarity =
+        1.0 - (currentValence - memoryValence).abs() / 2.0;
     final arousalSimilarity = 1.0 - (currentArousal - memoryArousal).abs();
 
     return valenceSimilarity * 0.6 + arousalSimilarity * 0.4;
   }
 
-  String _generateEmotionalTag(PetMood mood, bool isHighArousal, bool isStrongValence) {
+  String _generateEmotionalTag(
+    PetMood mood,
+    bool isHighArousal,
+    bool isStrongValence,
+  ) {
     if (isHighArousal && isStrongValence) {
       return mood.valence > 0 ? 'intense_positive' : 'intense_negative';
     }

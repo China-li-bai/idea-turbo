@@ -102,22 +102,32 @@ class DefaultPetSceneRecall implements PetSceneRecall {
         encodingMood,
       );
 
-      final combinedScore = sceneScore * (1.0 - config.moodWeight) +
+      final combinedScore =
+          sceneScore * (1.0 - config.moodWeight) +
           moodCongruency * config.moodWeight;
 
       if (combinedScore < config.sceneTriggerThreshold) continue;
 
-      final triggeredDims = _identifyTriggeredDimensions(xiangCtx, currentContext);
-      final reason = _generateRecallReason(triggeredDims, currentContext, encodingMood);
+      final triggeredDims = _identifyTriggeredDimensions(
+        xiangCtx,
+        currentContext,
+      );
+      final reason = _generateRecallReason(
+        triggeredDims,
+        currentContext,
+        encodingMood,
+      );
 
-      proactiveMemories.add(ProactiveMemory(
-        memory: result.memory,
-        sceneScore: combinedScore,
-        moodCongruency: moodCongruency,
-        triggeredDimensions: triggeredDims,
-        recallReason: reason,
-        triggeredAt: now,
-      ));
+      proactiveMemories.add(
+        ProactiveMemory(
+          memory: result.memory,
+          sceneScore: combinedScore,
+          moodCongruency: moodCongruency,
+          triggeredDimensions: triggeredDims,
+          recallReason: reason,
+          triggeredAt: now,
+        ),
+      );
     }
 
     proactiveMemories.sort((a, b) => b.sceneScore.compareTo(a.sceneScore));
@@ -141,11 +151,32 @@ class DefaultPetSceneRecall implements PetSceneRecall {
       activity: context.activity ?? context.activityDescription,
       location: context.location ?? context.locationDescription,
       ambientMood: context.ambientMood,
+      innerState: context.mood.name,
+      relationshipState: 'owner_interaction',
+      eventShape: context.state.name,
       sensoryTags: [
-        SensoryTag(category: 'petMood', value: context.mood.name, intensity: context.mood.arousalLevel),
+        SensoryTag(
+          category: 'petMood',
+          value: context.mood.name,
+          intensity: context.mood.arousalLevel,
+        ),
         SensoryTag(category: 'timeOfDay', value: context.timeOfDay.name),
         if (context.isWeekend)
           const SensoryTag(category: 'dayType', value: 'weekend'),
+      ],
+      recallCues: [
+        if (context.weather != null)
+          SensoryTag(category: 'weatherCue', value: context.weather!),
+        SensoryTag(category: 'timeCue', value: context.timeOfDay.name),
+        SensoryTag(
+          category: 'moodCue',
+          value: context.mood.name,
+          intensity: context.mood.arousalLevel,
+        ),
+        SensoryTag(
+          category: 'activityCue',
+          value: context.activity ?? context.activityDescription,
+        ),
       ],
       capturedAt: context.capturedAt,
     );
@@ -159,7 +190,11 @@ class DefaultPetSceneRecall implements PetSceneRecall {
     final plugin = xiangPlugin;
     if (plugin != null && storedXiang != null) {
       final currentXiang = petContextToXiang(currentContext);
-      final profile = plugin.computeProfile(memory.id, storedXiang, DateTime.now());
+      final profile = plugin.computeProfile(
+        memory.id,
+        storedXiang,
+        DateTime.now(),
+      );
       return plugin.matcherService.matchScore(profile, currentXiang);
     }
 
@@ -175,24 +210,34 @@ class DefaultPetSceneRecall implements PetSceneRecall {
 
     if (storedXiang != null) {
       if (storedXiang.weather != null && currentContext.weather != null) {
-        score += (storedXiang.weather == currentContext.weather ? 1.0 : 0.3) * config.weatherWeight;
+        score +=
+            (storedXiang.weather == currentContext.weather ? 1.0 : 0.3) *
+            config.weatherWeight;
         totalWeight += config.weatherWeight;
       }
 
       if (storedXiang.activity != null) {
-        final currentActivity = currentContext.activity ?? currentContext.activityDescription;
-        score += (storedXiang.activity == currentActivity ? 1.0 : 0.2) * config.activityWeight;
+        final currentActivity =
+            currentContext.activity ?? currentContext.activityDescription;
+        score +=
+            (storedXiang.activity == currentActivity ? 1.0 : 0.2) *
+            config.activityWeight;
         totalWeight += config.activityWeight;
       }
 
       if (storedXiang.location != null) {
-        final currentLocation = currentContext.location ?? currentContext.locationDescription;
-        score += (storedXiang.location == currentLocation ? 1.0 : 0.2) * config.locationWeight;
+        final currentLocation =
+            currentContext.location ?? currentContext.locationDescription;
+        score +=
+            (storedXiang.location == currentLocation ? 1.0 : 0.2) *
+            config.locationWeight;
         totalWeight += config.locationWeight;
       }
     }
 
-    return totalWeight > 0 ? (score / totalWeight).clamp(0.0, 1.0) : 0.0;
+    return totalWeight > 0
+        ? (score / totalWeight).clamp(0.0, 1.0).toDouble()
+        : 0.0;
   }
 
   double _timeOfDayMatch(dynamic encodingContext, PetContext currentContext) {
@@ -212,11 +257,16 @@ class DefaultPetSceneRecall implements PetSceneRecall {
     return PetMood.neutral;
   }
 
-  List<String> _identifyTriggeredDimensions(XiangContext? stored, PetContext current) {
+  List<String> _identifyTriggeredDimensions(
+    XiangContext? stored,
+    PetContext current,
+  ) {
     final dims = <String>[];
 
     if (stored != null) {
-      if (stored.weather != null && current.weather != null && stored.weather == current.weather) {
+      if (stored.weather != null &&
+          current.weather != null &&
+          stored.weather == current.weather) {
         dims.add('weather');
       }
       if (stored.activity != null) {
@@ -227,8 +277,24 @@ class DefaultPetSceneRecall implements PetSceneRecall {
         final currentLocation = current.location ?? current.locationDescription;
         if (stored.location == currentLocation) dims.add('location');
       }
-      if (stored.ambientMood != null && current.ambientMood != null && stored.ambientMood == current.ambientMood) {
+      if (stored.ambientMood != null &&
+          current.ambientMood != null &&
+          stored.ambientMood == current.ambientMood) {
         dims.add('ambientMood');
+      }
+      if (stored.innerState != null && stored.innerState == current.mood.name) {
+        dims.add('innerState');
+      }
+      if (stored.recallCues.isNotEmpty) {
+        final currentValues = {
+          current.weather,
+          current.timeOfDay.name,
+          current.mood.name,
+          current.activity ?? current.activityDescription,
+        };
+        if (stored.recallCues.any((cue) => currentValues.contains(cue.value))) {
+          dims.add('recallCue');
+        }
       }
     }
 
@@ -254,12 +320,19 @@ class DefaultPetSceneRecall implements PetSceneRecall {
           reasons.add('在这里让我想起了');
         case 'ambientMood':
           reasons.add('这种氛围让我想起了');
+        case 'innerState':
+          reasons.add('你现在的状态让我想起了');
+        case 'recallCue':
+          reasons.add('这个触发点让我想起了');
         case 'timeOfDay':
           reasons.add('这个时间让我想起了');
       }
     }
 
-    final moodCongruency = emotionalGating.computeMoodCongruency(currentContext.mood, encodingMood);
+    final moodCongruency = emotionalGating.computeMoodCongruency(
+      currentContext.mood,
+      encodingMood,
+    );
     if (moodCongruency > 0.7) {
       reasons.add('现在的心情也和那时很像');
     }

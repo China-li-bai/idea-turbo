@@ -18,10 +18,10 @@ class PetRepositoryImpl implements PetRepository {
     required PersonalityAwakeningService personalityService,
     required ResonanceService resonanceService,
     required PetLocalDataSource localDataSource,
-  })  : _vitalityService = vitalityService,
-        _personalityService = personalityService,
-        _resonanceService = resonanceService,
-        _localDataSource = localDataSource;
+  }) : _vitalityService = vitalityService,
+       _personalityService = personalityService,
+       _resonanceService = resonanceService,
+       _localDataSource = localDataSource;
 
   @override
   Future<PetSnapshot> loadSnapshot(String petId) async {
@@ -29,8 +29,9 @@ class PetRepositoryImpl implements PetRepository {
     if (cached != null) return cached;
 
     try {
-      final data =
-          await _localDataSource.read(PetLocalDataSource.snapshotKey(petId));
+      final data = await _localDataSource.read(
+        PetLocalDataSource.snapshotKey(petId),
+      );
       if (data != null && data.isNotEmpty) {
         final snapshot = PetSnapshot.decode(data);
         _injectIntoServices(petId, snapshot);

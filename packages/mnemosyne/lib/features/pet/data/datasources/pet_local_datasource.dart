@@ -5,8 +5,8 @@ class PetLocalDataSource {
   PetLocalDataSource({
     required Future<String> Function(String key) read,
     required Future<void> Function(String key, String value) write,
-  })  : _read = read,
-        _write = write;
+  }) : _read = read,
+       _write = write;
 
   static String snapshotKey(String petId) => 'pet_snapshot_$petId';
   static String vitalityKey(String petId) => 'pet_vitality_$petId';

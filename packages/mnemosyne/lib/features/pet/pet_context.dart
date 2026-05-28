@@ -133,8 +133,8 @@ class PetContext {
     this.location,
     this.ambientMood,
     DateTime? capturedAt,
-  })  : timeOfDay = timeOfDay ?? TimeOfDay.night,
-        capturedAt = capturedAt ?? DateTime.now();
+  }) : timeOfDay = timeOfDay ?? TimeOfDay.night,
+       capturedAt = capturedAt ?? DateTime.now();
 
   factory PetContext.capture({
     PetMood mood = PetMood.neutral,
@@ -205,37 +205,37 @@ class PetContext {
   }
 
   Map<String, dynamic> toJson() => {
-        'mood': mood.name,
-        'state': state.name,
-        'timeOfDay': timeOfDay.name,
-        'isWeekend': isWeekend,
-        'weather': weather,
-        'temperature': temperature,
-        'activity': activity,
-        'location': location,
-        'ambientMood': ambientMood,
-        'capturedAt': capturedAt.toIso8601String(),
-      };
+    'mood': mood.name,
+    'state': state.name,
+    'timeOfDay': timeOfDay.name,
+    'isWeekend': isWeekend,
+    'weather': weather,
+    'temperature': temperature,
+    'activity': activity,
+    'location': location,
+    'ambientMood': ambientMood,
+    'capturedAt': capturedAt.toIso8601String(),
+  };
 
   factory PetContext.fromJson(Map<String, dynamic> json) => PetContext(
-        mood: PetMood.fromString(json['mood'] as String? ?? 'neutral'),
-        state: PetState.fromString(json['state'] as String? ?? 'idle'),
-        timeOfDay: json['timeOfDay'] != null
-            ? TimeOfDay.values.firstWhere(
-                (e) => e.name == json['timeOfDay'],
-                orElse: () => TimeOfDay.night,
-              )
-            : null,
-        isWeekend: json['isWeekend'] as bool? ?? false,
-        weather: json['weather'] as String?,
-        temperature: json['temperature'] as String?,
-        activity: json['activity'] as String?,
-        location: json['location'] as String?,
-        ambientMood: json['ambientMood'] as String?,
-        capturedAt: json['capturedAt'] != null
-            ? DateTime.parse(json['capturedAt'] as String)
-            : null,
-      );
+    mood: PetMood.fromString(json['mood'] as String? ?? 'neutral'),
+    state: PetState.fromString(json['state'] as String? ?? 'idle'),
+    timeOfDay: json['timeOfDay'] != null
+        ? TimeOfDay.values.firstWhere(
+            (e) => e.name == json['timeOfDay'],
+            orElse: () => TimeOfDay.night,
+          )
+        : null,
+    isWeekend: json['isWeekend'] as bool? ?? false,
+    weather: json['weather'] as String?,
+    temperature: json['temperature'] as String?,
+    activity: json['activity'] as String?,
+    location: json['location'] as String?,
+    ambientMood: json['ambientMood'] as String?,
+    capturedAt: json['capturedAt'] != null
+        ? DateTime.parse(json['capturedAt'] as String)
+        : null,
+  );
 
   PetContext copyWith({
     PetMood? mood,
@@ -248,17 +248,16 @@ class PetContext {
     String? location,
     String? ambientMood,
     DateTime? capturedAt,
-  }) =>
-      PetContext(
-        mood: mood ?? this.mood,
-        state: state ?? this.state,
-        timeOfDay: timeOfDay ?? this.timeOfDay,
-        isWeekend: isWeekend ?? this.isWeekend,
-        weather: weather ?? this.weather,
-        temperature: temperature ?? this.temperature,
-        activity: activity ?? this.activity,
-        location: location ?? this.location,
-        ambientMood: ambientMood ?? this.ambientMood,
-        capturedAt: capturedAt ?? this.capturedAt,
-      );
+  }) => PetContext(
+    mood: mood ?? this.mood,
+    state: state ?? this.state,
+    timeOfDay: timeOfDay ?? this.timeOfDay,
+    isWeekend: isWeekend ?? this.isWeekend,
+    weather: weather ?? this.weather,
+    temperature: temperature ?? this.temperature,
+    activity: activity ?? this.activity,
+    location: location ?? this.location,
+    ambientMood: ambientMood ?? this.ambientMood,
+    capturedAt: capturedAt ?? this.capturedAt,
+  );
 }

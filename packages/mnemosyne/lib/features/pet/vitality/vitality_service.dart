@@ -1,18 +1,6 @@
-enum VitalityLevel {
-  critical,
-  low,
-  medium,
-  high,
-  full,
-}
+enum VitalityLevel { critical, low, medium, high, full }
 
-enum SocialEnergyState {
-  exhausted,
-  tired,
-  normal,
-  energetic,
-  supercharged,
-}
+enum SocialEnergyState { exhausted, tired, normal, energetic, supercharged }
 
 class VitalityState {
   final double socialEnergy;
@@ -84,46 +72,45 @@ class VitalityState {
     DateTime? lastSocialAt,
     int? socialInteractionsToday,
     int? maxSocialInteractionsPerDay,
-  }) =>
-      VitalityState(
-        socialEnergy: socialEnergy ?? this.socialEnergy,
-        emotionalBattery: emotionalBattery ?? this.emotionalBattery,
-        boredomLevel: boredomLevel ?? this.boredomLevel,
-        lonelinessLevel: lonelinessLevel ?? this.lonelinessLevel,
-        lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
-        lastSocialAt: lastSocialAt ?? this.lastSocialAt,
-        socialInteractionsToday:
-            socialInteractionsToday ?? this.socialInteractionsToday,
-        maxSocialInteractionsPerDay:
-            maxSocialInteractionsPerDay ?? this.maxSocialInteractionsPerDay,
-      );
+  }) => VitalityState(
+    socialEnergy: socialEnergy ?? this.socialEnergy,
+    emotionalBattery: emotionalBattery ?? this.emotionalBattery,
+    boredomLevel: boredomLevel ?? this.boredomLevel,
+    lonelinessLevel: lonelinessLevel ?? this.lonelinessLevel,
+    lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
+    lastSocialAt: lastSocialAt ?? this.lastSocialAt,
+    socialInteractionsToday:
+        socialInteractionsToday ?? this.socialInteractionsToday,
+    maxSocialInteractionsPerDay:
+        maxSocialInteractionsPerDay ?? this.maxSocialInteractionsPerDay,
+  );
 
   Map<String, dynamic> toJson() => {
-        'socialEnergy': socialEnergy,
-        'emotionalBattery': emotionalBattery,
-        'boredomLevel': boredomLevel,
-        'lonelinessLevel': lonelinessLevel,
-        'lastInteractionAt': lastInteractionAt.toIso8601String(),
-        'lastSocialAt': lastSocialAt.toIso8601String(),
-        'socialInteractionsToday': socialInteractionsToday,
-        'maxSocialInteractionsPerDay': maxSocialInteractionsPerDay,
-      };
+    'socialEnergy': socialEnergy,
+    'emotionalBattery': emotionalBattery,
+    'boredomLevel': boredomLevel,
+    'lonelinessLevel': lonelinessLevel,
+    'lastInteractionAt': lastInteractionAt.toIso8601String(),
+    'lastSocialAt': lastSocialAt.toIso8601String(),
+    'socialInteractionsToday': socialInteractionsToday,
+    'maxSocialInteractionsPerDay': maxSocialInteractionsPerDay,
+  };
 
   factory VitalityState.fromJson(Map<String, dynamic> json) => VitalityState(
-        socialEnergy: (json['socialEnergy'] as num?)?.toDouble() ?? 1.0,
-        emotionalBattery: (json['emotionalBattery'] as num?)?.toDouble() ?? 1.0,
-        boredomLevel: (json['boredomLevel'] as num?)?.toDouble() ?? 0.0,
-        lonelinessLevel: (json['lonelinessLevel'] as num?)?.toDouble() ?? 0.0,
-        lastInteractionAt: json['lastInteractionAt'] != null
-            ? DateTime.parse(json['lastInteractionAt'] as String)
-            : DateTime.now(),
-        lastSocialAt: json['lastSocialAt'] != null
-            ? DateTime.parse(json['lastSocialAt'] as String)
-            : DateTime.now(),
-        socialInteractionsToday: json['socialInteractionsToday'] as int? ?? 0,
-        maxSocialInteractionsPerDay:
-            json['maxSocialInteractionsPerDay'] as int? ?? 20,
-      );
+    socialEnergy: (json['socialEnergy'] as num?)?.toDouble() ?? 1.0,
+    emotionalBattery: (json['emotionalBattery'] as num?)?.toDouble() ?? 1.0,
+    boredomLevel: (json['boredomLevel'] as num?)?.toDouble() ?? 0.0,
+    lonelinessLevel: (json['lonelinessLevel'] as num?)?.toDouble() ?? 0.0,
+    lastInteractionAt: json['lastInteractionAt'] != null
+        ? DateTime.parse(json['lastInteractionAt'] as String)
+        : DateTime.now(),
+    lastSocialAt: json['lastSocialAt'] != null
+        ? DateTime.parse(json['lastSocialAt'] as String)
+        : DateTime.now(),
+    socialInteractionsToday: json['socialInteractionsToday'] as int? ?? 0,
+    maxSocialInteractionsPerDay:
+        json['maxSocialInteractionsPerDay'] as int? ?? 20,
+  );
 }
 
 class VitalityConfig {
@@ -177,10 +164,11 @@ class DefaultVitalityService implements VitalityService {
 
   @override
   VitalityState getCurrentState(String petId) {
-    return _states[petId] ?? VitalityState(
-      lastInteractionAt: DateTime.now(),
-      lastSocialAt: DateTime.now(),
-    );
+    return _states[petId] ??
+        VitalityState(
+          lastInteractionAt: DateTime.now(),
+          lastSocialAt: DateTime.now(),
+        );
   }
 
   @override
@@ -188,8 +176,11 @@ class DefaultVitalityService implements VitalityService {
     final current = getCurrentState(petId);
     final hours = elapsed.inMinutes / 60.0;
 
-    final newBoredom = (current.boredomLevel + config.boredomIncreasePerHour * hours)
-        .clamp(0.0, 1.0);
+    final newBoredom =
+        (current.boredomLevel + config.boredomIncreasePerHour * hours).clamp(
+          0.0,
+          1.0,
+        );
     final newLoneliness =
         (current.lonelinessLevel + config.lonelinessIncreasePerHour * hours)
             .clamp(0.0, 1.0);
@@ -217,11 +208,11 @@ class DefaultVitalityService implements VitalityService {
 
     final updated = current.copyWith(
       emotionalBattery:
-          (current.emotionalBattery + config.emotionalBatteryRechargeOnInteraction)
+          (current.emotionalBattery +
+                  config.emotionalBatteryRechargeOnInteraction)
               .clamp(0.0, 1.0),
-      boredomLevel:
-          (current.boredomLevel - config.boredomDecreaseOnInteraction)
-              .clamp(0.0, 1.0),
+      boredomLevel: (current.boredomLevel - config.boredomDecreaseOnInteraction)
+          .clamp(0.0, 1.0),
       lonelinessLevel:
           (current.lonelinessLevel - config.lonelinessDecreaseOnInteraction)
               .clamp(0.0, 1.0),

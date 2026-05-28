@@ -304,12 +304,7 @@ class DefaultXiangMatcherService implements XiangMatcherService {
       '公寓': 0.9,
       '卧室': 0.8,
     },
-    '办公室': {
-      'office': 1.0,
-      'workplace': 0.9,
-      '办公室': 1.0,
-      '公司': 0.9,
-    },
+    '办公室': {'office': 1.0, 'workplace': 0.9, '办公室': 1.0, '公司': 0.9},
     '户外': {
       'outdoor': 1.0,
       'park': 0.8,
@@ -368,25 +363,9 @@ class DefaultXiangMatcherService implements XiangMatcherService {
       '热闹': 0.3,
       '吵闹': 0.4,
     },
-    '平静': {
-      'peaceful': 1.0,
-      'calm': 0.9,
-      'quiet': 0.8,
-      '平静': 1.0,
-      '安静': 0.8,
-    },
-    '热闹': {
-      'lively': 1.0,
-      'noisy': 0.6,
-      'energetic': 0.8,
-      '热闹': 1.0,
-      '吵闹': 0.6,
-    },
-    '紧张': {
-      'tense': 1.0,
-      'stressful': 0.9,
-      '紧张': 1.0,
-    },
+    '平静': {'peaceful': 1.0, 'calm': 0.9, 'quiet': 0.8, '平静': 1.0, '安静': 0.8},
+    '热闹': {'lively': 1.0, 'noisy': 0.6, 'energetic': 0.8, '热闹': 1.0, '吵闹': 0.6},
+    '紧张': {'tense': 1.0, 'stressful': 0.9, '紧张': 1.0},
   };
 
   @override
@@ -410,9 +389,13 @@ class DefaultXiangMatcherService implements XiangMatcherService {
 
     if (original.temperature != null && current.temperature != null) {
       final clarity = stored.clarityFor('temperature');
-      final similarity = _stringSimilarity(original.temperature!, current.temperature!);
+      final similarity = _stringSimilarity(
+        original.temperature!,
+        current.temperature!,
+      );
       final fuzzinessBoost = 1.0 + (1.0 - clarity) * 0.5;
-      totalScore += similarity * fuzzinessBoost * config.weatherMatchWeight * 0.8;
+      totalScore +=
+          similarity * fuzzinessBoost * config.weatherMatchWeight * 0.8;
       totalWeight += config.weatherMatchWeight * 0.8;
     }
 
@@ -452,25 +435,91 @@ class DefaultXiangMatcherService implements XiangMatcherService {
       totalWeight += config.ambientMoodMatchWeight;
     }
 
+    if (original.innerState != null && current.innerState != null) {
+      final fieldScore = _matchField(
+        original.innerState!,
+        current.innerState!,
+        stored.clarityFor('innerState'),
+      );
+      totalScore += fieldScore * config.innerStateMatchWeight;
+      totalWeight += config.innerStateMatchWeight;
+    }
+
+    if (original.relationshipState != null &&
+        current.relationshipState != null) {
+      final fieldScore = _matchField(
+        original.relationshipState!,
+        current.relationshipState!,
+        stored.clarityFor('relationshipState'),
+      );
+      totalScore += fieldScore * config.relationshipStateMatchWeight;
+      totalWeight += config.relationshipStateMatchWeight;
+    }
+
+    if (original.eventShape != null && current.eventShape != null) {
+      final fieldScore = _matchField(
+        original.eventShape!,
+        current.eventShape!,
+        stored.clarityFor('eventShape'),
+      );
+      totalScore += fieldScore * config.eventShapeMatchWeight;
+      totalWeight += config.eventShapeMatchWeight;
+    }
+
+    if (original.changeSignal != null && current.changeSignal != null) {
+      final fieldScore = _matchField(
+        original.changeSignal!,
+        current.changeSignal!,
+        stored.clarityFor('changeSignal'),
+      );
+      totalScore += fieldScore * config.changeSignalMatchWeight;
+      totalWeight += config.changeSignalMatchWeight;
+    }
+
     if (original.sensoryTags.isNotEmpty && current.sensoryTags.isNotEmpty) {
-      final tagScore = _matchSensoryTags(stored, current);
+      final tagScore = _matchTags(
+        stored.blurredTags.where((t) => t.category != 'recallCue').toList(),
+        current.sensoryTags,
+      );
       totalScore += tagScore * config.sensoryTagMatchWeight;
       totalWeight += config.sensoryTagMatchWeight;
     }
 
-    return totalWeight > 0 ? (totalScore / totalWeight).clamp(0.0, 1.0) : 0.0;
+    if (original.recallCues.isNotEmpty && current.recallCues.isNotEmpty) {
+      final cueScore = _matchTags(
+        stored.blurredTags.where((t) => t.category == 'recallCue').toList(),
+        current.recallCues
+            .map((cue) => cue.copyWith(category: 'recallCue'))
+            .toList(),
+      );
+      totalScore += cueScore * config.recallCueMatchWeight;
+      totalWeight += config.recallCueMatchWeight;
+    }
+
+    return totalWeight > 0
+        ? (totalScore / totalWeight).clamp(0.0, 1.0).toDouble()
+        : 0.0;
   }
 
-  double _matchSensoryTags(XiangProfile stored, XiangContext current) {
+  double _matchField(String stored, String current, double clarity) {
+    final similarity = _stringSimilarity(stored, current);
+    final fuzzinessBoost = 1.0 + (1.0 - clarity) * 0.5;
+    return (similarity * fuzzinessBoost).clamp(0.0, 1.0).toDouble();
+  }
+
+  double _matchTags(
+    List<SensoryTag> storedTagsInput,
+    List<SensoryTag> currentTags,
+  ) {
     final storedByCategory = <String, List<SensoryTag>>{};
-    for (final tag in stored.blurredTags) {
+    for (final tag in storedTagsInput) {
       storedByCategory.putIfAbsent(tag.category, () => []).add(tag);
     }
 
     double totalScore = 0.0;
     int comparisons = 0;
 
-    for (final currentTag in current.sensoryTags) {
+    for (final currentTag in currentTags) {
       final storedTags = storedByCategory[currentTag.category];
       if (storedTags == null || storedTags.isEmpty) continue;
 
@@ -515,8 +564,12 @@ class DefaultXiangMatcherService implements XiangMatcherService {
     if (a.toLowerCase() == b.toLowerCase()) return 1.0;
     if (a.isEmpty || b.isEmpty) return 0.0;
 
-    final setA = a.toLowerCase().split('').toSet();
-    final setB = b.toLowerCase().split('').toSet();
+    final lowerA = a.toLowerCase();
+    final lowerB = b.toLowerCase();
+    if (lowerA.contains(lowerB) || lowerB.contains(lowerA)) return 0.85;
+
+    final setA = lowerA.split('').toSet();
+    final setB = lowerB.split('').toSet();
     final intersection = setA.intersection(setB).length;
     final union = setA.union(setB).length;
     return union > 0 ? intersection / union : 0.0;

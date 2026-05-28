@@ -8,7 +8,11 @@ import 'package:mnemosyne/core/constants.dart';
 void main() {
   group('SensoryTag', () {
     test('should serialize and deserialize', () {
-      final tag = SensoryTag(category: 'weather', value: 'rainy', intensity: 0.8);
+      final tag = SensoryTag(
+        category: 'weather',
+        value: 'rainy',
+        intensity: 0.8,
+      );
       final json = tag.toJson();
       final restored = SensoryTag.fromJson(json);
       expect(restored.category, equals('weather'));
@@ -32,8 +36,15 @@ void main() {
         activity: 'working',
         location: 'home',
         ambientMood: 'cozy',
+        innerState: 'lonely',
+        relationshipState: 'trusting_owner',
+        eventShape: 'emotional_confession',
+        changeSignal: 'becoming_closer',
         sensoryTags: [
           SensoryTag(category: 'sound', value: 'rain_drops', intensity: 0.7),
+        ],
+        recallCues: [
+          SensoryTag(category: 'phrase', value: '不想回消息', intensity: 0.9),
         ],
         capturedAt: DateTime(2026, 1, 15, 20),
       );
@@ -43,7 +54,12 @@ void main() {
       expect(ctx.activity, equals('working'));
       expect(ctx.location, equals('home'));
       expect(ctx.ambientMood, equals('cozy'));
+      expect(ctx.innerState, equals('lonely'));
+      expect(ctx.relationshipState, equals('trusting_owner'));
+      expect(ctx.eventShape, equals('emotional_confession'));
+      expect(ctx.changeSignal, equals('becoming_closer'));
       expect(ctx.sensoryTags.length, equals(1));
+      expect(ctx.recallCues.length, equals(1));
     });
 
     test('should round-trip through JSON', () {
@@ -53,6 +69,9 @@ void main() {
         location: 'park',
         sensoryTags: [
           SensoryTag(category: 'scent', value: 'grass', intensity: 0.6),
+        ],
+        recallCues: [
+          SensoryTag(category: 'place', value: 'park bench', intensity: 0.8),
         ],
         capturedAt: DateTime(2026, 3, 20, 10),
       );
@@ -65,6 +84,8 @@ void main() {
       expect(restored.location, equals('park'));
       expect(restored.sensoryTags.length, equals(1));
       expect(restored.sensoryTags[0].value, equals('grass'));
+      expect(restored.recallCues.length, equals(1));
+      expect(restored.recallCues[0].value, equals('park bench'));
     });
 
     test('should inject and extract from memory metadata', () {
@@ -80,7 +101,10 @@ void main() {
         metadata: {'existing': 'data'},
       );
 
-      final updatedMetadata = XiangContext.injectIntoMetadata(memory.metadata, ctx);
+      final updatedMetadata = XiangContext.injectIntoMetadata(
+        memory.metadata,
+        ctx,
+      );
       final extracted = XiangContext.fromMemoryMetadata(updatedMetadata);
 
       expect(extracted, isNotNull);
@@ -101,13 +125,15 @@ void main() {
       final ctx = XiangContext(
         weather: 'rainy',
         activity: 'working',
-        sensoryTags: [
-          SensoryTag(category: 'sound', value: 'thunder'),
-        ],
+        sensoryTags: [SensoryTag(category: 'sound', value: 'thunder')],
+        recallCues: [SensoryTag(category: 'phrase', value: '不想回消息')],
         capturedAt: DateTime(2026, 1, 1),
       );
 
-      expect(ctx.allValues, containsAll(['rainy', 'working', 'thunder']));
+      expect(
+        ctx.allValues,
+        containsAll(['rainy', 'working', 'thunder', '不想回消息']),
+      );
     });
   });
 
@@ -156,7 +182,10 @@ void main() {
 
       final profile = service.computeProfile('mem-3', ctx, now);
 
-      expect(profile.clarityFor('location'), greaterThan(profile.clarityFor('weather')));
+      expect(
+        profile.clarityFor('location'),
+        greaterThan(profile.clarityFor('weather')),
+      );
     });
   });
 
@@ -187,10 +216,7 @@ void main() {
 
     test('should score similar weather higher than dissimilar', () {
       final now = DateTime(2026, 4, 28);
-      final storedCtx = XiangContext(
-        weather: 'rainy',
-        capturedAt: now,
-      );
+      final storedCtx = XiangContext(weather: 'rainy', capturedAt: now);
 
       final profile = decayService.computeProfile('mem-1', storedCtx, now);
 
@@ -205,15 +231,15 @@ void main() {
 
     test('should score similar activities higher', () {
       final now = DateTime(2026, 4, 28);
-      final storedCtx = XiangContext(
-        activity: 'working',
-        capturedAt: now,
-      );
+      final storedCtx = XiangContext(activity: 'working', capturedAt: now);
 
       final profile = decayService.computeProfile('mem-1', storedCtx, now);
 
       final codingCtx = XiangContext(activity: 'coding', capturedAt: now);
-      final exercisingCtx = XiangContext(activity: 'exercising', capturedAt: now);
+      final exercisingCtx = XiangContext(
+        activity: 'exercising',
+        capturedAt: now,
+      );
 
       final codingScore = matcher.matchScore(profile, codingCtx);
       final exercisingScore = matcher.matchScore(profile, exercisingCtx);
@@ -234,7 +260,11 @@ void main() {
 
       final currentCtx = XiangContext(weather: 'rainy', capturedAt: now);
 
-      final recentProfile = decayService.computeProfile('mem-1', recentCtx, now);
+      final recentProfile = decayService.computeProfile(
+        'mem-1',
+        recentCtx,
+        now,
+      );
       final oldProfile = decayService.computeProfile('mem-2', oldCtx, now);
 
       final recentScore = matcher.matchScore(recentProfile, currentCtx);
@@ -267,21 +297,49 @@ void main() {
 
     test('should return 0 when no overlapping fields', () {
       final now = DateTime(2026, 4, 28);
-      final storedCtx = XiangContext(
-        weather: 'sunny',
-        capturedAt: now,
-      );
+      final storedCtx = XiangContext(weather: 'sunny', capturedAt: now);
 
       final profile = decayService.computeProfile('mem-1', storedCtx, now);
 
-      final currentCtx = XiangContext(
-        activity: 'working',
-        capturedAt: now,
-      );
+      final currentCtx = XiangContext(activity: 'working', capturedAt: now);
 
       final score = matcher.matchScore(profile, currentCtx);
       expect(score, equals(0.0));
     });
+
+    test(
+      'should recall by inner xiang and cue without external scene overlap',
+      () {
+        final now = DateTime(2026, 4, 28);
+        final storedCtx = XiangContext(
+          innerState: 'lonely',
+          relationshipState: 'trusting_owner',
+          eventShape: 'emotional_confession',
+          changeSignal: 'becoming_closer',
+          recallCues: [
+            SensoryTag(category: 'phrase', value: '不想回消息', intensity: 0.9),
+          ],
+          capturedAt: now,
+        );
+
+        final profile = decayService.computeProfile(
+          'mem-inner',
+          storedCtx,
+          now,
+        );
+        final currentCtx = XiangContext(
+          innerState: 'lonely',
+          relationshipState: 'trusting_owner',
+          eventShape: 'emotional_confession',
+          changeSignal: 'becoming_closer',
+          recallCues: [SensoryTag(category: 'phrase', value: '今晚不想回消息')],
+          capturedAt: now,
+        );
+
+        final score = matcher.matchScore(profile, currentCtx);
+        expect(score, greaterThan(0.7));
+      },
+    );
   });
 
   group('XiangSceneTriggerService', () {
@@ -402,10 +460,7 @@ void main() {
         location: 'office',
       );
 
-      final memory = MemoryItem(
-        id: 'test-1',
-        content: 'Fixed a critical bug',
-      );
+      final memory = MemoryItem(id: 'test-1', content: 'Fixed a critical bug');
 
       final enriched = plugin.injectContext(memory, ctx);
       final extracted = plugin.extractContext(enriched);
@@ -461,9 +516,7 @@ void main() {
     test('should not modify results when no current context', () {
       final now = DateTime(2026, 4, 28);
       final memory = MemoryItem(id: 'mem-1', content: 'test');
-      final results = [
-        MemorySearchResult(memory: memory, totalScore: 0.5),
-      ];
+      final results = [MemorySearchResult(memory: memory, totalScore: 0.5)];
 
       final rescored = plugin.rescore(results, null, null, now);
 

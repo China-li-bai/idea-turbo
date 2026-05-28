@@ -55,12 +55,10 @@ class PetMemoryBridge {
     this.config = const PetMemoryConfig(),
     PetEmotionalGating? emotionalGating,
     PetSceneRecall? sceneRecall,
-  })  : _mnemosyne = mnemosyne,
-        _emotionalGating = emotionalGating ?? DefaultPetEmotionalGating(),
-        _sceneRecall = sceneRecall ??
-            DefaultPetSceneRecall(
-              xiangPlugin: mnemosyne.xiang,
-            );
+  }) : _mnemosyne = mnemosyne,
+       _emotionalGating = emotionalGating ?? DefaultPetEmotionalGating(),
+       _sceneRecall =
+           sceneRecall ?? DefaultPetSceneRecall(xiangPlugin: mnemosyne.xiang);
 
   Mnemosyne get mnemosyne => _mnemosyne;
 
@@ -74,6 +72,11 @@ class PetMemoryBridge {
     List<String>? entities,
     List<String>? topics,
     List<double>? embedding,
+    String? innerState,
+    String? relationshipState,
+    String? eventShape,
+    String? changeSignal,
+    List<SensoryTag>? recallCues,
   }) async {
     double effectiveImportance = importance ?? config.defaultImportance;
     double emotionalValence = petContext.mood.valence;
@@ -99,7 +102,14 @@ class PetMemoryBridge {
 
     XiangContext? xiangContext;
     if (config.enableXiangContext) {
-      xiangContext = _sceneRecall.petContextToXiang(petContext);
+      final baseXiang = _sceneRecall.petContextToXiang(petContext);
+      xiangContext = baseXiang.copyWith(
+        innerState: innerState ?? baseXiang.innerState,
+        relationshipState: relationshipState ?? baseXiang.relationshipState,
+        eventShape: eventShape ?? baseXiang.eventShape,
+        changeSignal: changeSignal ?? baseXiang.changeSignal,
+        recallCues: recallCues ?? baseXiang.recallCues,
+      );
     }
 
     return await _mnemosyne.remember(
@@ -118,6 +128,11 @@ class PetMemoryBridge {
       activity: petContext.activity ?? petContext.activityDescription,
       location: petContext.location ?? petContext.locationDescription,
       ambientMood: petContext.ambientMood,
+      innerState: innerState,
+      relationshipState: relationshipState,
+      eventShape: eventShape,
+      changeSignal: changeSignal,
+      recallCues: recallCues,
       metadata: metadata,
     );
   }
@@ -184,25 +199,33 @@ class PetMemoryBridge {
       queryEmbedding: queryEmbedding,
     );
     return _sceneRecall.findBestTrigger(
-      memories.map((m) => MemorySearchResult(
-        memory: m.memory,
-        totalScore: m.sceneScore,
-        semanticScore: m.sceneScore,
-        keywordScore: 0.0,
-        recencyScore: 0.0,
-        importanceScore: 0.0,
-        contextMatchScore: m.moodCongruency,
-      )).toList(),
+      memories
+          .map(
+            (m) => MemorySearchResult(
+              memory: m.memory,
+              totalScore: m.sceneScore,
+              semanticScore: m.sceneScore,
+              keywordScore: 0.0,
+              recencyScore: 0.0,
+              importanceScore: 0.0,
+              contextMatchScore: m.moodCongruency,
+            ),
+          )
+          .toList(),
       currentContext,
     );
   }
 
   Future<List<MemoryItem>> getRecentInteractions({int? limit}) async {
-    return await _mnemosyne.getRecent(limit: limit ?? config.recentInteractionLimit);
+    return await _mnemosyne.getRecent(
+      limit: limit ?? config.recentInteractionLimit,
+    );
   }
 
   Future<List<MemoryItem>> getImportantInteractions({int? limit}) async {
-    return await _mnemosyne.getImportant(limit: limit ?? config.recentInteractionLimit);
+    return await _mnemosyne.getImportant(
+      limit: limit ?? config.recentInteractionLimit,
+    );
   }
 
   Future<PetMood> inferMoodFromRecentMemories() async {
