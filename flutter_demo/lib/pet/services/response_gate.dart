@@ -33,40 +33,23 @@ class ResponseGate {
   ResponseGate(this.emotionalState, {this.vitalityPhase = VitalityPhase.normal});
 
   ResponseDecision decide(String userMessage) {
-    final vitalityHint = _vitalityMoodHint();
-
     if (emotionalState.isWithdrawn) {
-      return _handleWithdrawn(userMessage, vitalityHint);
+      return _handleWithdrawn(userMessage);
     }
 
     if (emotionalState.mode == EmotionalMode.longing) {
-      return _handleLonging(userMessage, vitalityHint);
+      return _handleLonging();
     }
 
     if (emotionalState.mode == EmotionalMode.pensive) {
-      return _handlePensive(userMessage, vitalityHint);
+      return _handlePensive();
     }
 
     if (emotionalState.mode == EmotionalMode.playful) {
-      return _handlePlayful(userMessage, vitalityHint);
+      return _handlePlayful();
     }
 
-    return _handleNormal(userMessage, vitalityHint);
-  }
-
-  String? _vitalityMoodHint() {
-    switch (vitalityPhase) {
-      case VitalityPhase.vibrant:
-        return '你精力充沛，想多说一点，动作也更活泼。';
-      case VitalityPhase.normal:
-        return null;
-      case VitalityPhase.lethargic:
-        return '你很累，只想发一个短动作，不超过5个字。';
-      case VitalityPhase.fragile:
-        return '你情绪很脆弱，说话很小心，容易受伤。';
-      case VitalityPhase.dormant:
-        return '你几乎没有力气，只发一个极短的动作，不超过3个字。';
-    }
+    return _handleNormal();
   }
 
   Duration _vitalityDelay() {
@@ -84,7 +67,7 @@ class ResponseGate {
     }
   }
 
-  ResponseDecision _handleWithdrawn(String userMessage, String? vitalityHint) {
+  ResponseDecision _handleWithdrawn(String userMessage) {
     final remaining = emotionalState.remainingSilence;
     final baseDelay = _vitalityDelay();
 
@@ -95,7 +78,7 @@ class ResponseGate {
           type: PetActionType.retreat,
           displayText: '*缩回角落*',
         ),
-        moodHint: _mergeHints('你不想说话。只发一个表示退缩的动作，不超过5个字。', vitalityHint),
+        moodHint: '你不想说话，只发一个退缩的动作。',
       );
     }
 
@@ -107,63 +90,63 @@ class ResponseGate {
           displayText: '*看了你一眼，又低下头*',
           duration: const Duration(seconds: 3),
         ),
-        moodHint: _mergeHints('你还在犹豫要不要说话。发一个犹豫的动作，不超过10个字。', vitalityHint),
+        moodHint: '你还在犹豫要不要说话，发一个犹豫的动作。',
       );
     }
 
     return ResponseDecision(
       action: ResponseAction.delayedRespond,
       delay: baseDelay + Duration(seconds: 3 + Random().nextInt(5)),
-      moodHint: _mergeHints('你刚被伤过，还在恢复。说话很简短，有点小心翼翼。不超过15个字。', vitalityHint),
+      moodHint: '你刚被伤过，还在恢复，说话很简短，小心翼翼。',
     );
   }
 
-  ResponseDecision _handleLonging(String userMessage, String? vitalityHint) {
+  ResponseDecision _handleLonging() {
     final baseDelay = _vitalityDelay();
 
     if (_randomChance(0.4)) {
       return ResponseDecision(
         action: ResponseAction.delayedRespond,
         delay: baseDelay + Duration(seconds: 1 + Random().nextInt(3)),
-        moodHint: _mergeHints('你等了很久终于等到他说话了。你想表现得不在意，但藏不住开心。', vitalityHint),
+        moodHint: '你等了很久终于等到他说话了，想表现得不在意，但藏不住开心。',
       );
     }
 
     return ResponseDecision(
       action: ResponseAction.respond,
-      moodHint: _mergeHints('你很想念他，但不想让他看出来。', vitalityHint),
+      moodHint: '你很想念他，但不想让他看出来。',
     );
   }
 
-  ResponseDecision _handlePensive(String userMessage, String? vitalityHint) {
+  ResponseDecision _handlePensive() {
     return ResponseDecision(
       action: ResponseAction.respond,
-      moodHint: _mergeHints('深夜让你更真实。你会说一些平时不会说的话，更坦诚，也更脆弱。', vitalityHint),
+      moodHint: '深夜让你更真实，更坦诚，也更脆弱。',
     );
   }
 
-  ResponseDecision _handlePlayful(String userMessage, String? vitalityHint) {
+  ResponseDecision _handlePlayful() {
     if (vitalityPhase == VitalityPhase.lethargic || vitalityPhase == VitalityPhase.dormant) {
       return ResponseDecision(
         action: ResponseAction.respond,
-        moodHint: _mergeHints('你想调皮，但太累了。发一个简短的动作。', null),
+        moodHint: '你想调皮，但太累了，发一个简短的动作。',
       );
     }
 
     return ResponseDecision(
       action: ResponseAction.respond,
-      moodHint: _mergeHints('你现在心情很好，想逗他玩。可以调皮一点，偶尔故意说反话。', vitalityHint),
+      moodHint: '你现在心情很好，想逗他玩，可以调皮一点。',
     );
   }
 
-  ResponseDecision _handleNormal(String userMessage, String? vitalityHint) {
+  ResponseDecision _handleNormal() {
     final baseDelay = _vitalityDelay();
 
     if (emotionalState.isNightOwl && _randomChance(0.2)) {
       return ResponseDecision(
         action: ResponseAction.delayedRespond,
         delay: baseDelay + Duration(seconds: 2 + Random().nextInt(4)),
-        moodHint: _mergeHints('深夜了，你回复得慢了一点，像是在发呆。', vitalityHint),
+        moodHint: '深夜了，你回复得慢了一点，像是在发呆。',
       );
     }
 
@@ -174,15 +157,9 @@ class ResponseGate {
       );
     }
 
-    return ResponseDecision(
+    return const ResponseDecision(
       action: ResponseAction.respond,
-      moodHint: vitalityHint,
     );
-  }
-
-  String? _mergeHints(String base, String? vitality) {
-    if (vitality == null) return base;
-    return '$base $vitality';
   }
 
   PetAction _randomSilentAction() {

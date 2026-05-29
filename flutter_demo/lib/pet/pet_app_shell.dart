@@ -162,6 +162,7 @@ class _PetAppShellState extends State<PetAppShell> {
 
     final moodHint = _promptBuilder.buildOverridePrompt(
       emotionalState: _store.emotionalState,
+      vitalityPhase: _store.vitalityPhase,
       additionalHint: decision.moodHint,
       personalityProfile: _store.personalityProfile,
     );

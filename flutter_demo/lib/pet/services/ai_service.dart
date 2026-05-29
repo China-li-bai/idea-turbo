@@ -30,6 +30,8 @@ class AiResponse {
 }
 
 class AiService {
+  static const _maxHistoryPairs = 3;
+
   LlamaEngine? _engine;
   String? _modelPath;
   bool _isInitialized = false;
@@ -136,8 +138,8 @@ class AiService {
       final stream = _engine!.create(
         messages,
         params: const GenerationParams(
-          maxTokens: 256,
-          temp: 0.7,
+          maxTokens: 128,
+          temp: 0.8,
         ),
       );
 
@@ -159,12 +161,13 @@ class AiService {
       _chatHistory.add(
         LlamaChatMessage.fromText(
           role: LlamaChatRole.assistant,
-          text: rawOutput,
+          text: parsed.text.isNotEmpty ? parsed.text : rawOutput,
         ),
       );
 
-      if (_chatHistory.length > 16) {
-        _chatHistory.removeRange(0, _chatHistory.length - 16);
+      final maxHistory = _maxHistoryPairs * 2;
+      if (_chatHistory.length > maxHistory) {
+        _chatHistory.removeRange(0, _chatHistory.length - maxHistory);
       }
 
       log('[AiService] 回复成功, 长度: ${rawOutput.length}, 动作: ${parsed.actions.length}',
