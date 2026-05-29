@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 
+import '../design/memory_design.dart';
+
 class AwakeningCard extends StatefulWidget {
   final AwakeningResult result;
   final VoidCallback onDismiss;
@@ -56,13 +58,15 @@ class _AwakeningCardState extends State<AwakeningCard>
 
     final rng = Random(42);
     for (var i = 0; i < 30; i++) {
-      _sparkles.add(_Sparkle(
-        x: rng.nextDouble(),
-        y: rng.nextDouble(),
-        size: 4 + rng.nextDouble() * 8,
-        delay: rng.nextDouble() * 1.5,
-        duration: 1.0 + rng.nextDouble() * 2.0,
-      ));
+      _sparkles.add(
+        _Sparkle(
+          x: rng.nextDouble(),
+          y: rng.nextDouble(),
+          size: 4 + rng.nextDouble() * 8,
+          delay: rng.nextDouble() * 1.5,
+          duration: 1.0 + rng.nextDouble() * 2.0,
+        ),
+      );
     }
 
     _controller.forward();
@@ -86,7 +90,7 @@ class _AwakeningCardState extends State<AwakeningCard>
       animation: _controller,
       builder: (context, _) {
         return Container(
-          color: Colors.black.withValues(alpha: _opacity.value * 0.85),
+          color: MemoryPalette.ink.withValues(alpha: _opacity.value * 0.86),
           child: Stack(
             children: [
               ..._sparkles.map((s) => _buildSparkle(s)),
@@ -104,7 +108,7 @@ class _AwakeningCardState extends State<AwakeningCard>
                           end: Alignment.bottomRight,
                           colors: [
                             _glowColor().withValues(alpha: 0.3),
-                            Colors.black.withValues(alpha: 0.9),
+                            MemoryPalette.ink.withValues(alpha: 0.92),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(24),
@@ -114,7 +118,9 @@ class _AwakeningCardState extends State<AwakeningCard>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: _glowColor().withValues(alpha: _glowOpacity.value),
+                            color: _glowColor().withValues(
+                              alpha: _glowOpacity.value,
+                            ),
                             blurRadius: 60,
                             spreadRadius: 10,
                           ),
@@ -123,10 +129,7 @@ class _AwakeningCardState extends State<AwakeningCard>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            _effectEmoji(),
-                            style: const TextStyle(fontSize: 48),
-                          ),
+                          MemoryGlyph(size: 58, compact: true, progress: 0.9),
                           const SizedBox(height: 16),
                           Text(
                             widget.result.title,
@@ -134,7 +137,7 @@ class _AwakeningCardState extends State<AwakeningCard>
                               color: _glowColor(),
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
+                              letterSpacing: 0.8,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -142,7 +145,9 @@ class _AwakeningCardState extends State<AwakeningCard>
                           Text(
                             widget.result.description,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
+                              color: MemoryPalette.paper.withValues(
+                                alpha: 0.72,
+                              ),
                               fontSize: 14,
                               height: 1.5,
                             ),
@@ -152,13 +157,17 @@ class _AwakeningCardState extends State<AwakeningCard>
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: MemoryPalette.paper.withValues(
+                                alpha: 0.06,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               '"${widget.result.awakeningDialogue}"',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.85),
+                                color: MemoryPalette.paper.withValues(
+                                  alpha: 0.86,
+                                ),
                                 fontSize: 13,
                                 fontStyle: FontStyle.italic,
                                 height: 1.6,
@@ -207,11 +216,17 @@ class _AwakeningCardState extends State<AwakeningCard>
   }
 
   Widget _buildSparkle(_Sparkle s) {
-    final progress = (_controller.value - s.delay / _controller.duration!.inSeconds.toDouble())
-        .clamp(0.0, 1.0);
+    final progress =
+        (_controller.value -
+                s.delay / _controller.duration!.inSeconds.toDouble())
+            .clamp(0.0, 1.0);
     if (progress <= 0) return const SizedBox.shrink();
 
-    final sparkleProgress = (progress * _controller.duration!.inSeconds / s.duration).clamp(0.0, 1.0);
+    final sparkleProgress =
+        (progress * _controller.duration!.inSeconds / s.duration).clamp(
+          0.0,
+          1.0,
+        );
     final size = MediaQuery.of(context).size;
 
     return Positioned(
@@ -243,46 +258,23 @@ class _AwakeningCardState extends State<AwakeningCard>
   Color _glowColor() {
     switch (widget.result.primaryArchetype) {
       case PersonalityArchetype.cyberpunkSarcastic:
-        return const Color(0xFF00FFFF);
+        return MemoryPalette.moss;
       case PersonalityArchetype.zenPhilosopher:
-        return const Color(0xFF7B68EE);
+        return const Color(0xFF9A8F74);
       case PersonalityArchetype.socialButterfly:
-        return const Color(0xFFFF69B4);
+        return const Color(0xFFB48276);
       case PersonalityArchetype.introvertPoet:
-        return const Color(0xFF87CEEB);
+        return const Color(0xFF8E9A8A);
       case PersonalityArchetype.chaosAgent:
-        return const Color(0xFFFF4500);
+        return MemoryPalette.rust;
       case PersonalityArchetype.nostalgiaElder:
-        return const Color(0xFFDAA520);
+        return MemoryPalette.gold;
       case PersonalityArchetype.techEvangelist:
-        return const Color(0xFF00FF00);
+        return const Color(0xFF8FA67D);
       case PersonalityArchetype.warmHealer:
-        return const Color(0xFF4CAF50);
+        return MemoryPalette.moss;
       default:
-        return Colors.grey;
-    }
-  }
-
-  String _effectEmoji() {
-    switch (widget.result.primaryArchetype) {
-      case PersonalityArchetype.cyberpunkSarcastic:
-        return '⚡';
-      case PersonalityArchetype.zenPhilosopher:
-        return '🧘';
-      case PersonalityArchetype.socialButterfly:
-        return '🦋';
-      case PersonalityArchetype.introvertPoet:
-        return '🌙';
-      case PersonalityArchetype.chaosAgent:
-        return '🎲';
-      case PersonalityArchetype.nostalgiaElder:
-        return '📜';
-      case PersonalityArchetype.techEvangelist:
-        return '🚀';
-      case PersonalityArchetype.warmHealer:
-        return '💚';
-      default:
-        return '🐱';
+        return MemoryPalette.muted;
     }
   }
 }

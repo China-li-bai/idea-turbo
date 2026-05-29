@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'data/models/model_config.dart';
 import 'core/product/product_copy.dart';
 import 'pet/pet_app_shell.dart';
+import 'ui/design/memory_design.dart';
 import 'ui/pages/onboarding_page.dart';
 
 void main() {
@@ -22,7 +23,12 @@ class MyApp extends StatelessWidget {
       title: ProductCopy.productTitle,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: MemoryPalette.gold,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: MemoryPalette.ink,
+        fontFamily: 'sans',
         useMaterial3: true,
       ),
       home: const _AppEntry(),
@@ -74,8 +80,10 @@ class _AppEntryState extends State<_AppEntry> {
   Widget build(BuildContext context) {
     if (_onboardingComplete == null) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0A0A1A),
-        body: Center(child: CircularProgressIndicator(color: Colors.amber)),
+        backgroundColor: MemoryPalette.ink,
+        body: Center(
+          child: CircularProgressIndicator(color: MemoryPalette.gold),
+        ),
       );
     }
 

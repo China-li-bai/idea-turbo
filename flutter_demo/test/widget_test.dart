@@ -10,7 +10,7 @@ void main() {
       const MaterialApp(home: MemoryGalleryPage(memories: [])),
     );
 
-    expect(find.text('记忆相册'), findsOneWidget);
+    expect(find.text('相簿'), findsOneWidget);
     expect(find.text('还没有形成可回忆的相'), findsOneWidget);
     expect(find.text('不是聊天记录，是会被相触发的情感记忆'), findsOneWidget);
   });

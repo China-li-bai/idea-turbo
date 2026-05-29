@@ -25,6 +25,7 @@ import '../ui/pages/memory_gallery_page.dart';
 import '../ui/pages/personality_page.dart';
 import '../ui/pages/diary_page.dart';
 import '../ui/widgets/awakening_card.dart';
+import '../ui/design/memory_design.dart';
 
 class PetAppShell extends StatefulWidget {
   final String modelPath;
@@ -124,12 +125,14 @@ class _PetAppShellState extends State<PetAppShell> {
         _store.dispatchAction(decision.petAction!);
       }
       if (_memoryService != null) {
-        unawaited(_memoryService!.rememberInteraction(
-          userMessage: message,
-          petResponse: decision.petAction?.displayText ?? '*沉默*',
-          petContext: petContext,
-          kind: MemoryEventKind.silentAction,
-        ));
+        unawaited(
+          _memoryService!.rememberInteraction(
+            userMessage: message,
+            petResponse: decision.petAction?.displayText ?? '*沉默*',
+            petContext: petContext,
+            kind: MemoryEventKind.silentAction,
+          ),
+        );
       }
       _store.refreshEmotionLens();
       _checkAwakening();
@@ -140,17 +143,18 @@ class _PetAppShellState extends State<PetAppShell> {
     }
 
     if (decision.action == ResponseAction.refuse) {
-      _store.dispatchAction(const PetAction(
-        type: PetActionType.retreat,
-        displayText: '*转过身去*',
-      ));
+      _store.dispatchAction(
+        const PetAction(type: PetActionType.retreat, displayText: '*转过身去*'),
+      );
       if (_memoryService != null) {
-        unawaited(_memoryService!.rememberInteraction(
-          userMessage: message,
-          petResponse: '*转过身去*',
-          petContext: petContext,
-          kind: MemoryEventKind.refused,
-        ));
+        unawaited(
+          _memoryService!.rememberInteraction(
+            userMessage: message,
+            petResponse: '*转过身去*',
+            petContext: petContext,
+            kind: MemoryEventKind.refused,
+          ),
+        );
       }
       _store.refreshEmotionLens();
       return (response: '*转过身去*', memoryContext: null);
@@ -173,11 +177,13 @@ class _PetAppShellState extends State<PetAppShell> {
     }
 
     if (_memoryService != null) {
-      unawaited(_memoryService!.rememberInteraction(
-        userMessage: message,
-        petResponse: result.displayText,
-        petContext: petContext,
-      ));
+      unawaited(
+        _memoryService!.rememberInteraction(
+          userMessage: message,
+          petResponse: result.displayText,
+          petContext: petContext,
+        ),
+      );
     }
 
     _store.refreshEmotionLens();
@@ -244,9 +250,7 @@ class _PetAppShellState extends State<PetAppShell> {
     final ctx = AwakeningContext(
       catalystMessage: relationship.pendingCatalystMessage!,
       catalystSummary: relationship.pendingCatalystSummary!,
-      significantMemories: relationship.echoes
-          .map((e) => e.content)
-          .toList(),
+      significantMemories: relationship.echoes.map((e) => e.content).toList(),
     );
 
     _aiService.setAwakeningContext(ctx);
@@ -309,18 +313,14 @@ class _PetAppShellState extends State<PetAppShell> {
     final memories = await _memoryService!.getRecentMemories(limit: 50);
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MemoryGalleryPage(memories: memories),
-      ),
+      MaterialPageRoute(builder: (_) => MemoryGalleryPage(memories: memories)),
     );
   }
 
   void _openPersonality() {
     final profile = _store.personalityProfile;
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PersonalityPage(profile: profile),
-      ),
+      MaterialPageRoute(builder: (_) => PersonalityPage(profile: profile)),
     );
   }
 
@@ -354,7 +354,7 @@ class _PetAppShellState extends State<PetAppShell> {
 
     return Scaffold(
       body: Container(
-        color: Colors.black,
+        color: MemoryPalette.ink,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -397,7 +397,7 @@ class _PetAppShellState extends State<PetAppShell> {
 
   Widget _buildLoadingScreen() {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: MemoryPalette.ink,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -408,10 +408,7 @@ class _PetAppShellState extends State<PetAppShell> {
               builder: (context, value, _) {
                 return Opacity(
                   opacity: value,
-                  child: const Text(
-                    '🐱',
-                    style: TextStyle(fontSize: 64),
-                  ),
+                  child: MemoryGlyph(size: 92, progress: value),
                 );
               },
             ),
@@ -420,7 +417,7 @@ class _PetAppShellState extends State<PetAppShell> {
               ProductCopy.slogan,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.45),
+                color: MemoryPalette.paper.withValues(alpha: 0.52),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -429,18 +426,18 @@ class _PetAppShellState extends State<PetAppShell> {
             Text(
               _initStatus,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 16,
-                letterSpacing: 1.5,
+                color: MemoryPalette.paper.withValues(alpha: 0.76),
+                fontSize: 15,
+                letterSpacing: 0.8,
               ),
             ),
             const SizedBox(height: 24),
             SizedBox(
               width: 120,
               child: LinearProgressIndicator(
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                backgroundColor: MemoryPalette.paper.withValues(alpha: 0.08),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.amber.withValues(alpha: 0.6),
+                  MemoryPalette.gold.withValues(alpha: 0.76),
                 ),
               ),
             ),

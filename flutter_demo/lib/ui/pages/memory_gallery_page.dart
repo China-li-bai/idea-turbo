@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mnemosyne/mnemosyne.dart';
 
 import '../../core/product/product_copy.dart';
+import '../design/memory_design.dart';
 
 class MemoryGalleryPage extends StatelessWidget {
   final List<MemoryItem> memories;
@@ -13,16 +14,16 @@ class MemoryGalleryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: MemoryPalette.ink,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: MemoryPalette.ink,
         title: const Text(
-          '记忆相册',
-          style: TextStyle(color: Colors.white, letterSpacing: 2),
+          '相簿',
+          style: TextStyle(color: MemoryPalette.paper, letterSpacing: 0.8),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white54),
+          icon: const Icon(Icons.arrow_back, color: MemoryPalette.muted),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -31,18 +32,12 @@ class MemoryGalleryPage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    '🐱',
-                    style: TextStyle(
-                      fontSize: 64,
-                      color: Colors.white.withValues(alpha: 0.3),
-                    ),
-                  ),
+                  const MemoryGlyph(size: 76, compact: true),
                   const SizedBox(height: 16),
                   Text(
                     '还没有形成可回忆的相',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                      color: MemoryPalette.paper.withValues(alpha: 0.56),
                       fontSize: 16,
                     ),
                   ),
@@ -50,7 +45,7 @@ class MemoryGalleryPage extends StatelessWidget {
                   Text(
                     ProductCopy.memoryPrinciple,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: MemoryPalette.paper.withValues(alpha: 0.36),
                       fontSize: 13,
                     ),
                   ),
@@ -77,8 +72,8 @@ class _MemoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeStr = _formatTime(memory.createdAt);
-    final typeIcon = memory.type == MemoryType.semantic ? '🧠' : '📝';
-    final importanceStars = '⭐' * (memory.importance * 5).round().clamp(1, 5);
+    final typeLabel = memory.type == MemoryType.semantic ? '人格语义' : '情节片段';
+    final importance = (memory.importance * 100).round().clamp(1, 100);
     final xiangLabels = _xiangLabels(memory);
 
     return Padding(
@@ -90,33 +85,50 @@ class _MemoryCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: MemoryPalette.paper.withValues(alpha: 0.055),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(
+                color: MemoryPalette.paper.withValues(alpha: 0.09),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(typeIcon, style: const TextStyle(fontSize: 16)),
-                    const SizedBox(width: 8),
+                    const MemoryGlyph(size: 22, compact: true),
+                    const SizedBox(width: 10),
+                    Text(
+                      typeLabel,
+                      style: TextStyle(
+                        color: MemoryPalette.gold.withValues(alpha: 0.78),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Text(
                       timeStr,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
+                        color: MemoryPalette.paper.withValues(alpha: 0.40),
                         fontSize: 12,
                       ),
                     ),
                     const Spacer(),
-                    Text(importanceStars, style: const TextStyle(fontSize: 10)),
+                    Text(
+                      '强度 $importance',
+                      style: TextStyle(
+                        color: MemoryPalette.moss.withValues(alpha: 0.72),
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   memory.content,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
+                    color: MemoryPalette.paper.withValues(alpha: 0.86),
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -126,9 +138,9 @@ class _MemoryCard extends StatelessWidget {
                   Text(
                     '触发相',
                     style: TextStyle(
-                      color: Colors.cyan.withValues(alpha: 0.55),
+                      color: MemoryPalette.moss.withValues(alpha: 0.68),
                       fontSize: 11,
-                      letterSpacing: 1.2,
+                      letterSpacing: 0.8,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -142,16 +154,16 @@ class _MemoryCard extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.cyan.withValues(alpha: 0.08),
+                          color: MemoryPalette.moss.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.cyan.withValues(alpha: 0.18),
+                            color: MemoryPalette.moss.withValues(alpha: 0.20),
                           ),
                         ),
                         child: Text(
                           label,
                           style: TextStyle(
-                            color: Colors.cyan.withValues(alpha: 0.75),
+                            color: MemoryPalette.moss.withValues(alpha: 0.78),
                             fontSize: 11,
                           ),
                         ),
@@ -171,16 +183,16 @@ class _MemoryCard extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
+                          color: MemoryPalette.gold.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.amber.withValues(alpha: 0.2),
+                            color: MemoryPalette.gold.withValues(alpha: 0.20),
                           ),
                         ),
                         child: Text(
                           kw,
                           style: TextStyle(
-                            color: Colors.amber.withValues(alpha: 0.7),
+                            color: MemoryPalette.gold.withValues(alpha: 0.76),
                             fontSize: 11,
                           ),
                         ),

@@ -3,38 +3,33 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/solo_play/pet_diary_service.dart';
 
+import '../design/memory_design.dart';
+
 class DiaryPage extends StatelessWidget {
   final List<DiaryEntry> entries;
   final VoidCallback? onGenerateDiary;
 
-  const DiaryPage({
-    super.key,
-    required this.entries,
-    this.onGenerateDiary,
-  });
+  const DiaryPage({super.key, required this.entries, this.onGenerateDiary});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: MemoryPalette.ink,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: MemoryPalette.ink,
         title: const Text(
           '内心独白',
-          style: TextStyle(
-            color: Colors.white,
-            letterSpacing: 2,
-          ),
+          style: TextStyle(color: MemoryPalette.paper, letterSpacing: 0.8),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white54),
+          icon: const Icon(Icons.arrow_back, color: MemoryPalette.muted),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (onGenerateDiary != null)
             IconButton(
-              icon: const Icon(Icons.auto_stories, color: Colors.amber),
+              icon: const Icon(Icons.auto_stories, color: MemoryPalette.gold),
               onPressed: onGenerateDiary,
               tooltip: '写日记',
             ),
@@ -58,12 +53,12 @@ class DiaryPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('📖', style: TextStyle(fontSize: 48)),
+          const MemoryGlyph(size: 68, compact: true),
           const SizedBox(height: 16),
           Text(
             '还没有日记',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
+              color: MemoryPalette.paper.withValues(alpha: 0.52),
               fontSize: 16,
             ),
           ),
@@ -71,7 +66,7 @@ class DiaryPage extends StatelessWidget {
           Text(
             '多互动几次，它会开始记录内心世界',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.3),
+              color: MemoryPalette.paper.withValues(alpha: 0.34),
               fontSize: 13,
             ),
           ),
@@ -81,7 +76,6 @@ class DiaryPage extends StatelessWidget {
   }
 
   Widget _buildDiaryCard(DiaryEntry entry) {
-    final typeEmoji = _typeEmoji(entry.type);
     final typeLabel = _typeLabel(entry.type);
 
     return Padding(
@@ -98,7 +92,7 @@ class DiaryPage extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [
                   _typeColor(entry.type).withValues(alpha: 0.1),
-                  Colors.black.withValues(alpha: 0.8),
+                  MemoryPalette.ink.withValues(alpha: 0.82),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
@@ -111,13 +105,13 @@ class DiaryPage extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(typeEmoji, style: const TextStyle(fontSize: 20)),
+                    const MemoryGlyph(size: 22, compact: true),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         entry.title,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: MemoryPalette.paper,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -146,7 +140,7 @@ class DiaryPage extends StatelessWidget {
                 Text(
                   entry.content,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: MemoryPalette.paper.withValues(alpha: 0.82),
                     fontSize: 14,
                     height: 1.6,
                   ),
@@ -157,38 +151,46 @@ class DiaryPage extends StatelessWidget {
                     Icon(
                       Icons.access_time,
                       size: 12,
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: MemoryPalette.paper.withValues(alpha: 0.34),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _formatDate(entry.writtenAt),
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: MemoryPalette.paper.withValues(alpha: 0.34),
                         fontSize: 11,
                       ),
                     ),
                     if (entry.tags.isNotEmpty) ...[
                       const SizedBox(width: 12),
-                      ...entry.tags.take(3).map((tag) => Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '#$tag',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              fontSize: 10,
+                      ...entry.tags
+                          .take(3)
+                          .map(
+                            (tag) => Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: MemoryPalette.paper.withValues(
+                                    alpha: 0.06,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '#$tag',
+                                  style: TextStyle(
+                                    color: MemoryPalette.paper.withValues(
+                                      alpha: 0.34,
+                                    ),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      )),
                     ],
                   ],
                 ),
@@ -204,17 +206,6 @@ class DiaryPage extends StatelessWidget {
     return '${dt.month}月${dt.day}日 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  String _typeEmoji(DiaryEntryType type) {
-    return switch (type) {
-      DiaryEntryType.dailyObservation => '📖',
-      DiaryEntryType.moodReflection => '💭',
-      DiaryEntryType.ownerHabit => '🔬',
-      DiaryEntryType.dreamRecord => '🌙',
-      DiaryEntryType.adventureNote => '🗺️',
-      DiaryEntryType.specialOccasion => '✨',
-    };
-  }
-
   String _typeLabel(DiaryEntryType type) {
     return switch (type) {
       DiaryEntryType.dailyObservation => '日常',
@@ -228,12 +219,12 @@ class DiaryPage extends StatelessWidget {
 
   Color _typeColor(DiaryEntryType type) {
     return switch (type) {
-      DiaryEntryType.dailyObservation => Colors.cyanAccent,
-      DiaryEntryType.moodReflection => Colors.purpleAccent,
-      DiaryEntryType.ownerHabit => Colors.amber,
-      DiaryEntryType.dreamRecord => Colors.indigoAccent,
-      DiaryEntryType.adventureNote => Colors.greenAccent,
-      DiaryEntryType.specialOccasion => Colors.pinkAccent,
+      DiaryEntryType.dailyObservation => MemoryPalette.moss,
+      DiaryEntryType.moodReflection => MemoryPalette.rust,
+      DiaryEntryType.ownerHabit => MemoryPalette.gold,
+      DiaryEntryType.dreamRecord => const Color(0xFF8E9A8A),
+      DiaryEntryType.adventureNote => const Color(0xFF9A8F74),
+      DiaryEntryType.specialOccasion => const Color(0xFFB48276),
     };
   }
 }

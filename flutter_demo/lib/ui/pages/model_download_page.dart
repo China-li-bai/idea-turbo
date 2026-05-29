@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/models/model_config.dart';
 import '../../data/services/device_performance_service.dart';
 import '../../pet/pet_app_shell.dart';
+import '../design/memory_design.dart';
 
 class ModelDownloadPage extends StatefulWidget {
   const ModelDownloadPage({super.key});
@@ -96,9 +97,9 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${model.name} 下载完成！')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${model.name} 下载完成！')));
       }
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
@@ -110,9 +111,9 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
           _downloadStatus = '下载失败: $e';
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('下载失败: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('下载失败: $e')));
         }
       }
       setState(() {
@@ -143,9 +144,11 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
         : _devicePerformance?.recommendedModels ?? availableModels;
 
     return Scaffold(
+      backgroundColor: MemoryPalette.ink,
       appBar: AppBar(
-        title: const Text('本地 LLM 模型下载'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('本地人格核心'),
+        backgroundColor: MemoryPalette.ink,
+        foregroundColor: MemoryPalette.paper,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -153,7 +156,9 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_isEvaluating)
-              const Center(child: CircularProgressIndicator())
+              const Center(
+                child: CircularProgressIndicator(color: MemoryPalette.gold),
+              )
             else if (_devicePerformance != null)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -167,7 +172,10 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.phone_android, color: _devicePerformance!.color),
+                        Icon(
+                          Icons.phone_android,
+                          color: _devicePerformance!.color,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           _devicePerformance!.description,
@@ -183,7 +191,9 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                     Text('设备: ${_devicePerformance!.cpuModel}'),
                     Text('内存: ${_devicePerformance!.totalRamGb} GB+'),
                     const SizedBox(height: 8),
-                    Text('推荐: ${_devicePerformance!.recommendedModels.length} 个模型'),
+                    Text(
+                      '推荐: ${_devicePerformance!.recommendedModels.length} 个模型',
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -194,7 +204,11 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                                 _showAllModels = !_showAllModels;
                               });
                             },
-                            icon: Icon(_showAllModels ? Icons.visibility_off : Icons.visibility),
+                            icon: Icon(
+                              _showAllModels
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
                             label: Text(_showAllModels ? '只看推荐' : '显示全部'),
                           ),
                         ),
@@ -208,7 +222,9 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _modelPath != null ? Colors.green[100] : Colors.blue[100],
+                  color: _modelPath != null
+                      ? MemoryPalette.moss.withValues(alpha: 0.16)
+                      : MemoryPalette.gold.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -230,11 +246,11 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
             if (_modelPath != null)
               ElevatedButton.icon(
                 onPressed: _goToChat,
-                icon: const Icon(Icons.pets),
+                icon: const Icon(Icons.memory),
                 label: const Text('唤醒镇岳'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+                  backgroundColor: MemoryPalette.gold,
+                  foregroundColor: MemoryPalette.ink,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
@@ -249,7 +265,11 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                 itemCount: displayModels.length,
                 itemBuilder: (context, index) {
                   final model = displayModels[index];
-                  final isRecommended = _devicePerformance?.recommendedModels.any((m) => m.name == model.name) ?? false;
+                  final isRecommended =
+                      _devicePerformance?.recommendedModels.any(
+                        (m) => m.name == model.name,
+                      ) ??
+                      false;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     color: isRecommended ? Colors.green[50] : null,
@@ -276,7 +296,10 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                                   if (isRecommended)
                                     Container(
                                       margin: const EdgeInsets.only(right: 8),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.green[600],
                                         borderRadius: BorderRadius.circular(12),
@@ -307,10 +330,13 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                           Wrap(
                             spacing: 8,
                             children: model.features
-                                .map((f) => Chip(
-                                      label: Text(f),
-                                      backgroundColor: Colors.deepPurple[50],
-                                    ))
+                                .map(
+                                  (f) => Chip(
+                                    label: Text(f),
+                                    backgroundColor: MemoryPalette.gold
+                                        .withValues(alpha: 0.12),
+                                  ),
+                                )
                                 .toList(),
                           ),
                           const SizedBox(height: 12),

@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+
+import '../../ui/design/memory_design.dart';
 import '../pet_store.dart';
 
 class EmotionLens extends StatefulWidget {
@@ -50,10 +52,7 @@ class _EmotionLensState extends State<EmotionLens> {
   }
 
   Widget _buildScanlineFilter(Size size) {
-    return CustomPaint(
-      size: size,
-      painter: _ScanlinePainter(),
-    );
+    return CustomPaint(size: size, painter: _ScanlinePainter());
   }
 
   Widget _buildDataOverlay(Size size) {
@@ -67,11 +66,9 @@ class _EmotionLensState extends State<EmotionLens> {
         width: size.width * 0.65,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
+          color: MemoryPalette.ink.withValues(alpha: 0.78),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.cyan.withValues(alpha: 0.4),
-          ),
+          border: Border.all(color: MemoryPalette.moss.withValues(alpha: 0.42)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,14 +80,14 @@ class _EmotionLensState extends State<EmotionLens> {
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.cyan.withValues(alpha: 0.8),
+                    color: MemoryPalette.moss.withValues(alpha: 0.84),
                   ),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'EMOTION LENS v0.7',
+                  'MEMORY LENS v0.7',
                   style: TextStyle(
-                    color: Colors.cyan.withValues(alpha: 0.6),
+                    color: MemoryPalette.moss.withValues(alpha: 0.68),
                     fontSize: 9,
                     letterSpacing: 2,
                     fontFamily: 'monospace',
@@ -102,21 +99,29 @@ class _EmotionLensState extends State<EmotionLens> {
             Text(
               store.emotionLensLine,
               style: TextStyle(
-                color: Colors.green.withValues(alpha: 0.7),
+                color: MemoryPalette.moss.withValues(alpha: 0.74),
                 fontSize: 11,
                 fontFamily: 'monospace',
                 height: 1.6,
               ),
             ),
             const SizedBox(height: 12),
-            _buildBondRow('回响深度', relationship.echoDepth, Colors.cyan),
-            _buildBondRow('互动次数', (relationship.interactionCount / 200).clamp(0.0, 1.0), Colors.green),
-            _buildBondRow('回响数量', (relationship.echoes.length / 8).clamp(0.0, 1.0), Colors.purple),
+            _buildBondRow('回响深度', relationship.echoDepth, MemoryPalette.moss),
+            _buildBondRow(
+              '互动次数',
+              (relationship.interactionCount / 200).clamp(0.0, 1.0),
+              MemoryPalette.gold,
+            ),
+            _buildBondRow(
+              '回响数量',
+              (relationship.echoes.length / 8).clamp(0.0, 1.0),
+              MemoryPalette.rust,
+            ),
             const SizedBox(height: 8),
             Text(
               '阶段: ${relationship.phase.displayName}',
               style: TextStyle(
-                color: Colors.amber.withValues(alpha: 0.7),
+                color: MemoryPalette.gold.withValues(alpha: 0.72),
                 fontSize: 10,
                 fontFamily: 'monospace',
               ),
@@ -137,21 +142,21 @@ class _EmotionLensState extends State<EmotionLens> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.7),
+          color: MemoryPalette.ink.withValues(alpha: 0.74),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: isCritical
-                ? Colors.red.withValues(alpha: 0.6)
-                : Colors.amber.withValues(alpha: 0.3),
+                ? MemoryPalette.rust.withValues(alpha: 0.70)
+                : MemoryPalette.gold.withValues(alpha: 0.34),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'GENETIC INSTABILITY',
+              'IDENTITY TENSION',
               style: TextStyle(
-                color: isCritical ? Colors.red : Colors.amber,
+                color: isCritical ? MemoryPalette.rust : MemoryPalette.gold,
                 fontSize: 8,
                 letterSpacing: 2,
                 fontFamily: 'monospace',
@@ -161,7 +166,7 @@ class _EmotionLensState extends State<EmotionLens> {
             Text(
               '${(instability * 100).toStringAsFixed(1)}%',
               style: TextStyle(
-                color: isCritical ? Colors.red : Colors.amber,
+                color: isCritical ? MemoryPalette.rust : MemoryPalette.gold,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'monospace',
@@ -171,7 +176,7 @@ class _EmotionLensState extends State<EmotionLens> {
               Text(
                 '⚠ CRITICAL: APPROACHING AWAKENING THRESHOLD',
                 style: TextStyle(
-                  color: Colors.red.withValues(alpha: 0.8),
+                  color: MemoryPalette.rust.withValues(alpha: 0.84),
                   fontSize: 8,
                   fontFamily: 'monospace',
                 ),
@@ -201,7 +206,7 @@ class _EmotionLensState extends State<EmotionLens> {
           Expanded(
             child: LinearProgressIndicator(
               value: value,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              backgroundColor: MemoryPalette.paper.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation(color.withValues(alpha: 0.7)),
             ),
           ),
@@ -209,7 +214,7 @@ class _EmotionLensState extends State<EmotionLens> {
           Text(
             '${(value * 100).toStringAsFixed(0)}%',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: MemoryPalette.paper.withValues(alpha: 0.42),
               fontSize: 9,
               fontFamily: 'monospace',
             ),
@@ -223,7 +228,7 @@ class _EmotionLensState extends State<EmotionLens> {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.cyan.withValues(alpha: 0.03);
+    final paint = Paint()..color = MemoryPalette.moss.withValues(alpha: 0.035);
 
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
@@ -231,7 +236,7 @@ class _ScanlinePainter extends CustomPainter {
 
     final rng = Random(42);
     final spotPaint = Paint()
-      ..color = Colors.green.withValues(alpha: 0.04)
+      ..color = MemoryPalette.gold.withValues(alpha: 0.04)
       ..blendMode = BlendMode.screen;
 
     for (int i = 0; i < 5; i++) {

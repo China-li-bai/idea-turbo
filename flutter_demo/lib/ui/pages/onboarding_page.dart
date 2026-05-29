@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/model_config.dart';
 import '../../core/product/product_copy.dart';
 import '../../pet/pet_app_shell.dart';
+import '../design/memory_design.dart';
 
 enum GenesisPhase {
   voidState,
@@ -157,16 +158,19 @@ class _OnboardingPageState extends State<OnboardingPage>
     for (int i = 0; i < 3; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 30.0 + rng.nextDouble() * 80;
-      final hue = (center.dx * 0.5 + center.dy * 0.3 + _syncProgress * 200) % 360;
-      _particles.add(_Particle(
-        x: center.dx + cos(angle) * dist,
-        y: center.dy + sin(angle) * dist,
-        vx: cos(angle) * (1.5 + rng.nextDouble() * 2),
-        vy: sin(angle) * (1.5 + rng.nextDouble() * 2),
-        life: 1.0,
-        hue: hue,
-        size: 2 + rng.nextDouble() * 4,
-      ));
+      final hue =
+          (center.dx * 0.5 + center.dy * 0.3 + _syncProgress * 200) % 360;
+      _particles.add(
+        _Particle(
+          x: center.dx + cos(angle) * dist,
+          y: center.dy + sin(angle) * dist,
+          vx: cos(angle) * (1.5 + rng.nextDouble() * 2),
+          vy: sin(angle) * (1.5 + rng.nextDouble() * 2),
+          life: 1.0,
+          hue: hue,
+          size: 2 + rng.nextDouble() * 4,
+        ),
+      );
     }
     if (_particles.length > 200) {
       _particles = _particles.sublist(_particles.length - 200);
@@ -239,9 +243,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => PetAppShell(modelPath: modelPath),
-        ),
+        MaterialPageRoute(builder: (_) => PetAppShell(modelPath: modelPath)),
       );
     } else {
       setState(() {
@@ -262,7 +264,9 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
 
     final recommended = availableModels.where((m) => m.minRamGb <= 4).toList();
-    final target = recommended.isNotEmpty ? recommended.first : availableModels.first;
+    final target = recommended.isNotEmpty
+        ? recommended.first
+        : availableModels.first;
 
     try {
       final savePath = '${dir.path}/${target.filename}';
@@ -289,7 +293,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: MemoryPalette.ink,
       body: GestureDetector(
         onLongPressStart: _onLongPressStart,
         onLongPressMoveUpdate: _onLongPressMoveUpdate,
@@ -343,7 +347,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1 + pulse * 0.15),
+                      color: MemoryPalette.paper.withValues(
+                        alpha: 0.10 + pulse * 0.15,
+                      ),
                       width: 1,
                     ),
                   ),
@@ -361,9 +367,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                 child: Text(
                   ProductCopy.slogan,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: MemoryPalette.paper.withValues(alpha: 0.58),
                     fontSize: 14,
-                    letterSpacing: 1,
+                    letterSpacing: 0.4,
                     fontFamily: 'monospace',
                   ),
                   textAlign: TextAlign.center,
@@ -381,9 +387,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                 child: Text(
                   '长按屏幕中央，建立第一条情感记忆链路',
                   style: TextStyle(
-                    color: Colors.amber.withValues(alpha: 0.4),
+                    color: MemoryPalette.gold.withValues(alpha: 0.62),
                     fontSize: 12,
-                    letterSpacing: 2,
+                    letterSpacing: 0.8,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -416,9 +422,9 @@ class _OnboardingPageState extends State<OnboardingPage>
           Text(
             '灵魂拓印中... ${(_syncProgress * 100).toStringAsFixed(0)}%',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: MemoryPalette.paper.withValues(alpha: 0.76),
               fontSize: 14,
-              letterSpacing: 2,
+              letterSpacing: 0.8,
               fontFamily: 'monospace',
             ),
           ),
@@ -426,7 +432,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Text(
             '松开将中断连接',
             style: TextStyle(
-              color: Colors.red.withValues(alpha: 0.4),
+              color: MemoryPalette.rust.withValues(alpha: 0.64),
               fontSize: 11,
               letterSpacing: 1,
               fontFamily: 'monospace',
@@ -483,18 +489,13 @@ class _OnboardingPageState extends State<OnboardingPage>
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          Colors.white.withValues(alpha: 0.15),
-                          Colors.white.withValues(alpha: 0.05),
+                          MemoryPalette.gold.withValues(alpha: 0.18),
+                          MemoryPalette.paper.withValues(alpha: 0.05),
                           Colors.transparent,
                         ],
                       ),
                     ),
-                    child: const Center(
-                      child: Text(
-                        '🐱',
-                        style: TextStyle(fontSize: 64),
-                      ),
-                    ),
+                    child: const Center(child: MemoryGlyph(size: 82)),
                   ),
                 ],
               ),
@@ -520,14 +521,12 @@ class _OnboardingPageState extends State<OnboardingPage>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    Colors.white.withValues(alpha: 0.08),
+                    MemoryPalette.gold.withValues(alpha: 0.10),
                     Colors.transparent,
                   ],
                 ),
               ),
-              child: const Center(
-                child: Text('🐱', style: TextStyle(fontSize: 48)),
-              ),
+              child: const Center(child: MemoryGlyph(size: 54, compact: true)),
             ),
           ),
           const SizedBox(height: 40),
@@ -535,10 +534,10 @@ class _OnboardingPageState extends State<OnboardingPage>
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.8),
+              color: MemoryPalette.ink.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.green.withValues(alpha: 0.3),
+                color: MemoryPalette.moss.withValues(alpha: 0.34),
               ),
             ),
             child: Column(
@@ -551,14 +550,14 @@ class _OnboardingPageState extends State<OnboardingPage>
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.green.withValues(alpha: 0.8),
+                        color: MemoryPalette.moss.withValues(alpha: 0.84),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'SYSTEM TERMINAL',
                       style: TextStyle(
-                        color: Colors.green.withValues(alpha: 0.6),
+                        color: MemoryPalette.moss.withValues(alpha: 0.72),
                         fontSize: 10,
                         letterSpacing: 2,
                         fontFamily: 'monospace',
@@ -582,8 +581,8 @@ class _OnboardingPageState extends State<OnboardingPage>
                             line,
                             style: TextStyle(
                               color: isWarning
-                                  ? Colors.amber.withValues(alpha: 0.9)
-                                  : Colors.green.withValues(alpha: 0.7),
+                                  ? MemoryPalette.gold.withValues(alpha: 0.9)
+                                  : MemoryPalette.moss.withValues(alpha: 0.76),
                               fontSize: 12,
                               fontFamily: 'monospace',
                               height: 1.6,
@@ -601,7 +600,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                     child: Text(
                       _prepareStatus,
                       style: TextStyle(
-                        color: Colors.cyan.withValues(alpha: 0.7),
+                        color: MemoryPalette.moss.withValues(alpha: 0.72),
                         fontSize: 12,
                         fontFamily: 'monospace',
                       ),
@@ -617,7 +616,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 child: Text(
                   '第一条记忆链路已建立',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: MemoryPalette.paper.withValues(alpha: 0.34),
                     fontSize: 12,
                     letterSpacing: 4,
                     fontFamily: 'monospace',
@@ -651,7 +650,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Text(
             _prepareStatus,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: MemoryPalette.paper.withValues(alpha: 0.76),
               fontSize: 14,
               letterSpacing: 1,
               fontFamily: 'monospace',
@@ -663,8 +662,10 @@ class _OnboardingPageState extends State<OnboardingPage>
               padding: const EdgeInsets.symmetric(horizontal: 60),
               child: LinearProgressIndicator(
                 value: _downloadProgress,
-                backgroundColor: Colors.white.withValues(alpha: 0.08),
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
+                backgroundColor: MemoryPalette.paper.withValues(alpha: 0.08),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  MemoryPalette.gold,
+                ),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

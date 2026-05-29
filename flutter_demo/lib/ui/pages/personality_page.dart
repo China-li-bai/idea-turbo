@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/vitality/personality_awakening.dart';
 
+import '../design/memory_design.dart';
+
 class PersonalityPage extends StatelessWidget {
   final PersonalityProfile profile;
 
@@ -11,19 +13,16 @@ class PersonalityPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: MemoryPalette.ink,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: MemoryPalette.ink,
         title: const Text(
           '人格档案',
-          style: TextStyle(
-            color: Colors.white,
-            letterSpacing: 2,
-          ),
+          style: TextStyle(color: MemoryPalette.paper, letterSpacing: 0.8),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white54),
+          icon: const Icon(Icons.arrow_back, color: MemoryPalette.muted),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -45,9 +44,10 @@ class PersonalityPage extends StatelessWidget {
   }
 
   Widget _buildStatusCard() {
-    final statusColor = profile.hasAwakened ? Colors.amber : Colors.grey;
+    final statusColor = profile.hasAwakened
+        ? MemoryPalette.gold
+        : MemoryPalette.muted;
     final statusText = profile.hasAwakened ? '已觉醒' : '未觉醒';
-    final statusIcon = profile.hasAwakened ? '🌟' : '💤';
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -61,7 +61,7 @@ class PersonalityPage extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 statusColor.withValues(alpha: 0.15),
-                Colors.black.withValues(alpha: 0.8),
+                MemoryPalette.ink.withValues(alpha: 0.82),
               ],
             ),
             borderRadius: BorderRadius.circular(20),
@@ -69,7 +69,11 @@ class PersonalityPage extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(statusIcon, style: const TextStyle(fontSize: 40)),
+              MemoryGlyph(
+                size: 48,
+                compact: true,
+                progress: profile.hasAwakened ? 0.92 : 0.36,
+              ),
               const SizedBox(width: 16),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,7 +84,7 @@ class PersonalityPage extends StatelessWidget {
                       color: statusColor,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
+                      letterSpacing: 0.6,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -89,7 +93,7 @@ class PersonalityPage extends StatelessWidget {
                         ? '觉醒于 ${_formatDate(profile.firstAwakenedAt!)}'
                         : '继续互动以触发觉醒',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
+                      color: MemoryPalette.paper.withValues(alpha: 0.50),
                       fontSize: 13,
                     ),
                   ),
@@ -115,9 +119,11 @@ class PersonalityPage extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: MemoryPalette.paper.withValues(alpha: 0.055),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: MemoryPalette.paper.withValues(alpha: 0.09),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +131,7 @@ class PersonalityPage extends StatelessWidget {
               Text(
                 '人格原型',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: MemoryPalette.paper.withValues(alpha: 0.50),
                   fontSize: 12,
                   letterSpacing: 1,
                 ),
@@ -142,7 +148,7 @@ class PersonalityPage extends StatelessWidget {
                         Text(
                           info.name,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: MemoryPalette.paper,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -151,7 +157,7 @@ class PersonalityPage extends StatelessWidget {
                         Text(
                           info.description,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: MemoryPalette.paper.withValues(alpha: 0.62),
                             fontSize: 13,
                             height: 1.4,
                           ),
@@ -177,15 +183,17 @@ class PersonalityPage extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: MemoryPalette.paper.withValues(alpha: 0.055),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(
+                color: MemoryPalette.paper.withValues(alpha: 0.09),
+              ),
             ),
             child: Center(
               child: Text(
                 '特质尚未显现',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
+                  color: MemoryPalette.paper.withValues(alpha: 0.42),
                   fontSize: 14,
                 ),
               ),
@@ -205,9 +213,11 @@ class PersonalityPage extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: MemoryPalette.paper.withValues(alpha: 0.055),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: MemoryPalette.paper.withValues(alpha: 0.09),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +225,7 @@ class PersonalityPage extends StatelessWidget {
               Text(
                 '性格特质',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: MemoryPalette.paper.withValues(alpha: 0.50),
                   fontSize: 12,
                   letterSpacing: 1,
                 ),
@@ -233,7 +243,9 @@ class PersonalityPage extends StatelessWidget {
                           Text(
                             entry.key,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
+                              color: MemoryPalette.paper.withValues(
+                                alpha: 0.82,
+                              ),
                               fontSize: 14,
                             ),
                           ),
@@ -251,7 +263,9 @@ class PersonalityPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: entry.value,
-                          backgroundColor: Colors.white.withValues(alpha: 0.1),
+                          backgroundColor: MemoryPalette.paper.withValues(
+                            alpha: 0.10,
+                          ),
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _traitColor(entry.value),
                           ),
@@ -277,9 +291,11 @@ class PersonalityPage extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: MemoryPalette.paper.withValues(alpha: 0.055),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: MemoryPalette.paper.withValues(alpha: 0.09),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +303,7 @@ class PersonalityPage extends StatelessWidget {
               Text(
                 '互动统计',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: MemoryPalette.paper.withValues(alpha: 0.50),
                   fontSize: 12,
                   letterSpacing: 1,
                 ),
@@ -316,7 +332,7 @@ class PersonalityPage extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: MemoryPalette.paper,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
@@ -325,7 +341,7 @@ class PersonalityPage extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
+            color: MemoryPalette.paper.withValues(alpha: 0.42),
             fontSize: 12,
           ),
         ),
@@ -334,9 +350,9 @@ class PersonalityPage extends StatelessWidget {
   }
 
   Color _traitColor(double value) {
-    if (value > 0.7) return Colors.amber;
-    if (value > 0.4) return Colors.cyanAccent;
-    return Colors.white54;
+    if (value > 0.7) return MemoryPalette.gold;
+    if (value > 0.4) return MemoryPalette.moss;
+    return MemoryPalette.muted;
   }
 
   String _formatDate(DateTime dt) {
@@ -364,7 +380,7 @@ class PersonalityPage extends StatelessWidget {
       case PersonalityArchetype.warmHealer:
         return (emoji: '💚', name: '温暖治愈者', description: '用最柔软的心治愈一切');
       default:
-        return (emoji: '🐱', name: '未觉醒', description: '还是一只普通的猫');
+        return (emoji: '◇', name: '未觉醒', description: '人格核心仍在收集你的相');
     }
   }
 }

@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mnemosyne/features/pet/vitality/vitality_service.dart';
 
+import '../design/memory_design.dart';
+
 class VitalityBar extends StatelessWidget {
   final VitalityState state;
 
@@ -17,21 +19,39 @@ class VitalityBar extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: MemoryPalette.paper.withValues(alpha: 0.055),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: MemoryPalette.paper.withValues(alpha: 0.09),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildRow('⚡ 能量', state.socialEnergy, _energyColor(state.socialEnergy)),
+              _buildRow(
+                '能量',
+                state.socialEnergy,
+                _energyColor(state.socialEnergy),
+              ),
               const SizedBox(height: 8),
-              _buildRow('💛 心情', state.emotionalBattery, _batteryColor(state.emotionalBattery)),
+              _buildRow(
+                '情绪',
+                state.emotionalBattery,
+                _batteryColor(state.emotionalBattery),
+              ),
               const SizedBox(height: 8),
-              _buildRow('🎮 无聊', 1.0 - state.boredomLevel, _boredomColor(state.boredomLevel)),
+              _buildRow(
+                '新鲜度',
+                1.0 - state.boredomLevel,
+                _boredomColor(state.boredomLevel),
+              ),
               const SizedBox(height: 8),
-              _buildRow('💬 社交', 1.0 - state.lonelinessLevel, _lonelinessColor(state.lonelinessLevel)),
+              _buildRow(
+                '连接感',
+                1.0 - state.lonelinessLevel,
+                _lonelinessColor(state.lonelinessLevel),
+              ),
             ],
           ),
         ),
@@ -43,11 +63,11 @@ class VitalityBar extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 60,
+          width: 64,
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: MemoryPalette.paper.withValues(alpha: 0.72),
               fontSize: 12,
             ),
           ),
@@ -57,7 +77,7 @@ class VitalityBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: value.clamp(0.0, 1.0),
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
+              backgroundColor: MemoryPalette.paper.withValues(alpha: 0.10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 6,
             ),
@@ -67,7 +87,7 @@ class VitalityBar extends StatelessWidget {
         Text(
           '${(value * 100).toInt()}%',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
+            color: MemoryPalette.paper.withValues(alpha: 0.50),
             fontSize: 10,
           ),
         ),
@@ -76,26 +96,26 @@ class VitalityBar extends StatelessWidget {
   }
 
   Color _energyColor(double value) {
-    if (value < 0.2) return Colors.redAccent;
-    if (value < 0.5) return Colors.orangeAccent;
-    return Colors.greenAccent;
+    if (value < 0.2) return MemoryPalette.rust;
+    if (value < 0.5) return MemoryPalette.gold;
+    return MemoryPalette.moss;
   }
 
   Color _batteryColor(double value) {
-    if (value < 0.3) return Colors.redAccent;
-    if (value < 0.6) return Colors.amberAccent;
-    return Colors.cyanAccent;
+    if (value < 0.3) return MemoryPalette.rust;
+    if (value < 0.6) return MemoryPalette.gold;
+    return MemoryPalette.moss;
   }
 
   Color _boredomColor(double value) {
-    if (value > 0.7) return Colors.redAccent;
-    if (value > 0.4) return Colors.orangeAccent;
-    return Colors.greenAccent;
+    if (value > 0.7) return MemoryPalette.rust;
+    if (value > 0.4) return MemoryPalette.gold;
+    return MemoryPalette.moss;
   }
 
   Color _lonelinessColor(double value) {
-    if (value > 0.7) return Colors.purpleAccent;
-    if (value > 0.4) return Colors.blueAccent;
-    return Colors.tealAccent;
+    if (value > 0.7) return MemoryPalette.rust;
+    if (value > 0.4) return MemoryPalette.gold;
+    return MemoryPalette.moss;
   }
 }
