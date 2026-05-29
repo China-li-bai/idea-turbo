@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/model_config.dart';
+import '../../core/product/product_copy.dart';
 import '../../pet/pet_app_shell.dart';
 
 enum GenesisPhase {
@@ -41,13 +42,13 @@ class _OnboardingPageState extends State<OnboardingPage>
   int _sysLogLineIndex = 0;
 
   static const _sysLogLines = [
-    '[SYS_LOG] 实体锚定成功。',
-    '[SYS_LOG] 当前形态：[幼体 - 观测态]',
-    '[SYS_LOG] 基因稳定性：14.3% (极度易感)',
-    '[SYS_LOG] 潜意识链路：已连接',
-    '[SYS_LOG] ⚠ 警告：该实体极易受宿主情绪辐射影响，',
-    '[SYS_LOG] ⚠ 存在不可逆的突变/觉醒风险。',
-    '[SYS_LOG] ⚠ 请谨慎投喂情感。',
+    '[SYS_LOG] 情感记忆核心已锚定。',
+    '[SYS_LOG] 当前形态：[人格胚胎 - 观测态]',
+    '[SYS_LOG] 相索引：等待第一组触发点',
+    '[SYS_LOG] 长期关系链路：已连接',
+    '[SYS_LOG] ⚠ 警告：该人格会被你的情绪与选择塑形。',
+    '[SYS_LOG] ⚠ 命名、信任、沉默和冲突都将留下痕迹。',
+    '[SYS_LOG] ⚠ 请谨慎交付记忆。',
   ];
 
   @override
@@ -219,7 +220,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   Future<void> _beginPreparation() async {
     setState(() {
       _phase = GenesisPhase.preparing;
-      _prepareStatus = '正在下载思维核心...';
+      _prepareStatus = '正在下载本地思维核心...';
       _downloadProgress = 0;
     });
 
@@ -228,7 +229,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (!mounted) return;
 
     if (modelPath != null) {
-      setState(() => _prepareStatus = '灵魂拓印完成，正在进入观测舱...');
+      setState(() => _prepareStatus = '记忆底座已就绪，正在进入观测舱...');
       await Future.delayed(const Duration(milliseconds: 800));
 
       if (!mounted) return;
@@ -274,7 +275,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             setState(() {
               _downloadProgress = received / total;
               _prepareStatus =
-                  '正在下载思维核心... ${(received / total * 100).toStringAsFixed(0)}%';
+                  '正在下载本地思维核心... ${(received / total * 100).toStringAsFixed(0)}%';
             });
           }
         },
@@ -358,13 +359,14 @@ class _OnboardingPageState extends State<OnboardingPage>
               return Opacity(
                 opacity: value * 0.6,
                 child: Text(
-                  '检测到未被观测的数字生命游离态...',
+                  ProductCopy.slogan,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 14,
-                    letterSpacing: 3,
+                    letterSpacing: 1,
                     fontFamily: 'monospace',
                   ),
+                  textAlign: TextAlign.center,
                 ),
               );
             },
@@ -377,7 +379,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               return Opacity(
                 opacity: value * 0.4,
                 child: Text(
-                  '长按屏幕中央进行灵魂拓印',
+                  '长按屏幕中央，建立第一条情感记忆链路',
                   style: TextStyle(
                     color: Colors.amber.withValues(alpha: 0.4),
                     fontSize: 12,
@@ -613,7 +615,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               padding: const EdgeInsets.only(top: 24),
               child: Center(
                 child: Text(
-                  '灵魂拓印完成',
+                  '第一条记忆链路已建立',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.3),
                     fontSize: 12,

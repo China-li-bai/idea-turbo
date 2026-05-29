@@ -7,6 +7,8 @@ import 'package:mnemosyne/features/pet/data/datasources/pet_local_datasource.dar
 import 'package:mnemosyne/features/pet/data/repositories/pet_repository_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data/services/demo_memory_extractor.dart';
+
 class ServiceLocator {
   static final ServiceLocator _instance = ServiceLocator._();
   factory ServiceLocator() => _instance;
@@ -14,6 +16,7 @@ class ServiceLocator {
 
   Mnemosyne? _mnemosyne;
   PetMemoryBridge? _petMemoryBridge;
+  PetOrchestrator? _petOrchestrator;
   DefaultVitalityService? _vitalityService;
   DefaultPersonalityAwakeningService? _personalityService;
   DefaultResonanceService? _resonanceService;
@@ -28,32 +31,51 @@ class ServiceLocator {
   }
 
   PetMemoryBridge get petMemoryBridge {
-    if (_petMemoryBridge == null) throw StateError('ServiceLocator not initialized');
+    if (_petMemoryBridge == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _petMemoryBridge!;
   }
 
+  PetOrchestrator get petOrchestrator {
+    if (_petOrchestrator == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
+    return _petOrchestrator!;
+  }
+
   DefaultVitalityService get vitalityService {
-    if (_vitalityService == null) throw StateError('ServiceLocator not initialized');
+    if (_vitalityService == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _vitalityService!;
   }
 
   DefaultPersonalityAwakeningService get personalityService {
-    if (_personalityService == null) throw StateError('ServiceLocator not initialized');
+    if (_personalityService == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _personalityService!;
   }
 
   DefaultResonanceService get resonanceService {
-    if (_resonanceService == null) throw StateError('ServiceLocator not initialized');
+    if (_resonanceService == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _resonanceService!;
   }
 
   PetRepository get petRepository {
-    if (_petRepository == null) throw StateError('ServiceLocator not initialized');
+    if (_petRepository == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _petRepository!;
   }
 
   DefaultPetDiaryService get diaryService {
-    if (_diaryService == null) throw StateError('ServiceLocator not initialized');
+    if (_diaryService == null) {
+      throw StateError('ServiceLocator not initialized');
+    }
     return _diaryService!;
   }
 
@@ -62,7 +84,10 @@ class ServiceLocator {
   Future<void> initialize({String? directoryOverride}) async {
     if (_isInitialized) return;
 
-    _mnemosyne = Mnemosyne(directoryOverride: directoryOverride);
+    _mnemosyne = Mnemosyne(
+      xiangPlugin: XiangPlugin(),
+      directoryOverride: directoryOverride,
+    );
     await _mnemosyne!.initialize();
 
     _petMemoryBridge = PetMemoryBridge(mnemosyne: _mnemosyne!);
@@ -92,6 +117,23 @@ class ServiceLocator {
 
     await _petRepository!.loadSnapshot('zhenyue');
 
+    _petOrchestrator = PetOrchestrator(
+      petId: 'zhenyue',
+      userId: 'owner',
+      config: const PetOrchestratorConfig(
+        enableAutoVitalityTick: false,
+        enablePersonalityTracking: false,
+      ),
+      mnemosyne: _mnemosyne!,
+      memoryBridge: _petMemoryBridge!,
+      extractionService: DefaultMemoryExtractionService(
+        llmExtractor: DemoMemoryExtractor(),
+      ),
+      vitalityService: _vitalityService!,
+      personalityService: _personalityService!,
+      diaryService: _diaryService!,
+    );
+
     _isInitialized = true;
   }
 
@@ -105,6 +147,7 @@ class ServiceLocator {
     }
     _mnemosyne = null;
     _petMemoryBridge = null;
+    _petOrchestrator = null;
     _vitalityService = null;
     _personalityService = null;
     _resonanceService = null;

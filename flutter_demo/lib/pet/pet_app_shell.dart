@@ -19,6 +19,7 @@ import 'services/response_gate.dart';
 import 'services/proactive_engine.dart';
 import 'domain/pet_action.dart';
 import '../core/di/service_locator.dart';
+import '../core/product/product_copy.dart';
 import '../data/services/memory_service.dart';
 import '../ui/pages/memory_gallery_page.dart';
 import '../ui/pages/personality_page.dart';
@@ -41,7 +42,7 @@ class _PetAppShellState extends State<PetAppShell> {
   final PromptBuilder _promptBuilder = PromptBuilder();
   MemoryService? _memoryService;
   bool _isInitializing = true;
-  String _initStatus = '正在唤醒镇岳...';
+  String _initStatus = '正在唤醒情感记忆层...';
 
   @override
   void initState() {
@@ -59,13 +60,16 @@ class _PetAppShellState extends State<PetAppShell> {
 
   Future<void> _initialize() async {
     try {
-      setState(() => _initStatus = '正在初始化记忆系统...');
+      setState(() => _initStatus = '正在建立情感记忆层...');
       await _locator.initialize();
 
-      _memoryService = MemoryService(_locator.petMemoryBridge);
+      _memoryService = MemoryService(
+        _locator.petMemoryBridge,
+        orchestrator: _locator.petOrchestrator,
+      );
       _aiService.setMemoryService(_memoryService!);
 
-      setState(() => _initStatus = '正在加载思维模型...');
+      setState(() => _initStatus = '正在加载本地人格模型...');
       await _aiService.initialize(widget.modelPath);
 
       _store.setPetRepository(_locator.petRepository);
@@ -113,10 +117,19 @@ class _PetAppShellState extends State<PetAppShell> {
     _aiService.setPersonalityProfile(_store.personalityProfile);
 
     final decision = _store.gateResponse(message);
+    final petContext = _buildPetContext();
 
     if (decision.action == ResponseAction.silentAction) {
       if (decision.petAction != null) {
         _store.dispatchAction(decision.petAction!);
+      }
+      if (_memoryService != null) {
+        unawaited(_memoryService!.rememberInteraction(
+          userMessage: message,
+          petResponse: decision.petAction?.displayText ?? '*沉默*',
+          petContext: petContext,
+          kind: MemoryEventKind.silentAction,
+        ));
       }
       _store.refreshEmotionLens();
       _checkAwakening();
@@ -131,11 +144,17 @@ class _PetAppShellState extends State<PetAppShell> {
         type: PetActionType.retreat,
         displayText: '*转过身去*',
       ));
+      if (_memoryService != null) {
+        unawaited(_memoryService!.rememberInteraction(
+          userMessage: message,
+          petResponse: '*转过身去*',
+          petContext: petContext,
+          kind: MemoryEventKind.refused,
+        ));
+      }
       _store.refreshEmotionLens();
       return (response: '*转过身去*', memoryContext: null);
     }
-
-    final petContext = _buildPetContext();
 
     final moodHint = _promptBuilder.buildOverridePrompt(
       emotionalState: _store.emotionalState,
@@ -397,6 +416,16 @@ class _PetAppShellState extends State<PetAppShell> {
               },
             ),
             const SizedBox(height: 24),
+            Text(
+              ProductCopy.slogan,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               _initStatus,
               style: TextStyle(

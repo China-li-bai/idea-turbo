@@ -584,8 +584,8 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                 const SizedBox(height: 24),
                 _menuItem(
                   icon: Icons.photo_album,
-                  label: '记忆画廊',
-                  subtitle: '查看宠物的所有记忆',
+                  label: '记忆相册',
+                  subtitle: '查看被相触发的情感记忆',
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onOpenGallery?.call();
@@ -595,7 +595,7 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                 _menuItem(
                   icon: Icons.psychology,
                   label: '人格档案',
-                  subtitle: '查看宠物的性格特质',
+                  subtitle: '查看长期互动塑造的人格',
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onOpenPersonality?.call();
@@ -605,7 +605,7 @@ class _HUDLayerState extends State<HUDLayer> with SingleTickerProviderStateMixin
                 _menuItem(
                   icon: Icons.auto_stories,
                   label: '内心独白',
-                  subtitle: '阅读宠物的日记与梦境',
+                  subtitle: '阅读人格的日记与梦境',
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onOpenDiary?.call();

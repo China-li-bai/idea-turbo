@@ -115,7 +115,7 @@ class AiService {
       );
 
       final effectivePrompt = moodHint != null && moodHint.isNotEmpty
-          ? '$systemPrompt\n\n[当前状态] $moodHint'
+          ? '$systemPrompt\n\n$moodHint'
           : systemPrompt;
 
       final messages = <LlamaChatMessage>[

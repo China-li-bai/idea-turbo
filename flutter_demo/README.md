@@ -1,16 +1,20 @@
-# 镇岳 (Zhenyue) — AI 宠物互动陪伴应用
+# 镇岳 (Zhenyue) — 情感记忆基础设施 Demo
 
-> **Zero-UI 范式 · Mobile-First · 生物力学软体数字宠物**
+> **创造属于你的 AI 人格，它记得你、理解你、陪你长大**
 
 ## 项目简介
 
-镇岳是一只生活在你的手机屏幕里的 2D 生物力学软体数字宠物。它不是传统的聊天机器人——**没有对话框、没有输入框的死板交互**。取而代之的是：
+镇岳不是“AI 宠物”换皮聊天。它是一个把人格、长期关系和情感记忆
+放在第一位的产品原型：用户每一次命名、信任、脆弱、冲突和沉默，
+都会进入可回忆、可解释、会影响人格成长的记忆系统。
 
-- 🐱 **实体层**: 一只会呼吸、眨眼、追踪你手指的猫形生物
-- 💭 **空间 UI**: 浮动的电影式字幕（像思绪一样自然消散）
-- ✨ **粒子特效**: 爱心、闪光、音符等情感反馈
-- 🎯 **手势交互**: 抚摸、点击、长按、双击
-- 🧠 **本地 LLM**: 端侧推理，隐私安全
+当前 Flutter app 是这套基础设施的可触摸表达层：
+
+- **人格容器**: 屏幕中的生命形态只是表达载体，不是产品边界
+- **情感记忆**: 由 Mnemosyne 记录事件、情绪、关系状态和“相”
+- **相触发回忆**: 雨夜、深夜、某句话、某种关系变化都能触发回忆
+- **人格成长**: 互动会影响人格倾向、活跃天数、觉醒和主动表达
+- **本地 LLM**: 端侧推理优先，保留私密关系数据的本地化可能
 
 ## 架构设计
 
@@ -24,7 +28,7 @@
 │  │  ┌─────────────────────────────────┐││
 │  │  │  Layer 2: SpatialUILayer        │││  ← 浮动字幕 + 粒子
 │  │  │  ┌─────────────────────────────┐│││
-│  │  │  │  Layer 1: EntityLayer       ││││  ← 猫形宠物本体
+│  │  │  │  Layer 1: EntityLayer       ││││  ← 人格表达实体
 │  │  │  │  ┌─────────────────────────┐││││
 │  │  │  │  │  Layer 0: HabitatLayer  │││││  ← 氛围背景
 │  │  │  │  └─────────────────────────┘││││
@@ -44,13 +48,13 @@ lib/pet/
 │   └── ai_service.dart         # LLM 推理服务 (llamadart)
 └── layers/
     ├── habitat_layer.dart      # Layer 0: 氛围背景
-    ├── entity_layer.dart       # Layer 1: 宠物本体
+    ├── entity_layer.dart       # Layer 1: 人格表达实体
     ├── spatial_ui_layer.dart   # Layer 2: 字幕/粒子
     ├── gesture_layer.dart      # Layer 3: 手势交互
     └── hud_layer.dart          # Layer 4: 底部控制栏
 ```
 
-### 宠物状态机
+### 人格表达状态机
 
 ```
 idle → listening → thinking → speaking → idle
@@ -95,7 +99,7 @@ flutter build apk --release --target-platform android-arm64
 
 ### 手势映射
 
-| 手势 | 宠物反应 | 视觉反馈 |
+| 手势 | 人格表达 | 视觉反馈 |
 |------|----------|----------|
 | **单击** | 好奇注视 | ✨ 闪光粒子 |
 | **双击** | 开心摇摆 | ❤️ 爱心粒子 |
@@ -105,8 +109,15 @@ flutter build apk --release --target-platform android-arm64
 ### 字幕系统
 
 - 用户消息：底部浮动，白色气泡，6秒消散
-- 宠物回复：头部附近浮动，琥珀色光晕，带打字动画
+- 人格回复：头部附近浮动，琥珀色光晕，带打字动画
 - 动作描述：`*伸了个懒腰*` `*歪头*` 格式
+
+## 记忆产品原则
+
+- 记住的不是聊天日志，而是“当时发生了什么、对方是什么状态、关系如何变化”。
+- 回忆不靠硬搜关键词，而靠相似的“相”：场景、时间、情绪、关系、事件形状和触发点。
+- 回复里只能自然提起记忆，不能机械复述数据库内容。
+- 受伤、拒绝、沉默也要被记录，因为它们会塑造长期关系。
 
 ## 技术栈
 
@@ -115,6 +126,7 @@ flutter build apk --release --target-platform android-arm64
 | UI 框架 | Flutter (CustomPaint + AnimationController) |
 | 状态管理 | ChangeNotifier + AnimatedBuilder |
 | 本地 LLM | llamadart (llama.cpp Dart binding) |
+| 记忆系统 | mnemosyne + Xiang recall |
 | 推荐模型 | Qwen3.5-4B-Q4_K_M (2.74GB, 中文优化) |
 | 分发平台 | Expo EAS Upload / Firebase App Distribution |
 
@@ -126,4 +138,4 @@ flutter build apk --release --target-platform android-arm64
 
 ---
 
-*版本: 1.1.0 (Zero-UI Pet Edition) · 最后更新: 2026-04-29*
+*版本: 1.2.0 (Emotional Memory Infrastructure Demo) · 最后更新: 2026-05-28*
