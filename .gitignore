@@ -15,3 +15,5 @@ build/
 .pub-cache/
 .dartServer/
 zip/
+packages/neural_bridge/test/fixtures/beir
+packages/neural_bridge/test/fixtures/longmemeval
