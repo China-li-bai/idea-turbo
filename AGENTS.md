@@ -2,38 +2,64 @@
 
 ## Project Structure & Module Organization
 
-This is a mixed monorepo. TypeScript packages live in `packages/*`, with shared package configuration in `package.json`, `pnpm-workspace.yaml`, and `turbo.json`. Flutter/Dart code is organized through Melos using `melos.yaml`; the main app currently lives in `flutter_demo/`. Within `flutter_demo`, source code is in `lib/`, tests are in `test/`, and platform runners are in `android/`, `ios/`, `macos/`, `linux/`, and `web/`. Cloudflare worker code is under `workers/`, Go backend code is under `makergtm/backend/`, and utility scripts are in `scripts/`.
+This is a mixed monorepo. TypeScript packages live in `packages/*` with shared
+workspace config in `package.json`, `pnpm-workspace.yaml`, and `turbo.json`.
+The current product app lives in `flutter_demo/`; source is in
+`flutter_demo/lib/`, tests in `flutter_demo/test/`, and platform runners in
+`android/`, `macos/`, `linux/`, and `web/`. The emotional memory package is
+`packages/mnemosyne/`, with reusable memory, Xiang recall, and pet
+orchestration logic under `packages/mnemosyne/lib/`.
 
 ## Build, Test, and Development Commands
 
 Run JavaScript workspace tasks from the repository root:
 
-- `pnpm install` installs Node workspace dependencies.
-- `pnpm dev` runs Turbo development tasks.
-- `pnpm build` runs package builds through Turbo.
-- `pnpm lint` runs package lint tasks.
-- `pnpm check-types` runs TypeScript checks.
-- `pnpm format` formats `ts`, `tsx`, and Markdown files with Prettier.
+```bash
+pnpm install
+pnpm dev
+pnpm build
+pnpm lint
+pnpm check-types
+```
 
-For Flutter work:
+Run Flutter commands from `flutter_demo/`:
 
-- `cd flutter_demo && flutter pub get` resolves app dependencies.
-- `cd flutter_demo && flutter analyze` runs Dart static analysis.
-- `cd flutter_demo && flutter test` runs Flutter tests.
-- `cd flutter_demo && flutter run` starts the app on an available device.
+```bash
+/Users/mac/flutter/bin/flutter pub get
+/Users/mac/flutter/bin/flutter run
+/Users/mac/flutter/bin/flutter analyze --no-pub
+/Users/mac/flutter/bin/flutter test --no-pub
+/Users/mac/flutter/bin/dart format lib test ../packages/mnemosyne/lib ../packages/mnemosyne/test
+```
+
+Use `--no-pub` when dependencies are already resolved. For focused work, pass
+specific files to `flutter analyze` or `flutter test`.
 
 ## Coding Style & Naming Conventions
 
-Use TypeScript for workspace packages and Dart for Flutter code. Keep TypeScript modules under `src/`, prefer named exports for reusable APIs, and use package-local `tsconfig.json` settings. Format TypeScript and Markdown with Prettier. Flutter code follows `package:flutter_lints/flutter.yaml`; use two-space indentation, `lower_snake_case.dart` filenames, `UpperCamelCase` classes/widgets, and `lowerCamelCase` members.
+Use TypeScript for workspace packages and Dart for Flutter code. Flutter uses
+`package:flutter_lints/flutter.yaml`: two-space indentation, trailing commas for
+multiline widget trees, `lowerCamelCase` members, `UpperCamelCase` types, and
+`snake_case.dart` filenames. Product wiring belongs in `flutter_demo`;
+reusable memory logic belongs in `packages/mnemosyne`.
 
 ## Testing Guidelines
 
-Use Vitest where package configs exist, such as `packages/*/vitest.config.ts`. Co-locate tests near package source when the package already follows that pattern. Flutter tests belong in `flutter_demo/test/` and should use `_test.dart` filenames. Before opening a PR that touches Flutter code, run `flutter analyze` and `flutter test` from `flutter_demo/`.
+Use `flutter_test` for Dart. Name tests after behavior, such as
+`extracts emotional confession with recall cues`. Cover memory extraction,
+Xiang recall, prompt injection, empty input, low-value chat, conflict, and
+missing embeddings. Use package-local Vitest configs where TypeScript packages
+already define them.
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses concise Conventional Commit-style messages, for example `feat(pet): add first-time onboarding narrative flow`, `refactor: ...`, and `docs(flutter): ...`. Prefer `type(scope): summary` when a scope is clear. Pull requests should include a short purpose statement, changed areas, test commands run, linked issues when applicable, and screenshots or screen recordings for UI changes.
+Recent history uses concise Conventional Commit-style messages, for example
+`feat(pet): add first-time onboarding narrative flow`. Prefer
+`type(scope): summary`. Pull requests should include intent, changed areas,
+test commands run, linked issues, and screenshots or recordings for UI changes.
 
-## Agent-Specific Instructions
+## Product Principle
 
-Keep changes scoped to the affected package or app. Do not commit generated build outputs such as `flutter_demo/build/`, `.dart_tool/`, `.turbo/`, or platform cache files. Preserve existing architecture boundaries between `flutter_demo/lib/core`, `data`, `pet`, and `ui`.
+Do not describe the product as only an AI pet. The product expression is:
+`创造属于你的AI人格，它记得你、理解你、陪你长大`. Mnemosyne is the emotional memory
+infrastructure that makes this credible.
