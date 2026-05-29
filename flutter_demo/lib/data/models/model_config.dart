@@ -64,6 +64,16 @@ class ModelConfig {
 
 final List<ModelConfig> availableModels = [
   const ModelConfig(
+    name: 'MiniCPM5-1B',
+    description: '面壁智能 MiniCPM5 1B，2B以下AA榜单第一！超越Qwen3.5-2B，手机端极致轻量',
+    url: 'https://www.modelscope.cn/models/OpenBMB/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
+    filename: 'minicpm5-1b-q4_k_m.gguf',
+    size: '656 MB',
+    features: ['🔥新模型', 'AA榜单第一', '工具调用', 'Apache 2.0'],
+    minRamGb: 2,
+    tier: 'low',
+  ),
+  const ModelConfig(
     name: 'Qwen3.5-0.8B',
     description: '阿里巴巴 Qwen3.5 0.8B，极致轻量，极速推理！手机首选',
     url: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf',

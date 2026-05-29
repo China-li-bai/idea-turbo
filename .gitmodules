@@ -1,0 +1,3 @@
+[submodule "packages/edgevec"]
+	path = packages/edgevec
+	url = git@github.com:China-li-bai/edgevec.git
