@@ -41,6 +41,27 @@ should recall with a reason:
 This makes the product an emotional memory infrastructure rather than an AI pet
 skin over raw chat history.
 
+## Product Expression Contract
+
+The product promise is:
+
+> 创造属于你的AI人格，它记得你、理解你、陪你长大。
+
+Every product surface should make this promise credible:
+
+- **Remember**: capture emotionally meaningful events, including naming,
+  secrets, trust, hurt, silence, preferences, and repeated rituals.
+- **Understand**: preserve the user's inner state and the relationship state,
+  not only the literal words.
+- **Grow**: allow recalled memories to influence tone, distance, initiative,
+  personality traits, and awakening moments.
+- **Stay bounded**: do not claim perfect empathy, therapy, or omniscience. The
+  system recalls patterns and responds as a shaped AI personality.
+
+Do not reduce the system to "AI pet behavior." The visible avatar is an
+expression layer; Mnemosyne is the infrastructure that stores and recalls the
+relationship.
+
 ## Engineering Rules
 
 - Store structured Xiang whenever a memory is created.

@@ -256,6 +256,7 @@ class PersonalityProfile {
   final String personalityDNA;
   final int totalInteractions;
   final int daysActive;
+  final DateTime? lastInteractionAt;
   final DateTime? firstAwakenedAt;
   final DateTime? lastEvolvedAt;
   final bool hasAwakened;
@@ -270,6 +271,7 @@ class PersonalityProfile {
     this.personalityDNA = '55555555',
     this.totalInteractions = 0,
     this.daysActive = 0,
+    this.lastInteractionAt,
     this.firstAwakenedAt,
     this.lastEvolvedAt,
     this.hasAwakened = false,
@@ -305,6 +307,7 @@ class PersonalityProfile {
     String? personalityDNA,
     int? totalInteractions,
     int? daysActive,
+    DateTime? lastInteractionAt,
     DateTime? firstAwakenedAt,
     DateTime? lastEvolvedAt,
     bool? hasAwakened,
@@ -318,6 +321,7 @@ class PersonalityProfile {
     personalityDNA: personalityDNA ?? this.personalityDNA,
     totalInteractions: totalInteractions ?? this.totalInteractions,
     daysActive: daysActive ?? this.daysActive,
+    lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
     firstAwakenedAt: firstAwakenedAt ?? this.firstAwakenedAt,
     lastEvolvedAt: lastEvolvedAt ?? this.lastEvolvedAt,
     hasAwakened: hasAwakened ?? this.hasAwakened,
@@ -333,6 +337,7 @@ class PersonalityProfile {
     'personalityDNA': personalityDNA,
     'totalInteractions': totalInteractions,
     'daysActive': daysActive,
+    'lastInteractionAt': lastInteractionAt?.toIso8601String(),
     'firstAwakenedAt': firstAwakenedAt?.toIso8601String(),
     'lastEvolvedAt': lastEvolvedAt?.toIso8601String(),
     'hasAwakened': hasAwakened,
@@ -365,6 +370,9 @@ class PersonalityProfile {
         personalityDNA: json['personalityDNA'] as String? ?? '55555555',
         totalInteractions: json['totalInteractions'] as int? ?? 0,
         daysActive: json['daysActive'] as int? ?? 0,
+        lastInteractionAt: json['lastInteractionAt'] != null
+            ? DateTime.parse(json['lastInteractionAt'] as String)
+            : null,
         firstAwakenedAt: json['firstAwakenedAt'] != null
             ? DateTime.parse(json['firstAwakenedAt'] as String)
             : null,
@@ -513,6 +521,12 @@ class DefaultPersonalityAwakeningService
     final newVector = current.traitVector
         .applyTimeDecay(decayRate: config.traitDecayRate)
         .withUpdates(merged);
+    final now = DateTime.now();
+    final daysActive = _nextDaysActive(
+      current.daysActive,
+      current.lastInteractionAt,
+      now,
+    );
     final dna = generatePersonalityDNA(newVector);
     final primary = determinePrimaryArchetype(newVector);
     final secondary = determineSecondaryArchetype(newVector);
@@ -533,6 +547,8 @@ class DefaultPersonalityAwakeningService
       personalityDNA: dna,
       signaturePhrases: phrases,
       totalInteractions: current.totalInteractions + 1,
+      daysActive: daysActive,
+      lastInteractionAt: now,
     );
 
     _profiles[petId] = updated;
@@ -573,6 +589,28 @@ class DefaultPersonalityAwakeningService
     final updated = current.copyWith(traitVector: newVector);
     _profiles[petId] = updated;
     return updated;
+  }
+
+  int _nextDaysActive(
+    int currentDays,
+    DateTime? lastInteractionAt,
+    DateTime now,
+  ) {
+    if (lastInteractionAt == null) {
+      return currentDays <= 0 ? 1 : currentDays;
+    }
+    if (_isSameCalendarDate(lastInteractionAt, now)) {
+      return currentDays <= 0 ? 1 : currentDays;
+    }
+    return currentDays + 1;
+  }
+
+  bool _isSameCalendarDate(DateTime a, DateTime b) {
+    final localA = a.toLocal();
+    final localB = b.toLocal();
+    return localA.year == localB.year &&
+        localA.month == localB.month &&
+        localA.day == localB.day;
   }
 
   @override

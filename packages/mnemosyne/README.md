@@ -1,6 +1,8 @@
 # Mnemosyne
 
 A cognitive memory system for Flutter applications, inspired by human memory architecture.
+In this repository, Mnemosyne is the emotional memory infrastructure behind the
+product promise: **创造属于你的AI人格，它记得你、理解你、陪你长大**.
 
 See [MEMORY_PHILOSOPHY.md](MEMORY_PHILOSOPHY.md) for the guiding principle:
 Mnemosyne remembers through Xiang, then recalls through resonant triggers.

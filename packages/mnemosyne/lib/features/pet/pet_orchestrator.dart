@@ -140,7 +140,9 @@ class PetOrchestrator {
       recallCues: _xiangRecallCues(insight?.extra),
     );
 
-    _vitalityService.onOwnerInteraction(petId);
+    if (config.enableAutoVitalityTick) {
+      _vitalityService.onOwnerInteraction(petId);
+    }
 
     if (config.enablePersonalityTracking) {
       _personalityService.feedInteraction(petId, content);
@@ -183,7 +185,10 @@ class PetOrchestrator {
     if (cloudLlm == null) return null;
 
     final messages = [
-      LlmMessage(role: LlmMessage.system, content: '你是一只电子宠物，正在代替主人和陌生人聊天。'),
+      LlmMessage(
+        role: LlmMessage.system,
+        content: '你是由长期记忆和关系塑形的AI人格，正在代替主人和陌生人聊天。',
+      ),
       LlmMessage(role: LlmMessage.user, content: proxyResponse.content),
     ];
 
