@@ -87,12 +87,11 @@ class ActionRegistry {
 
   static String get actionPromptSection {
     final buffer = StringBuffer();
-    buffer.writeln('你可以用 *动作* 表达自己。只允许以下动作：');
+    buffer.writeln('可用动作：');
     for (final entry in _displayTextMap.entries) {
       if (entry.key == PetActionType.silent) continue;
       buffer.writeln('- ${entry.value}');
     }
-    buffer.writeln('不要使用其他动作。如果不确定，用文字代替。');
     return buffer.toString();
   }
 }
@@ -114,13 +113,17 @@ class ActionParser {
           displayText: '*$actionText*',
         ));
       } else {
-        textParts.add('*$actionText*');
+        textParts.add(actionText);
       }
     }
 
     var cleanText = rawOutput;
-    for (final action in actions) {
-      cleanText = cleanText.replaceFirst(action.displayText!, '').trim();
+    for (final match in _actionPattern.allMatches(rawOutput)) {
+      final actionText = match.group(1)!;
+      final actionType = ActionRegistry.resolveType(actionText);
+      if (actionType != null) {
+        cleanText = cleanText.replaceFirst('*$actionText*', '').trim();
+      }
     }
 
     return ParsedResponse(
