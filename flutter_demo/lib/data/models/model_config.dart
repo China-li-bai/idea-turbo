@@ -62,21 +62,41 @@ class ModelConfig {
   });
 }
 
+const selectedModelFilenamePrefsKey = 'selected_model_filename';
+const defaultModelFilename = 'minicpm5-1b-q4_k_m.gguf';
+
+ModelConfig get defaultModelConfig => availableModels.firstWhere(
+  (model) => model.filename == defaultModelFilename,
+  orElse: () => availableModels.first,
+);
+
+ModelConfig? findModelByFilename(String? filename) {
+  if (filename == null || filename.isEmpty) return null;
+
+  for (final model in availableModels) {
+    if (model.filename == filename) return model;
+  }
+
+  return null;
+}
+
 final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'MiniCPM5-1B',
-    description: '面壁智能 MiniCPM5 1B，2B以下AA榜单第一！超越Qwen3.5-2B，手机端极致轻量',
-    url: 'https://www.modelscope.cn/models/OpenBMB/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
+    description: '面壁智能 MiniCPM5 1B，面向端侧场景，体积小，适合手机本地推理优先尝试',
+    url:
+        'https://www.modelscope.cn/models/OpenBMB/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
     filename: 'minicpm5-1b-q4_k_m.gguf',
     size: '656 MB',
-    features: ['🔥新模型', 'AA榜单第一', '工具调用', 'Apache 2.0'],
+    features: ['新模型', '端侧优先', '轻量', 'Apache 2.0'],
     minRamGb: 2,
     tier: 'low',
   ),
   const ModelConfig(
     name: 'Qwen3.5-0.8B',
     description: '阿里巴巴 Qwen3.5 0.8B，极致轻量，极速推理！手机首选',
-    url: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf',
     filename: 'qwen3.5-0.8b-q4_k_m.gguf',
     size: '508 MB',
     features: ['✅已验证', '极速推理', '中文优秀', 'Apache 2.0'],
@@ -86,7 +106,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'Qwen3-1.7B',
     description: 'Qwen3 1.7B，中文王者！速度质量完美平衡',
-    url: 'https://www.modelscope.cn/models/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
     filename: 'qwen3-1.7b-q4_k_m.gguf',
     size: '1.06 GB',
     features: ['✅已验证', '🔥强烈推荐', '中文最佳', 'Apache 2.0'],
@@ -96,7 +117,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'Qwen3-4B',
     description: 'Qwen3 4B，性能飞跃！代码推理全能',
-    url: 'https://www.modelscope.cn/models/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf',
     filename: 'qwen3-4b-q4_k_m.gguf',
     size: '2.3 GB',
     features: ['✅已验证', '代码强', '推理强', 'Apache 2.0'],
@@ -106,7 +128,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'Qwen3.5-4B',
     description: 'Qwen3.5 4B，最新一代！多模态原生支持，中文天花板',
-    url: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf',
     filename: 'qwen3.5-4b-q4_k_m.gguf',
     size: '2.55 GB',
     features: ['✅已验证', '多模态', '代码生成', '中文最强'],
@@ -116,7 +139,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'Llama-3.2-3B',
     description: 'Meta Llama 3.2 3B，工具调用强，综合优秀',
-    url: 'https://www.modelscope.cn/models/unsloth/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
     filename: 'llama-3.2-3b-q4_k_m.gguf',
     size: '1.9 GB',
     features: ['✅已验证', '工具调用', '英文好', 'LLaMA 协议'],
@@ -126,7 +150,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'Gemma-2-2B',
     description: 'Google Gemma 2 2B，轻量高效，多语言支持',
-    url: 'https://www.modelscope.cn/models/CruiseTian/gemma-2b-gguf-quantized/resolve/main/gemma-2b-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/CruiseTian/gemma-2b-gguf-quantized/resolve/main/gemma-2b-Q4_K_M.gguf',
     filename: 'gemma-2-2b-q4_k_m.gguf',
     size: '1.5 GB',
     features: ['✅已验证', 'Google', '多语言', '研究价值'],
@@ -136,7 +161,8 @@ final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'DeepSeek-R1-14B',
     description: '深度求索 R1 蒸馏版，推理能力顶尖，思维链强',
-    url: 'https://www.modelscope.cn/models/unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf',
+    url:
+        'https://www.modelscope.cn/models/unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf',
     filename: 'deepseek-r1-14b-q4_k_m.gguf',
     size: '9 GB',
     features: ['✅已验证', '推理顶尖', '思维链', 'MIT协议'],

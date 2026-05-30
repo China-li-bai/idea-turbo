@@ -22,6 +22,7 @@ import '../core/di/service_locator.dart';
 import '../core/product/product_copy.dart';
 import '../data/services/memory_service.dart';
 import '../ui/pages/memory_gallery_page.dart';
+import '../ui/pages/model_download_page.dart';
 import '../ui/pages/personality_page.dart';
 import '../ui/pages/diary_page.dart';
 import '../ui/widgets/awakening_card.dart';
@@ -346,6 +347,12 @@ class _PetAppShellState extends State<PetAppShell> {
     );
   }
 
+  void _openModels() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const ModelDownloadPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
@@ -381,6 +388,7 @@ class _PetAppShellState extends State<PetAppShell> {
               onOpenGallery: _openGallery,
               onOpenPersonality: _openPersonality,
               onOpenDiary: _openDiary,
+              onOpenModels: _openModels,
             ),
             if (_store.isAwakeningAnimation && _store.awakeningResult != null)
               AwakeningCard(

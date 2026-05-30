@@ -255,18 +255,16 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   Future<String?> _ensureModelReady() async {
     final dir = await getApplicationDocumentsDirectory();
+    final prefs = await SharedPreferences.getInstance();
+    final target =
+        findModelByFilename(prefs.getString(selectedModelFilenamePrefsKey)) ??
+        defaultModelConfig;
 
-    for (final model in availableModels) {
-      final file = File('${dir.path}/${model.filename}');
-      if (await file.exists()) {
-        return file.path;
-      }
+    final targetFile = File('${dir.path}/${target.filename}');
+    if (await targetFile.exists()) {
+      await prefs.setString(selectedModelFilenamePrefsKey, target.filename);
+      return targetFile.path;
     }
-
-    final recommended = availableModels.where((m) => m.minRamGb <= 4).toList();
-    final target = recommended.isNotEmpty
-        ? recommended.first
-        : availableModels.first;
 
     try {
       final savePath = '${dir.path}/${target.filename}';
@@ -279,15 +277,24 @@ class _OnboardingPageState extends State<OnboardingPage>
             setState(() {
               _downloadProgress = received / total;
               _prepareStatus =
-                  '正在下载本地思维核心... ${(received / total * 100).toStringAsFixed(0)}%';
+                  '正在下载 ${target.name}... ${(received / total * 100).toStringAsFixed(0)}%';
             });
           }
         },
       );
+      await prefs.setString(selectedModelFilenamePrefsKey, target.filename);
       return savePath;
     } catch (e) {
-      return null;
+      for (final model in availableModels) {
+        final file = File('${dir.path}/${model.filename}');
+        if (await file.exists()) {
+          await prefs.setString(selectedModelFilenamePrefsKey, model.filename);
+          return file.path;
+        }
+      }
     }
+
+    return null;
   }
 
   @override

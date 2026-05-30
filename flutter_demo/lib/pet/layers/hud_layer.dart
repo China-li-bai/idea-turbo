@@ -17,6 +17,7 @@ class HUDLayer extends StatefulWidget {
   final VoidCallback? onOpenGallery;
   final VoidCallback? onOpenPersonality;
   final VoidCallback? onOpenDiary;
+  final VoidCallback? onOpenModels;
 
   const HUDLayer({
     super.key,
@@ -25,6 +26,7 @@ class HUDLayer extends StatefulWidget {
     this.onOpenGallery,
     this.onOpenPersonality,
     this.onOpenDiary,
+    this.onOpenModels,
   });
 
   @override
@@ -597,6 +599,16 @@ class _HUDLayerState extends State<HUDLayer>
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onOpenDiary?.call();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _menuItem(
+                  icon: Icons.memory,
+                  label: '本地模型',
+                  subtitle: '切换或下载手机端人格核心',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    widget.onOpenModels?.call();
                   },
                 ),
                 const SizedBox(height: 12),

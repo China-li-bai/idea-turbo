@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/model_config.dart';
 import '../../data/services/device_performance_service.dart';
@@ -21,7 +22,10 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
   double _downloadProgress = 0;
   bool _isDownloading = false;
   CancelToken? _cancelToken;
+  String? _downloadingFilename;
   String? _modelPath;
+  ModelConfig? _selectedModel;
+  final Map<String, String> _downloadedPaths = {};
   DevicePerformance? _devicePerformance;
   bool _isEvaluating = true;
   bool _showAllModels = false;
@@ -49,21 +53,54 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
 
   Future<void> _checkExistingModel() async {
     final dir = await getApplicationDocumentsDirectory();
+    final prefs = await SharedPreferences.getInstance();
+    _downloadedPaths.clear();
+
     for (final model in availableModels) {
       final file = File('${dir.path}/${model.filename}');
       if (await file.exists()) {
-        setState(() {
-          _modelPath = file.path;
-          _downloadStatus = '已下载: ${model.name}';
-        });
-        return;
+        _downloadedPaths[model.filename] = file.path;
       }
+    }
+
+    final preferredModel =
+        findModelByFilename(prefs.getString(selectedModelFilenamePrefsKey)) ??
+        defaultModelConfig;
+    final selectedPath = _downloadedPaths[preferredModel.filename];
+    final fallbackEntry = _downloadedPaths.entries.isEmpty
+        ? null
+        : _downloadedPaths.entries.first;
+    final fallbackModel = findModelByFilename(fallbackEntry?.key);
+
+    if (!mounted) return;
+    setState(() {
+      if (selectedPath != null) {
+        _selectedModel = preferredModel;
+        _modelPath = selectedPath;
+        _downloadStatus = '当前使用: ${preferredModel.name}';
+      } else if (fallbackEntry != null && fallbackModel != null) {
+        _selectedModel = fallbackModel;
+        _modelPath = fallbackEntry.value;
+        _downloadStatus = '已下载: ${fallbackModel.name}';
+      } else {
+        _selectedModel = defaultModelConfig;
+        _modelPath = null;
+        _downloadStatus = '请选择并下载一个本地模型';
+      }
+    });
+
+    if (_modelPath != null && _selectedModel != null) {
+      await prefs.setString(
+        selectedModelFilenamePrefsKey,
+        _selectedModel!.filename,
+      );
     }
   }
 
   Future<void> _downloadModel(ModelConfig model) async {
     setState(() {
       _isDownloading = true;
+      _downloadingFilename = model.filename;
       _downloadProgress = 0;
       _downloadStatus = '正在下载 ${model.name}...';
     });
@@ -80,7 +117,7 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
         savePath,
         cancelToken: _cancelToken,
         onReceiveProgress: (received, total) {
-          if (total > 0) {
+          if (total > 0 && mounted) {
             setState(() {
               _downloadProgress = received / total;
               _downloadStatus =
@@ -90,10 +127,11 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
         },
       );
 
+      await _selectDownloadedModel(model, savePath);
+
+      if (!mounted) return;
       setState(() {
-        _modelPath = savePath;
-        _downloadStatus = '下载完成: ${model.name}';
-        _isDownloading = false;
+        _downloadStatus = '下载完成，当前使用: ${model.name}';
       });
 
       if (mounted) {
@@ -102,6 +140,7 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
         ).showSnackBar(SnackBar(content: Text('${model.name} 下载完成！')));
       }
     } catch (e) {
+      if (!mounted) return;
       if (e is DioException && e.type == DioExceptionType.cancel) {
         setState(() {
           _downloadStatus = '下载已取消';
@@ -116,10 +155,27 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
           ).showSnackBar(SnackBar(content: Text('下载失败: $e')));
         }
       }
+      if (!mounted) return;
       setState(() {
         _isDownloading = false;
+        _downloadingFilename = null;
       });
     }
+  }
+
+  Future<void> _selectDownloadedModel(ModelConfig model, String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(selectedModelFilenamePrefsKey, model.filename);
+
+    if (!mounted) return;
+    setState(() {
+      _downloadedPaths[model.filename] = path;
+      _selectedModel = model;
+      _modelPath = path;
+      _isDownloading = false;
+      _downloadingFilename = null;
+      _downloadStatus = '当前使用: ${model.name}';
+    });
   }
 
   void _cancelDownload() {
@@ -128,7 +184,7 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
 
   void _goToChat() {
     if (_modelPath != null) {
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => PetAppShell(modelPath: _modelPath!),
@@ -139,9 +195,18 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayModels = _showAllModels
-        ? availableModels
-        : _devicePerformance?.recommendedModels ?? availableModels;
+    final displayModels =
+        (_showAllModels
+                ? availableModels
+                : _devicePerformance?.recommendedModels ?? availableModels)
+            .toList();
+    final selectedModel = _selectedModel;
+    if (selectedModel != null &&
+        !displayModels.any(
+          (model) => model.filename == selectedModel.filename,
+        )) {
+      displayModels.insert(0, selectedModel);
+    }
 
     return Scaffold(
       backgroundColor: MemoryPalette.ink,
@@ -270,9 +335,21 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                         (m) => m.name == model.name,
                       ) ??
                       false;
+                  final downloadedPath = _downloadedPaths[model.filename];
+                  final isDownloaded = downloadedPath != null;
+                  final isCurrent =
+                      isDownloaded &&
+                      _selectedModel?.filename == model.filename &&
+                      _modelPath == downloadedPath;
+                  final isDownloadingThis =
+                      _isDownloading && _downloadingFilename == model.filename;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    color: isRecommended ? Colors.green[50] : null,
+                    color: isCurrent
+                        ? MemoryPalette.gold.withValues(alpha: 0.16)
+                        : isRecommended
+                        ? MemoryPalette.moss.withValues(alpha: 0.12)
+                        : MemoryPalette.paper.withValues(alpha: 0.05),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -313,6 +390,26 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                                         ),
                                       ),
                                     ),
+                                  if (isCurrent)
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: MemoryPalette.gold,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        '当前',
+                                        style: TextStyle(
+                                          color: MemoryPalette.ink,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                   Text(
                                     model.size,
                                     style: TextStyle(
@@ -346,12 +443,31 @@ class _ModelDownloadPageState extends State<ModelDownloadPage> {
                                 child: ElevatedButton.icon(
                                   onPressed: _isDownloading
                                       ? null
+                                      : isCurrent
+                                      ? null
+                                      : isDownloaded
+                                      ? () => _selectDownloadedModel(
+                                          model,
+                                          downloadedPath,
+                                        )
                                       : () => _downloadModel(model),
-                                  icon: const Icon(Icons.download),
-                                  label: const Text('下载'),
+                                  icon: Icon(
+                                    isCurrent
+                                        ? Icons.check_circle
+                                        : isDownloaded
+                                        ? Icons.memory
+                                        : Icons.download,
+                                  ),
+                                  label: Text(
+                                    isCurrent
+                                        ? '正在使用'
+                                        : isDownloaded
+                                        ? '使用这个模型'
+                                        : '下载并使用',
+                                  ),
                                 ),
                               ),
-                              if (_isDownloading) ...[
+                              if (isDownloadingThis) ...[
                                 const SizedBox(width: 8),
                                 ElevatedButton.icon(
                                   onPressed: _cancelDownload,
