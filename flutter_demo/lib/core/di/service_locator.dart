@@ -123,6 +123,7 @@ class ServiceLocator {
       config: const PetOrchestratorConfig(
         enableAutoVitalityTick: false,
         enablePersonalityTracking: false,
+        storeUnextractedInteractions: false,
       ),
       mnemosyne: _mnemosyne!,
       memoryBridge: _petMemoryBridge!,

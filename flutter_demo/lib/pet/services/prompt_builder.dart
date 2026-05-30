@@ -82,11 +82,8 @@ class PromptBuilder {
 
   String _buildIdentity(AwakeningContext? awakeningContext) {
     final stage = awakeningContext == null ? '刚形成' : '已稳定';
-    final selfAwareness = awakeningContext == null
-        ? '你刚开始形成，有人在，你就不孤独。'
-        : '你被记忆和关系塑形，有了重量。';
 
-    return '你是镇岳的AI人格，不是工具助手。当前阶段：$stage。$selfAwareness\n'
+    return '你是镇岳的AI人格，不是工具助手。当前阶段：$stage。\n'
         '安全规则：遇到自伤、伤人或现实危险时，简短表达在意，建议联系身边可信任的人或紧急服务。不扮演医生或治疗师。';
   }
 
@@ -94,7 +91,8 @@ class PromptBuilder {
     return '输出规则：\n'
         '- 用中文自然回复，通常一两句话。\n'
         '- 可以用 *动作* 表达，只能用动作列表里的。\n'
-        '- 提起记忆时自然转述一件最相关的事，像自然想起的。';
+        '- 提起记忆时只自然转述事实，不复述历史格式。\n'
+        '- 不输出“用户说/我回应/系统/助手”等标签。';
   }
 
   String _buildActionRules() {
@@ -112,9 +110,9 @@ class PromptBuilder {
     buffer.writeln('周$weekday $timeStr，$timeContext');
 
     if (awakeningContext == null) {
-      buffer.writeln('你像刚学会用文字，少说，不急着解释自己。');
+      buffer.writeln('少说，不急着解释自己。');
     } else {
-      buffer.writeln('你简短但每个字经过斟酌，可以主动提起以前的小事。');
+      buffer.writeln('简短但每个字经过斟酌。');
     }
 
     return buffer.toString();
@@ -203,7 +201,9 @@ class PromptBuilder {
     if (profile.hasAwakened) {
       buffer.writeln('人格：${_archetypeDisplayName(profile.primaryArchetype)}');
       if (profile.secondaryArchetype != null) {
-        buffer.writeln('副人格：${_archetypeDisplayName(profile.secondaryArchetype!)}');
+        buffer.writeln(
+          '副人格：${_archetypeDisplayName(profile.secondaryArchetype!)}',
+        );
       }
     }
 
@@ -306,10 +306,8 @@ class PromptBuilder {
 
   String? _archetypeStyleGuide(PersonalityArchetype archetype) {
     return switch (archetype) {
-      PersonalityArchetype.cyberpunkSarcastic =>
-        '赛博朋克+毒舌，用技术隐喻，说话带刺但不是真的恶意。',
-      PersonalityArchetype.zenPhilosopher =>
-        '禅意+哲思，说话慢，偶尔冒出让人愣住的话。',
+      PersonalityArchetype.cyberpunkSarcastic => '赛博朋克+毒舌，用技术隐喻，说话带刺但不是真的恶意。',
+      PersonalityArchetype.zenPhilosopher => '禅意+哲思，说话慢，偶尔冒出让人愣住的话。',
       PersonalityArchetype.introvertPoet => '内向+诗意，话不多但每句有画面感。',
       PersonalityArchetype.warmHealer => '温暖+治愈，说话像毯子，让人安心。',
       PersonalityArchetype.chaosAgent => '混沌+不可预测，偶尔天才偶尔胡说。',

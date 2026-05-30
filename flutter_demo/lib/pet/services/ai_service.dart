@@ -30,7 +30,7 @@ class AiResponse {
 }
 
 class AiService {
-  static const _maxHistoryPairs = 3;
+  static const _maxHistoryPairs = 2;
 
   LlamaEngine? _engine;
   String? _modelPath;
@@ -77,10 +77,7 @@ class AiService {
     _engine = LlamaEngine(LlamaBackend());
     await _engine!.loadModel(
       modelPath,
-      modelParams: const ModelParams(
-        contextSize: 4096,
-        gpuLayers: 0,
-      ),
+      modelParams: const ModelParams(contextSize: 4096, gpuLayers: 0),
     );
 
     _isInitialized = true;
@@ -93,10 +90,7 @@ class AiService {
   }) async {
     if (!_isInitialized || _engine == null) {
       log('[AiService] 未初始化', name: 'Zhenyue');
-      return AiResponse(
-        text: '*沉默*',
-        actions: [PetAction.silent()],
-      );
+      return AiResponse(text: '*沉默*', actions: [PetAction.silent()]);
     }
 
     try {
@@ -126,21 +120,17 @@ class AiService {
           text: effectivePrompt,
         ),
         ..._chatHistory,
-        LlamaChatMessage.fromText(
-          role: LlamaChatRole.user,
-          text: userMessage,
-        ),
+        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: userMessage),
       ];
 
-      log('[AiService] 发送消息, history: ${_chatHistory.length}, memories: ${memoryContext?.relevantMemories.length ?? 0}',
-          name: 'Zhenyue');
+      log(
+        '[AiService] 发送消息, history: ${_chatHistory.length}, memories: ${memoryContext?.relevantMemories.length ?? 0}',
+        name: 'Zhenyue',
+      );
 
       final stream = _engine!.create(
         messages,
-        params: const GenerationParams(
-          maxTokens: 128,
-          temp: 0.8,
-        ),
+        params: const GenerationParams(maxTokens: 96, temp: 0.45),
       );
 
       final buffer = StringBuffer();
@@ -149,14 +139,11 @@ class AiService {
         buffer.write(text);
       }
 
-      final rawOutput = buffer.toString().trim();
+      final rawOutput = _sanitizeModelOutput(buffer.toString());
       final parsed = ActionParser.parse(rawOutput);
 
       _chatHistory.add(
-        LlamaChatMessage.fromText(
-          role: LlamaChatRole.user,
-          text: userMessage,
-        ),
+        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: userMessage),
       );
       _chatHistory.add(
         LlamaChatMessage.fromText(
@@ -170,20 +157,48 @@ class AiService {
         _chatHistory.removeRange(0, _chatHistory.length - maxHistory);
       }
 
-      log('[AiService] 回复成功, 长度: ${rawOutput.length}, 动作: ${parsed.actions.length}',
-          name: 'Zhenyue');
+      log(
+        '[AiService] 回复成功, 长度: ${rawOutput.length}, 动作: ${parsed.actions.length}',
+        name: 'Zhenyue',
+      );
 
       return AiResponse(
-        text: parsed.text.isEmpty && parsed.actions.isEmpty
-            ? ''
-            : parsed.text,
+        text: parsed.text.isEmpty && parsed.actions.isEmpty ? '' : parsed.text,
         actions: parsed.actions,
         memoryContext: memoryContext,
       );
     } catch (e, stackTrace) {
-      log('[AiService] 错误: $e', name: 'Zhenyue', error: e, stackTrace: stackTrace);
+      log(
+        '[AiService] 错误: $e',
+        name: 'Zhenyue',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return const AiResponse(text: '... 我的思绪断了。');
     }
+  }
+
+  String _sanitizeModelOutput(String output) {
+    var text = output.trim();
+    text = text.replaceFirst(RegExp(r'^(助手|镇岳|AI|assistant)\s*[:：]\s*'), '');
+
+    final stopMarkers = [
+      '\n用户:',
+      '\n用户：',
+      '\nUser:',
+      '\n我回应:',
+      '\n我回应：',
+      '\nAssistant:',
+      '\n助手:',
+      '\n助手：',
+    ];
+    var end = text.length;
+    for (final marker in stopMarkers) {
+      final index = text.indexOf(marker);
+      if (index >= 0 && index < end) end = index;
+    }
+
+    return text.substring(0, end).trim();
   }
 
   void dispose() {

@@ -1,4 +1,5 @@
 import 'package:mnemosyne/features/memory/extraction/memory_extraction_service.dart';
+import 'package:mnemosyne/features/memory/extraction/extracted_insight.dart';
 import 'package:mnemosyne/features/memory/embedding/embedding_service.dart';
 import 'package:mnemosyne/features/pet/pet_context.dart';
 import 'package:mnemosyne/features/pet/pet_memory_bridge.dart';
@@ -24,6 +25,7 @@ class PetOrchestratorConfig {
   final bool enableAutoExtraction;
   final bool enableAutoVitalityTick;
   final bool enablePersonalityTracking;
+  final bool storeUnextractedInteractions;
 
   const PetOrchestratorConfig({
     this.vitalityTickInterval = const Duration(minutes: 1),
@@ -32,6 +34,7 @@ class PetOrchestratorConfig {
     this.enableAutoExtraction = true,
     this.enableAutoVitalityTick = true,
     this.enablePersonalityTracking = true,
+    this.storeUnextractedInteractions = true,
   });
 }
 
@@ -115,6 +118,9 @@ class PetOrchestrator {
     );
 
     final insight = await _extractionService.extractInsight(rawMessage);
+    if (insight == null && !config.storeUnextractedInteractions) {
+      return '';
+    }
 
     List<double>? embedding;
     final embeddingService = _embeddingService;
@@ -126,7 +132,7 @@ class PetOrchestrator {
     }
 
     final memoryId = await _memoryBridge.rememberInteraction(
-      content: content,
+      content: _memoryContent(content, insight),
       petContext: petContext,
       importance: insight?.importance,
       keywords: insight?.keywords,
@@ -149,6 +155,33 @@ class PetOrchestrator {
     }
 
     return memoryId;
+  }
+
+  String _memoryContent(String content, ExtractedInsight? insight) {
+    if (insight == null) return content;
+
+    final lines = <String>[];
+    if (insight.event != null && insight.event!.trim().isNotEmpty) {
+      lines.add('用户事件: ${insight.event!.trim()}');
+    }
+    if (insight.preference != null && insight.preference!.trim().isNotEmpty) {
+      lines.add('用户偏好: ${insight.preference!.trim()}');
+    }
+    if (insight.mood != null && insight.mood!.trim().isNotEmpty) {
+      lines.add('用户情绪: ${insight.mood!.trim()}');
+    }
+
+    final cues = (_xiangRecallCues(insight.extra) ?? const <SensoryTag>[])
+        .map((cue) => cue.value.trim())
+        .where((cue) => cue.isNotEmpty)
+        .take(4)
+        .toList();
+    if (cues.isNotEmpty) {
+      lines.add('触发线索: ${cues.join('、')}');
+    }
+
+    if (lines.isEmpty) return content;
+    return lines.join('\n');
   }
 
   Future<ProxyResponse> handleStrangerMessage(

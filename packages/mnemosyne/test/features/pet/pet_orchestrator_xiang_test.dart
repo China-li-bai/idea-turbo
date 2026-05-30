@@ -54,12 +54,35 @@ void main() {
       final memory = await mnemosyne.getMemory(memoryId);
       final xiang = XiangContext.fromMemoryMetadata(memory!.metadata);
 
+      expect(memory.content, contains('用户事件: 用户雨夜表达不想回消息'));
+      expect(memory.content, isNot(contains('我回应')));
       expect(xiang, isNotNull);
       expect(xiang!.innerState, equals('lonely'));
       expect(xiang.relationshipState, equals('trusting_owner'));
       expect(xiang.eventShape, equals('emotional_confession'));
       expect(xiang.changeSignal, equals('becoming_closer'));
       expect(xiang.recallCues.map((cue) => cue.value), contains('不想回消息'));
+    });
+
+    test('can skip unextracted low-value interactions', () async {
+      final bridge = PetMemoryBridge(mnemosyne: mnemosyne);
+      final quietOrchestrator = PetOrchestrator(
+        petId: 'pet-1',
+        userId: 'user-1',
+        config: const PetOrchestratorConfig(
+          storeUnextractedInteractions: false,
+        ),
+        mnemosyne: mnemosyne,
+        memoryBridge: bridge,
+        extractionService: _NullExtractionService(),
+      );
+
+      final memoryId = await quietOrchestrator.ingestConversation(
+        '嗯嗯，今天还行',
+        petContext: PetContext.capture(),
+      );
+
+      expect(memoryId, isEmpty);
     });
   });
 }
@@ -112,6 +135,41 @@ class _FakeXiangExtractionService implements MemoryExtractionService {
     final insight = await extractInsight(messages.first);
     return insight == null ? [] : [insight];
   }
+
+  @override
+  List<RawMessage> getPendingMessages({int? limit}) => [];
+
+  @override
+  Future<void> markProcessed(String rawMessageId) async {}
+}
+
+class _NullExtractionService implements MemoryExtractionService {
+  @override
+  Future<RawMessage> ingest(
+    String content, {
+    String? speakerId,
+    String? petId,
+    String source = 'conversation',
+    Map<String, dynamic>? metadata,
+  }) async {
+    return RawMessage(
+      id: 'raw-null-test',
+      content: content,
+      source: source,
+      speakerId: speakerId,
+      petId: petId,
+      timestamp: DateTime(2026, 5, 28, 23),
+      metadata: metadata ?? {},
+    );
+  }
+
+  @override
+  Future<ExtractedInsight?> extractInsight(RawMessage message) async => null;
+
+  @override
+  Future<List<ExtractedInsight>> processBatch(
+    List<RawMessage> messages,
+  ) async => [];
 
   @override
   List<RawMessage> getPendingMessages({int? limit}) => [];

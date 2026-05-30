@@ -5,12 +5,7 @@ import 'text_analysis.dart';
 import '../domain/pet_action.dart';
 import '../domain/vitality_phase.dart';
 
-enum ResponseAction {
-  respond,
-  silentAction,
-  delayedRespond,
-  refuse,
-}
+enum ResponseAction { respond, silentAction, delayedRespond, refuse }
 
 class ResponseDecision {
   final ResponseAction action;
@@ -30,7 +25,10 @@ class ResponseGate {
   final EmotionalState emotionalState;
   final VitalityPhase vitalityPhase;
 
-  ResponseGate(this.emotionalState, {this.vitalityPhase = VitalityPhase.normal});
+  ResponseGate(
+    this.emotionalState, {
+    this.vitalityPhase = VitalityPhase.normal,
+  });
 
   ResponseDecision decide(String userMessage) {
     if (emotionalState.isWithdrawn) {
@@ -126,7 +124,8 @@ class ResponseGate {
   }
 
   ResponseDecision _handlePlayful() {
-    if (vitalityPhase == VitalityPhase.lethargic || vitalityPhase == VitalityPhase.dormant) {
+    if (vitalityPhase == VitalityPhase.lethargic ||
+        vitalityPhase == VitalityPhase.dormant) {
       return ResponseDecision(
         action: ResponseAction.respond,
         moodHint: '你想调皮，但太累了，发一个简短的动作。',
@@ -150,28 +149,7 @@ class ResponseGate {
       );
     }
 
-    if (_randomChance(0.1)) {
-      return ResponseDecision(
-        action: ResponseAction.silentAction,
-        petAction: _randomSilentAction(),
-      );
-    }
-
-    return const ResponseDecision(
-      action: ResponseAction.respond,
-    );
-  }
-
-  PetAction _randomSilentAction() {
-    const actions = [
-      PetAction(type: PetActionType.zoneOut, displayText: '*发呆*'),
-      PetAction(type: PetActionType.tiltHead, displayText: '*歪头看着你*'),
-      PetAction(type: PetActionType.yawn, displayText: '*打了个哈欠*'),
-      PetAction(type: PetActionType.blink, displayText: '*眨眨眼*'),
-      PetAction(type: PetActionType.stretch, displayText: '*伸了个懒腰*'),
-      PetAction(type: PetActionType.silent, displayText: '*安静地待着*'),
-    ];
-    return actions[Random().nextInt(actions.length)];
+    return const ResponseDecision(action: ResponseAction.respond);
   }
 
   bool _randomChance(double probability) => randomChance(probability);
