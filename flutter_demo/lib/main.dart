@@ -9,7 +9,6 @@ import 'core/product/product_copy.dart';
 import 'pet/pet_app_shell.dart';
 import 'ui/design/memory_design.dart';
 import 'ui/pages/model_download_page.dart';
-import 'ui/pages/onboarding_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -45,7 +44,7 @@ class _AppEntry extends StatefulWidget {
 }
 
 class _AppEntryState extends State<_AppEntry> {
-  bool? _onboardingComplete;
+  bool _isChecking = true;
   String? _existingModelPath;
 
   @override
@@ -56,56 +55,50 @@ class _AppEntryState extends State<_AppEntry> {
 
   Future<void> _checkState() async {
     final prefs = await SharedPreferences.getInstance();
-    final done = prefs.getBool('onboarding_complete') ?? false;
 
     String? modelPath;
-    if (done) {
-      final dir = await getApplicationDocumentsDirectory();
+    final dir = await getApplicationDocumentsDirectory();
 
-      final selectedModel = findModelByFilename(
-        prefs.getString(selectedModelFilenamePrefsKey),
-      );
-      final selectedFile = selectedModel == null
-          ? null
-          : File('${dir.path}/${selectedModel.filename}');
-      if (selectedFile != null && await selectedFile.exists()) {
-        modelPath = selectedFile.path;
-      } else {
-        final defaultFile = File('${dir.path}/${defaultModelConfig.filename}');
-        if (await defaultFile.exists()) {
-          modelPath = defaultFile.path;
-          await prefs.setString(
-            selectedModelFilenamePrefsKey,
-            defaultModelConfig.filename,
-          );
-        }
+    final selectedModel = findModelByFilename(
+      prefs.getString(selectedModelFilenamePrefsKey),
+    );
+    final selectedFile = selectedModel == null
+        ? null
+        : File('${dir.path}/${selectedModel.filename}');
+    if (selectedFile != null && await selectedFile.exists()) {
+      modelPath = selectedFile.path;
+    } else {
+      final defaultFile = File('${dir.path}/${defaultModelConfig.filename}');
+      if (await defaultFile.exists()) {
+        modelPath = defaultFile.path;
+        await prefs.setString(
+          selectedModelFilenamePrefsKey,
+          defaultModelConfig.filename,
+        );
       }
+    }
 
-      if (modelPath == null) {
-        for (final model in availableModels) {
-          final file = File('${dir.path}/${model.filename}');
-          if (await file.exists()) {
-            modelPath = file.path;
-            await prefs.setString(
-              selectedModelFilenamePrefsKey,
-              model.filename,
-            );
-            break;
-          }
+    if (modelPath == null) {
+      for (final model in availableModels) {
+        final file = File('${dir.path}/${model.filename}');
+        if (await file.exists()) {
+          modelPath = file.path;
+          await prefs.setString(selectedModelFilenamePrefsKey, model.filename);
+          break;
         }
       }
     }
 
     if (!mounted) return;
     setState(() {
-      _onboardingComplete = done;
+      _isChecking = false;
       _existingModelPath = modelPath;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_onboardingComplete == null) {
+    if (_isChecking) {
       return const Scaffold(
         backgroundColor: MemoryPalette.ink,
         body: Center(
@@ -114,14 +107,10 @@ class _AppEntryState extends State<_AppEntry> {
       );
     }
 
-    if (_onboardingComplete! && _existingModelPath != null) {
+    if (_existingModelPath != null) {
       return PetAppShell(modelPath: _existingModelPath!);
     }
 
-    if (_onboardingComplete!) {
-      return const ModelDownloadPage();
-    }
-
-    return const OnboardingPage();
+    return const ModelDownloadPage();
   }
 }

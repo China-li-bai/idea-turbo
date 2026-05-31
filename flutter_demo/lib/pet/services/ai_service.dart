@@ -2,6 +2,15 @@ import 'dart:developer';
 
 import 'package:llamadart/llamadart.dart';
 
+enum AiConversationRole { user, assistant }
+
+class AiConversationMessage {
+  final AiConversationRole role;
+  final String text;
+
+  const AiConversationMessage({required this.role, required this.text});
+}
+
 class AiResponse {
   final String text;
 
@@ -9,12 +18,11 @@ class AiResponse {
 }
 
 class AiService {
-  static const _maxHistoryPairs = 2;
+  static const _maxHistoryMessages = 8;
 
   LlamaEngine? _engine;
   String? _modelPath;
   bool _isInitialized = false;
-  final List<LlamaChatMessage> _chatHistory = [];
 
   bool get isInitialized => _isInitialized;
 
@@ -24,7 +32,6 @@ class AiService {
     _engine?.dispose();
     _isInitialized = false;
     _modelPath = modelPath;
-    _chatHistory.clear();
 
     _engine = LlamaEngine(LlamaBackend());
     await _engine!.loadModel(
@@ -35,26 +42,39 @@ class AiService {
     _isInitialized = true;
   }
 
-  Future<AiResponse> generateResponse(String userMessage) async {
+  Future<AiResponse> generateResponse(
+    String userMessage, {
+    List<AiConversationMessage> history = const [],
+  }) async {
     if (!_isInitialized || _engine == null) {
-      log('[AiService] 未初始化', name: 'Zhenyue');
-      return const AiResponse(text: '*沉默*');
+      log('[AiService] 未初始化', name: 'LocalChat');
+      return const AiResponse(text: '');
     }
+
+    final recentHistory = history.length <= _maxHistoryMessages
+        ? history
+        : history.sublist(history.length - _maxHistoryMessages);
 
     try {
       final messages = <LlamaChatMessage>[
-        ..._chatHistory,
+        for (final message in recentHistory)
+          LlamaChatMessage.fromText(
+            role: message.role == AiConversationRole.user
+                ? LlamaChatRole.user
+                : LlamaChatRole.assistant,
+            text: message.text,
+          ),
         LlamaChatMessage.fromText(role: LlamaChatRole.user, text: userMessage),
       ];
 
       log(
-        '[AiService] 发送消息, history: ${_chatHistory.length}, memory: disabled, prompt: disabled',
-        name: 'Zhenyue',
+        '[AiService] 发送消息, history: ${recentHistory.length}',
+        name: 'LocalChat',
       );
 
       final stream = _engine!.create(
         messages,
-        params: const GenerationParams(maxTokens: 96, temp: 0.45),
+        params: const GenerationParams(maxTokens: 160, temp: 0.55),
       );
 
       final buffer = StringBuffer();
@@ -63,58 +83,19 @@ class AiService {
         buffer.write(text);
       }
 
-      final rawOutput = _sanitizeModelOutput(buffer.toString());
+      final output = buffer.toString().trim();
+      log('[AiService] 回复成功, 长度: ${output.length}', name: 'LocalChat');
 
-      _chatHistory.add(
-        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: userMessage),
-      );
-      _chatHistory.add(
-        LlamaChatMessage.fromText(
-          role: LlamaChatRole.assistant,
-          text: rawOutput,
-        ),
-      );
-
-      final maxHistory = _maxHistoryPairs * 2;
-      if (_chatHistory.length > maxHistory) {
-        _chatHistory.removeRange(0, _chatHistory.length - maxHistory);
-      }
-
-      log('[AiService] 回复成功, 长度: ${rawOutput.length}', name: 'Zhenyue');
-
-      return AiResponse(text: rawOutput);
+      return AiResponse(text: output);
     } catch (e, stackTrace) {
       log(
         '[AiService] 错误: $e',
-        name: 'Zhenyue',
+        name: 'LocalChat',
         error: e,
         stackTrace: stackTrace,
       );
-      return const AiResponse(text: '... 我的思绪断了。');
+      return const AiResponse(text: '');
     }
-  }
-
-  String _sanitizeModelOutput(String output) {
-    var text = output.trim();
-    text = text.replaceFirst(RegExp(r'^(助手|镇岳|AI|assistant)\s*[:：]\s*'), '');
-
-    final stopMarkers = [
-      '\n用户:',
-      '\n用户：',
-      '\nUser:',
-      '\n我回应:',
-      '\n我回应：',
-      '\nAssistant:',
-      '\n助手:',
-      '\n助手：',
-    ];
-    var end = text.length;
-    for (final marker in stopMarkers) {
-      final index = text.indexOf(marker);
-      if (index >= 0 && index < end) end = index;
-    }
-
-    return text.substring(0, end).trim();
   }
 
   void dispose() {
