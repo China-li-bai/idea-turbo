@@ -1,13 +1,9 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../../ui/design/memory_design.dart';
-import '../domain/pet_action.dart';
-import '../domain/vitality_phase.dart';
 import '../pet_store.dart';
-import '../services/emotional_state.dart';
 
 class EntityLayer extends StatefulWidget {
   final PetStore store;
@@ -23,17 +19,10 @@ class _EntityLayerState extends State<EntityLayer>
   late final AnimationController _breathController;
   late final AnimationController _blinkController;
   late final AnimationController _orbitController;
-  late final AnimationController _tiltController;
-  late final AnimationController _approachController;
 
-  StreamSubscription<PetAction>? _actionSubscription;
   double _eyeTrackX = 0;
   double _eyeTrackY = 0;
-  double _tiltAngle = 0;
-  double _approachOffset = 0;
   bool _isHeld = false;
-  VitalityPhase _vitalityPhase = VitalityPhase.normal;
-  EmotionalMode _previousMode = EmotionalMode.normal;
 
   @override
   void initState() {
@@ -50,85 +39,18 @@ class _EntityLayerState extends State<EntityLayer>
       vsync: this,
       duration: const Duration(seconds: 18),
     )..repeat();
-    _tiltController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _approachController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    );
 
     _startBlinkLoop();
-    _actionSubscription = widget.store.actionStream.listen(_onAction);
     widget.store.addListener(_onStoreChanged);
   }
 
   @override
   void dispose() {
-    _actionSubscription?.cancel();
     _breathController.dispose();
     _blinkController.dispose();
     _orbitController.dispose();
-    _tiltController.dispose();
-    _approachController.dispose();
     widget.store.removeListener(_onStoreChanged);
     super.dispose();
-  }
-
-  void _onAction(PetAction action) {
-    if (!mounted) return;
-
-    switch (action.type) {
-      case PetActionType.tiltHead:
-        _animateTilt();
-        break;
-      case PetActionType.approach:
-        _animateApproach(12);
-        break;
-      case PetActionType.retreat:
-        _animateApproach(-14);
-        break;
-      case PetActionType.blink:
-      case PetActionType.yawn:
-      case PetActionType.zoneOut:
-        _animateBlink();
-        break;
-      case PetActionType.stretch:
-      case PetActionType.tailWagFast:
-      case PetActionType.earTwitch:
-        _pulseOrbit();
-        break;
-      case PetActionType.curlUp:
-      case PetActionType.silent:
-        break;
-    }
-  }
-
-  void _animateTilt() {
-    setState(() => _tiltAngle = Random().nextBool() ? 7 : -7);
-    _tiltController.forward().then((_) {
-      if (!mounted) return;
-      Future.delayed(const Duration(milliseconds: 1200), () {
-        if (!mounted) return;
-        _tiltController.reverse().then((_) {
-          if (mounted) setState(() => _tiltAngle = 0);
-        });
-      });
-    });
-  }
-
-  void _animateApproach(double offset) {
-    setState(() => _approachOffset = offset);
-    _approachController.forward().then((_) {
-      if (!mounted) return;
-      Future.delayed(const Duration(milliseconds: 820), () {
-        if (!mounted) return;
-        _approachController.reverse().then((_) {
-          if (mounted) setState(() => _approachOffset = 0);
-        });
-      });
-    });
   }
 
   void _animateBlink() {
@@ -137,24 +59,10 @@ class _EntityLayerState extends State<EntityLayer>
     });
   }
 
-  void _pulseOrbit() {
-    _orbitController
-      ..duration = const Duration(seconds: 5)
-      ..repeat();
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-      _orbitController
-        ..duration = const Duration(seconds: 18)
-        ..repeat();
-    });
-  }
-
   void _onStoreChanged() {
     if (!mounted) return;
     _updateTracking();
     _updateHeldState();
-    _updateVitality();
-    _updateEmotionTransition();
   }
 
   void _updateTracking() {
@@ -195,46 +103,6 @@ class _EntityLayerState extends State<EntityLayer>
     }
   }
 
-  void _updateVitality() {
-    final phase = widget.store.vitalityPhase;
-    if (phase == _vitalityPhase) return;
-
-    _vitalityPhase = phase;
-    switch (phase) {
-      case VitalityPhase.vibrant:
-        _breathController.duration = const Duration(milliseconds: 1900);
-        _orbitController.duration = const Duration(seconds: 10);
-        break;
-      case VitalityPhase.normal:
-        _breathController.duration = const Duration(milliseconds: 2800);
-        _orbitController.duration = const Duration(seconds: 18);
-        break;
-      case VitalityPhase.lethargic:
-        _breathController.duration = const Duration(milliseconds: 4200);
-        _orbitController.duration = const Duration(seconds: 28);
-        break;
-      case VitalityPhase.fragile:
-        _breathController.duration = const Duration(milliseconds: 3300);
-        _orbitController.duration = const Duration(seconds: 24);
-        break;
-      case VitalityPhase.dormant:
-        _breathController.duration = const Duration(milliseconds: 6200);
-        _orbitController.duration = const Duration(seconds: 36);
-        break;
-    }
-    _breathController.repeat(reverse: true);
-    _orbitController.repeat();
-  }
-
-  void _updateEmotionTransition() {
-    final mode = widget.store.emotionalState.mode;
-    if (mode == _previousMode) return;
-    _previousMode = mode;
-    if (mode == EmotionalMode.playful || mode == EmotionalMode.longing) {
-      _pulseOrbit();
-    }
-  }
-
   void _startBlinkLoop() {
     Future.delayed(Duration(milliseconds: 2600 + Random().nextInt(2400)), () {
       if (!mounted) return;
@@ -253,8 +121,6 @@ class _EntityLayerState extends State<EntityLayer>
     final screen = MediaQuery.of(context).size;
     final base = min(screen.width, screen.height);
     final personaSize = (base * 0.62).clamp(220.0, 420.0);
-    final emotionalMode = widget.store.emotionalState.mode;
-    final withdrawn = widget.store.emotionalState.isWithdrawn;
 
     return Center(
       child: SizedBox(
@@ -265,36 +131,26 @@ class _EntityLayerState extends State<EntityLayer>
             _breathController,
             _blinkController,
             _orbitController,
-            _tiltController,
-            _approachController,
           ]),
           builder: (context, _) {
             final breath = _breathController.value;
-            final scale = withdrawn ? 0.93 : 0.98 + breath * 0.025;
-            final blink = emotionalMode == EmotionalMode.pensive
-                ? 0.48
-                : 1 - _blinkController.value * 0.92;
-            final opacity = _vitalityOpacity();
+            final scale = 0.98 + breath * 0.025;
+            final blink = 1 - _blinkController.value * 0.92;
 
             return Opacity(
-              opacity: opacity,
-              child: Transform.translate(
-                offset: Offset(0, -_approachOffset),
-                child: Transform.rotate(
-                  angle: (_tiltAngle + _eyeTrackX * 2.2) * pi / 180,
-                  child: Transform.scale(
-                    scale: _isHeld ? scale * 0.97 : scale,
-                    child: CustomPaint(
-                      painter: _MemoryPersonaPainter(
-                        breath: breath,
-                        blink: blink,
-                        orbit: _orbitController.value,
-                        emotionalMode: emotionalMode,
-                        vitalityPhase: _vitalityPhase,
-                        mood: widget.store.mood,
-                        eyeTrack: Offset(_eyeTrackX, _eyeTrackY),
-                        isHeld: _isHeld,
-                      ),
+              opacity: 1,
+              child: Transform.rotate(
+                angle: _eyeTrackX * 2.2 * pi / 180,
+                child: Transform.scale(
+                  scale: _isHeld ? scale * 0.97 : scale,
+                  child: CustomPaint(
+                    painter: _MemoryPersonaPainter(
+                      breath: breath,
+                      blink: blink,
+                      orbit: _orbitController.value,
+                      mood: widget.store.mood,
+                      eyeTrack: Offset(_eyeTrackX, _eyeTrackY),
+                      isHeld: _isHeld,
                     ),
                   ),
                 ),
@@ -305,24 +161,12 @@ class _EntityLayerState extends State<EntityLayer>
       ),
     );
   }
-
-  double _vitalityOpacity() {
-    return switch (_vitalityPhase) {
-      VitalityPhase.vibrant => 1.0,
-      VitalityPhase.normal => 1.0,
-      VitalityPhase.lethargic => 0.82,
-      VitalityPhase.fragile => 0.88,
-      VitalityPhase.dormant => 0.56,
-    };
-  }
 }
 
 class _MemoryPersonaPainter extends CustomPainter {
   final double breath;
   final double blink;
   final double orbit;
-  final EmotionalMode emotionalMode;
-  final VitalityPhase vitalityPhase;
   final PetMood mood;
   final Offset eyeTrack;
   final bool isHeld;
@@ -331,8 +175,6 @@ class _MemoryPersonaPainter extends CustomPainter {
     required this.breath,
     required this.blink,
     required this.orbit,
-    required this.emotionalMode,
-    required this.vitalityPhase,
     required this.mood,
     required this.eyeTrack,
     required this.isHeld,
@@ -350,7 +192,7 @@ class _MemoryPersonaPainter extends CustomPainter {
     _drawInnerXiang(canvas, center, radius);
     _drawPresence(canvas, center, radius);
     _drawMemoryThreads(canvas, center, radius, size);
-    _drawEmotionalParticles(canvas, center, radius);
+    _drawInteractionParticles(canvas, center, radius);
   }
 
   void _drawAura(
@@ -641,25 +483,11 @@ class _MemoryPersonaPainter extends CustomPainter {
     }
   }
 
-  void _drawEmotionalParticles(Canvas canvas, Offset center, double radius) {
-    switch (emotionalMode) {
-      case EmotionalMode.playful:
-        _drawSeedSparks(canvas, center, radius, MemoryPalette.gold);
-        break;
-      case EmotionalMode.longing:
-        _drawSeedSparks(canvas, center, radius, MemoryPalette.rust);
-        break;
-      case EmotionalMode.withdrawn:
-        _drawFallingCues(canvas, center, radius);
-        break;
-      case EmotionalMode.pensive:
-        _drawStillMarker(canvas, center, radius);
-        break;
-      case EmotionalMode.normal:
-        if (isHeld || mood == PetMood.happy) {
-          _drawSeedSparks(canvas, center, radius, MemoryPalette.moss);
-        }
-        break;
+  void _drawInteractionParticles(Canvas canvas, Offset center, double radius) {
+    if (isHeld || mood == PetMood.happy) {
+      _drawSeedSparks(canvas, center, radius, MemoryPalette.moss);
+    } else if (mood == PetMood.thinking) {
+      _drawStillMarker(canvas, center, radius);
     }
   }
 
@@ -677,15 +505,6 @@ class _MemoryPersonaPainter extends CustomPainter {
         center.dy + sin(angle) * radius * 0.72,
       );
       _drawDiamond(canvas, pos, 4 + (i % 2) * 1.5, paint);
-    }
-  }
-
-  void _drawFallingCues(Canvas canvas, Offset center, double radius) {
-    final paint = Paint()..color = MemoryPalette.muted.withValues(alpha: 0.30);
-    for (var i = 0; i < 5; i++) {
-      final y = center.dy + radius * (0.52 + i * 0.12 + breath * 0.10);
-      final x = center.dx + (i - 2) * radius * 0.18;
-      canvas.drawCircle(Offset(x, y), 2.2, paint);
     }
   }
 
@@ -717,53 +536,22 @@ class _MemoryPersonaPainter extends CustomPainter {
   }
 
   List<Color> _auraColors() {
-    return switch (emotionalMode) {
-      EmotionalMode.withdrawn => [
-        MemoryPalette.muted.withValues(alpha: 0.10),
-        MemoryPalette.umber.withValues(alpha: 0.08),
-        Colors.transparent,
-      ],
-      EmotionalMode.longing => [
-        MemoryPalette.rust.withValues(alpha: 0.18),
-        MemoryPalette.gold.withValues(alpha: 0.08),
-        Colors.transparent,
-      ],
-      EmotionalMode.playful => [
-        MemoryPalette.gold.withValues(alpha: 0.22),
-        MemoryPalette.moss.withValues(alpha: 0.10),
-        Colors.transparent,
-      ],
-      EmotionalMode.pensive => [
-        MemoryPalette.moss.withValues(alpha: 0.16),
-        MemoryPalette.umber.withValues(alpha: 0.08),
-        Colors.transparent,
-      ],
-      EmotionalMode.normal => [
-        MemoryPalette.gold.withValues(alpha: 0.16),
-        MemoryPalette.rust.withValues(alpha: 0.06),
-        Colors.transparent,
-      ],
-    };
+    return [
+      MemoryPalette.gold.withValues(alpha: 0.16),
+      MemoryPalette.rust.withValues(alpha: 0.06),
+      Colors.transparent,
+    ];
   }
 
   Color _bodyAccent() {
-    if (vitalityPhase == VitalityPhase.dormant) return MemoryPalette.muted;
-    if (vitalityPhase == VitalityPhase.fragile) return MemoryPalette.rust;
-    return switch (emotionalMode) {
-      EmotionalMode.playful => MemoryPalette.gold,
-      EmotionalMode.longing => MemoryPalette.rust,
-      EmotionalMode.withdrawn => MemoryPalette.muted,
-      EmotionalMode.pensive => MemoryPalette.moss,
-      EmotionalMode.normal => MemoryPalette.gold,
-    };
+    if (mood == PetMood.thinking) return MemoryPalette.moss;
+    if (mood == PetMood.dizzy) return MemoryPalette.rust;
+    return MemoryPalette.gold;
   }
 
   double _mouthCurve() {
     if (isHeld || mood == PetMood.happy) return 0.49;
-    if (emotionalMode == EmotionalMode.withdrawn) return 0.37;
-    if (mood == PetMood.thinking || emotionalMode == EmotionalMode.pensive) {
-      return 0.41;
-    }
+    if (mood == PetMood.thinking) return 0.41;
     return 0.45;
   }
 
@@ -772,8 +560,6 @@ class _MemoryPersonaPainter extends CustomPainter {
       breath != oldDelegate.breath ||
       blink != oldDelegate.blink ||
       orbit != oldDelegate.orbit ||
-      emotionalMode != oldDelegate.emotionalMode ||
-      vitalityPhase != oldDelegate.vitalityPhase ||
       mood != oldDelegate.mood ||
       eyeTrack != oldDelegate.eyeTrack ||
       isHeld != oldDelegate.isHeld;
