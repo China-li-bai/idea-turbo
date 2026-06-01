@@ -1,0 +1,29 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Flutter/Dart (app), TypeScript (workspace packages), Rust (edgevec)
+  Monorepo: pnpm + Turborepo for TS, Flutter for Dart
+  Product: AI人格宠物 — 创造属于你的AI人格，它记得你、理解你、陪你长大
+  Core package: packages/mnemosyne (emotional memory infrastructure)
+  App: flutter_demo/ (product shell)
+  Architecture: DDD, CQRS, Event Sourcing, Local-first, Schema-first
+  Key modules: memory, pet, xiang, social, commerce
+  Storage: ObjectBox (local DB), edgevec (vector search)
+  LLM: llamadart (local inference), remote API fallback
+  Conventions: Conventional Commits, flutter_lints, two-space indent
+  Language: Dart for Flutter, TypeScript for workspace, Chinese for product copy
+
+rules:
+  proposal:
+    - Always include a "Non-goals" section
+    - Specify which modules are affected (memory, pet, xiang, social, commerce)
+    - State whether this is a local-only change or requires remote sync
+  design:
+    - Follow DDD layering: Presentation → Application → Domain → Infrastructure
+    - Specify data flow direction (must be unidirectional)
+    - Identify the Single Source of Truth for any data changes
+    - Use interface/protocol for cross-module communication
+  tasks:
+    - Break tasks into small, individually verifiable steps
+    - Each task MUST have a verification method (type check, unit test, manual test)
+    - Mark affected files with full paths
