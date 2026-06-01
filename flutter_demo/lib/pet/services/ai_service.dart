@@ -19,6 +19,14 @@ class AiResponse {
 
 class AiService {
   static const _maxHistoryMessages = 8;
+  static const localChatGenerationParams = GenerationParams(
+    maxTokens: 768,
+    temp: 0.75,
+    topK: 40,
+    topP: 0.92,
+    minP: 0.05,
+    penalty: 1.08,
+  );
 
   LlamaEngine? _engine;
   String? _modelPath;
@@ -74,7 +82,7 @@ class AiService {
 
       final stream = _engine!.create(
         messages,
-        params: const GenerationParams(maxTokens: 160, temp: 0.55),
+        params: localChatGenerationParams,
       );
 
       final buffer = StringBuffer();
