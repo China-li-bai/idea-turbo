@@ -83,12 +83,15 @@ ModelConfig? findModelByFilename(String? filename) {
 final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'MiniCPM5-1B',
-    description: '面壁智能 MiniCPM5 1B，面向端侧场景，体积小，适合手机本地推理优先尝试。',
+    description: '面壁智能 MiniCPM5 1B，端侧推理。'
+        '内置 Hybrid Reasoning（<think> 块），中英文均衡，'
+        '1B 甜点级，最低 2GB 内存即可。'
+        '原生上下文 128K，移动端建议 4K-8K。',
     url:
         'https://www.modelscope.cn/models/OpenBMB/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
     filename: 'minicpm5-1b-q4_k_m.gguf',
     size: '656 MB',
-    features: ['端侧优先', '轻量', 'Apache 2.0'],
+    features: ['端侧优先', 'Hybrid Reasoning', '128K 上下文', 'Apache 2.0'],
     minRamGb: 2,
     tier: 'low',
   ),
