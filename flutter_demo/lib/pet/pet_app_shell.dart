@@ -69,6 +69,7 @@ class _PetAppShellState extends State<PetAppShell> {
   bool _isInitializing = true;
   bool _isSending = false;
   String? _error;
+  AiReasoningMode _mode = AiReasoningMode.noThink;
 
   @override
   void initState() {
@@ -158,6 +159,7 @@ class _PetAppShellState extends State<PetAppShell> {
               ),
             )
             .toList(),
+        mode: _mode,
       );
 
       if (!mounted) return;
@@ -244,6 +246,7 @@ class _PetAppShellState extends State<PetAppShell> {
                       },
                     ),
             ),
+            _buildModeToggle(),
             _buildComposer(),
           ],
         ),
@@ -263,6 +266,35 @@ class _PetAppShellState extends State<PetAppShell> {
             fontSize: 16,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildModeToggle() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          const Text(
+            '深度思考',
+            style: TextStyle(color: MemoryPalette.paper, fontSize: 13),
+          ),
+          const SizedBox(width: 8),
+          Switch(
+            value: _mode == AiReasoningMode.think,
+            onChanged: (v) => setState(() {
+              _mode = v ? AiReasoningMode.think : AiReasoningMode.noThink;
+            }),
+          ),
+          const Spacer(),
+          Text(
+            _mode == AiReasoningMode.think ? 'Think（慢但准）' : 'No-Think（快）',
+            style: TextStyle(
+              color: MemoryPalette.paper.withValues(alpha: 0.55),
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
