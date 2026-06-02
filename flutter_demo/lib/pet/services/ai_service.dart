@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:io' show Platform;
 
 import 'package:llamadart/llamadart.dart';
 
@@ -57,6 +58,47 @@ class AiService {
     );
   }
 
+  /// 离屏 GPU 卸载的层数。MiniCPM5-1B 有 24 层；使用 `ModelParams.maxGpuLayers`
+  /// 让 llama.cpp 把所有层都尽量放到 GPU 上。
+  static const int defaultGpuLayers = ModelParams.maxGpuLayers;
+
+  /// 移动端上下文窗口。
+  /// - iOS / macOS：GPU 可用，4096 tokens 平衡性能与内存。
+  /// - Android：默认 CPU 推理，2048 tokens 避免 1B 模型 KV 内存爆炸。
+  /// MiniCPM5-1B 原生支持 128K，但移动端没那么多 RAM。
+  static const int iosContextSize = 4096;
+  static const int androidCpuContextSize = 2048;
+
+  /// 构建 MiniCPM5-1B 移动端推理的 `ModelParams`。
+  ///
+  /// 平台分支：
+  /// - iOS / macOS：全部 24 层 GPU offload（默认）。
+  /// - Android：CPU 推理（`gpuLayers: 0`），等 llamadart 启用 Vulkan 后再调。
+  ///
+  /// 关键参数：
+  /// - `batchSize: 512` — 默认 0 会被解释为 `n_ctx`，浪费内存。
+  /// - `cacheTypeK/V: q4_0` — KV 缓存压到 1/4。llamadart 的 `validate()` 会强制
+  ///   `flashAttention != disabled`。
+  /// - `useMmap: true / useMlock: false` — 700MB 权重不锁内存，按需 page。
+  static ModelParams buildModelParams({required int threads}) {
+    final isAndroid = Platform.isAndroid;
+    return ModelParams(
+      contextSize: isAndroid ? androidCpuContextSize : iosContextSize,
+      gpuLayers: isAndroid ? 0 : defaultGpuLayers,
+      numberOfThreads: threads,
+      numberOfThreadsBatch: threads,
+      batchSize: 512,
+      microBatchSize: 64,
+      useMmap: true,
+      useMlock: false,
+      flashAttention: FlashAttention.auto,
+      cacheTypeK: KvCacheType.q4_0,
+      cacheTypeV: KvCacheType.q4_0,
+      splitMode: ModelSplitMode.none,
+      mainGpu: 0,
+    );
+  }
+
   LlamaEngine? _engine;
   String? _modelPath;
   bool _isInitialized = false;
@@ -71,9 +113,10 @@ class AiService {
     _modelPath = modelPath;
 
     _engine = LlamaEngine(LlamaBackend());
+    final threads = Platform.numberOfProcessors.clamp(2, 8);
     await _engine!.loadModel(
       modelPath,
-      modelParams: const ModelParams(contextSize: 4096, gpuLayers: 0),
+      modelParams: buildModelParams(threads: threads),
     );
 
     _isInitialized = true;

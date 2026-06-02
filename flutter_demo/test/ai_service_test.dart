@@ -39,9 +39,23 @@ void main() {
     });
   });
 
-  group('legacy API removed', () {
-    test('paramsFor replaces static localChatGenerationParams', () {
-      expect(AiService.paramsFor(AiReasoningMode.noThink).maxTokens, isNotNull);
+  group('AiService model params', () {
+    test('default gpuLayers targets full offload (>= 24 layers of MiniCPM5-1B)', () {
+      expect(AiService.defaultGpuLayers, greaterThanOrEqualTo(24));
+    });
+
+    test('buildModelParams enables q4_0 KV cache quantization and flash attention', () {
+      final p = AiService.buildModelParams(threads: 4);
+      expect(p.cacheTypeK, isNotNull);
+      expect(p.cacheTypeV, isNotNull);
+      expect(p.flashAttention, isNotNull);
+    });
+
+    test('buildModelParams sets numberOfThreads and batchSize', () {
+      final p = AiService.buildModelParams(threads: 6);
+      expect(p.numberOfThreads, 6);
+      expect(p.numberOfThreadsBatch, 6);
+      expect(p.batchSize, greaterThan(0));
     });
   });
 }
