@@ -2,12 +2,18 @@ import 'package:flutter_demo/pet/services/ai_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('local chat uses complete-answer generation settings', () {
-    const params = AiService.localChatGenerationParams;
+  group('AiService system prompt', () {
+    test('contains the persona name', () {
+      expect(AiService.systemPrompt, contains('甄悦'));
+    });
 
-    expect(params.maxTokens, greaterThanOrEqualTo(768));
-    expect(params.temp, greaterThanOrEqualTo(0.7));
-    expect(params.topP, greaterThanOrEqualTo(0.9));
-    expect(params.stopSequences, isEmpty);
+    test('contains length principle (proportional, not hard cap)', () {
+      expect(AiService.systemPrompt, contains('长度'));
+      expect(AiService.systemPrompt, isNot(contains('不超过 80 字')));
+    });
+
+    test('contains anti-padding rule', () {
+      expect(AiService.systemPrompt, contains('不堆叠'));
+    });
   });
 }
