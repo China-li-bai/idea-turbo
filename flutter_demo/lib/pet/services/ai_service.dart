@@ -4,6 +4,13 @@ import 'package:llamadart/llamadart.dart';
 
 enum AiConversationRole { user, assistant }
 
+/// MiniCPM5-1B 的 Hybrid Reasoning 模式。
+///
+/// OpenBMB 官方推荐（MiniCPM5 模型卡）：
+/// - [noThink]: temp=0.7, topP=0.95, topK=40
+/// - [think]: temp=0.9, topP=0.95, topK=40
+enum AiReasoningMode { noThink, think }
+
 class AiConversationMessage {
   final AiConversationRole role;
   final String text;
@@ -32,14 +39,23 @@ class AiService {
       '  · 情绪倾诉、需要接住：3-5 句，先接情绪再回应内容。\n'
       '  · 用户明确要详细解释、教程、列表：充分展开，不要人为截断。\n'
       '- 不为了"显得简短"而省略关键信息。';
-  static const localChatGenerationParams = GenerationParams(
-    maxTokens: 768,
-    temp: 0.75,
-    topK: 40,
-    topP: 0.92,
-    minP: 0.05,
-    penalty: 1.08,
-  );
+  /// OpenBMB MiniCPM5-1B 模型卡官方推荐的生成参数。
+  ///
+  /// - noThink: temp=0.7, topP=0.95, topK=40 (快速、回复短)
+  /// - think:   temp=0.9, topP=0.95, topK=40 (含 <think> 块、回复更长)
+  ///
+  /// `minP=0.05` 和 `penalty=1.10` 来自项目经验值，无 MiniCPM 官方推荐。
+  static GenerationParams paramsFor(AiReasoningMode mode) {
+    final isThink = mode == AiReasoningMode.think;
+    return GenerationParams(
+      maxTokens: isThink ? 1024 : 512,
+      temp: isThink ? 0.9 : 0.7,
+      topK: 40,
+      topP: 0.95,
+      minP: 0.05,
+      penalty: 1.10,
+    );
+  }
 
   LlamaEngine? _engine;
   String? _modelPath;
@@ -66,6 +82,7 @@ class AiService {
   Future<AiResponse> generateResponse(
     String userMessage, {
     List<AiConversationMessage> history = const [],
+    AiReasoningMode mode = AiReasoningMode.noThink,
   }) async {
     if (!_isInitialized || _engine == null) {
       log('[AiService] 未初始化', name: 'LocalChat');
@@ -95,7 +112,7 @@ class AiService {
 
       final stream = _engine!.create(
         messages,
-        params: localChatGenerationParams,
+        params: paramsFor(mode),
       );
 
       final buffer = StringBuffer();

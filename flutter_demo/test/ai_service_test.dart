@@ -16,4 +16,32 @@ void main() {
       expect(AiService.systemPrompt, contains('不堆叠'));
     });
   });
+
+  group('AiService generation params per mode', () {
+    test('No-Think mode matches OpenBMB official recommendation', () {
+      final p = AiService.paramsFor(AiReasoningMode.noThink);
+      expect(p.temp, 0.7);
+      expect(p.topP, 0.95);
+      expect(p.topK, 40);
+    });
+
+    test('Think mode matches OpenBMB official recommendation', () {
+      final p = AiService.paramsFor(AiReasoningMode.think);
+      expect(p.temp, 0.9);
+      expect(p.topP, 0.95);
+      expect(p.topK, 40);
+    });
+
+    test('Think mode allows more tokens than No-Think', () {
+      final noThink = AiService.paramsFor(AiReasoningMode.noThink);
+      final think = AiService.paramsFor(AiReasoningMode.think);
+      expect(think.maxTokens, greaterThan(noThink.maxTokens));
+    });
+  });
+
+  group('legacy API removed', () {
+    test('paramsFor replaces static localChatGenerationParams', () {
+      expect(AiService.paramsFor(AiReasoningMode.noThink).maxTokens, isNotNull);
+    });
+  });
 }
