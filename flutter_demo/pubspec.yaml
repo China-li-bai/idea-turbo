@@ -97,3 +97,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Opt-in Vulkan backend for Android arm64. Default `cpu_profile: full` keeps
+# all CPU variants; override per llamadart 0.6.4+ migration notes.
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_backends:
+        platforms:
+          android-arm64:
+            backends: [vulkan]
