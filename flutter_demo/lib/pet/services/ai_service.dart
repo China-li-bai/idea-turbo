@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io' show Platform;
 
@@ -120,6 +121,28 @@ class AiService {
     );
 
     _isInitialized = true;
+
+    // Best-effort warm-up: pre-prompt a tiny token so the first real user
+    // request doesn't pay JIT/KV-alloc latency. Errors are swallowed.
+    unawaited(warmup());
+  }
+
+  /// Pre-runs a 1-token decode to amortize model warm-up costs (JIT, KV
+  /// cache allocation, weight paging). Safe to call on an uninitialized
+  /// service — short-circuits to a no-op.
+  Future<void> warmup() async {
+    if (_engine == null) return;
+    try {
+      final stream = _engine!.create(
+        const [LlamaChatMessage.fromText(role: LlamaChatRole.user, text: 'hi')],
+        params: const GenerationParams(maxTokens: 1, temp: 0.0),
+      );
+      await for (final _ in stream) {
+        // drain
+      }
+    } catch (e) {
+      log('[AiService] warmup failed: $e', name: 'LocalChat');
+    }
   }
 
   Future<AiResponse> generateResponse(

@@ -58,4 +58,12 @@ void main() {
       expect(p.batchSize, greaterThan(0));
     });
   });
+
+  group('AiService warmup', () {
+    test('warmup is safe to call on an uninitialized service (returns, no throw)', () async {
+      final service = AiService();
+      // Should complete without throwing; engine is null so warmup short-circuits.
+      await service.warmup();
+    });
+  });
 }
