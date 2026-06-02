@@ -66,4 +66,29 @@ void main() {
       await service.warmup();
     });
   });
+
+  group('AiService think-block stripping', () {
+    test('removes a complete think block from a final string', () {
+      final out = AiService.stripThinkBlocks('<think>reasoning</think>final answer');
+      expect(out, 'final answer');
+    });
+
+    test('preserves content when no think block present', () {
+      const input = 'plain answer';
+      expect(AiService.stripThinkBlocks(input), input);
+    });
+
+    test('handles streaming delta that is entirely inside a think block', () {
+      // First delta: opening tag arrives; we are NOT in think yet, so we strip
+      // up to the tag and return empty content for the user.
+      final out = AiService.stripThinkBlocksDelta('<think>partial', inThink: false);
+      expect(out, '');
+    });
+
+    test('emits content after the think block closes in a delta', () {
+      // Continuing stream where the close tag is in this chunk.
+      final out = AiService.stripThinkBlocksDelta('reasoning</think>visible', inThink: true);
+      expect(out, 'visible');
+    });
+  });
 }

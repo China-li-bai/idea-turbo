@@ -145,6 +145,31 @@ class AiService {
     }
   }
 
+  /// Strips every `<think>...</think>` block from a final assembled string.
+  ///
+  /// MiniCPM5-1B's Hybrid Reasoning mode emits a <think> block before the
+  /// user-facing answer. The final pass trims it out so the consumer only
+  /// sees the answer.
+  static String stripThinkBlocks(String text) {
+    return text.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '').trim();
+  }
+
+  /// Streaming delta filter: hides any tokens emitted while the model is
+  /// inside a `<think>` block.
+  ///
+  /// Callers track [inThink] across deltas — pass `true` for subsequent
+  /// chunks after seeing `<think>`, then `false` again after `</think>`.
+  static String stripThinkBlocksDelta(String delta, {required bool inThink}) {
+    if (inThink) {
+      final closeIdx = delta.indexOf('</think>');
+      if (closeIdx < 0) return '';
+      return delta.substring(closeIdx + '</think>'.length);
+    }
+    final openIdx = delta.indexOf('<think>');
+    if (openIdx < 0) return delta;
+    return delta.substring(0, openIdx);
+  }
+
   Future<AiResponse> generateResponse(
     String userMessage, {
     List<AiConversationMessage> history = const [],
@@ -182,12 +207,22 @@ class AiService {
       );
 
       final buffer = StringBuffer();
+      var inThink = false;
       await for (final chunk in stream) {
         final text = chunk.choices.firstOrNull?.delta.content ?? '';
-        buffer.write(text);
+        if (text.isEmpty) continue;
+        // Track think-block state across deltas.
+        if (inThink) {
+          inThink = !text.contains('</think>');
+        } else if (text.contains('<think>')) {
+          inThink = !text.contains('</think>');
+        }
+        buffer.write(stripThinkBlocksDelta(text, inThink: inThink));
       }
 
-      final output = buffer.toString().trim();
+      // Defensive final pass: even if state tracking missed a tag, scrub
+      // any remaining <think>...</think> in the assembled text.
+      final output = stripThinkBlocks(buffer.toString());
       log('[AiService] 回复成功, 长度: ${output.length}', name: 'LocalChat');
 
       return AiResponse(text: output);
