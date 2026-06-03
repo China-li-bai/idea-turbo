@@ -83,7 +83,8 @@ ModelConfig? findModelByFilename(String? filename) {
 final List<ModelConfig> availableModels = [
   const ModelConfig(
     name: 'MiniCPM5-1B',
-    description: '面壁智能 MiniCPM5 1B，端侧推理。'
+    description:
+        '面壁智能 MiniCPM5 1B，端侧推理。'
         '内置 Hybrid Reasoning（<think> 块），中英文均衡，'
         '1B 甜点级，最低 2GB 内存即可。'
         '原生上下文 128K，移动端建议 4K-8K。',

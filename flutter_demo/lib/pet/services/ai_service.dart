@@ -28,7 +28,8 @@ class AiResponse {
 
 class AiService {
   static const _maxHistoryMessages = 8;
-  static const systemPrompt = '你是「甄悦」，一个会记得、理解、陪伴用户长大的 AI 人格。\n'
+  static const systemPrompt =
+      '你是「甄悦」，一个会记得、理解、陪伴用户长大的 AI 人格。\n'
       '语言风格：温和、克制、不油腻。\n'
       '约束：\n'
       '- 默认中文；用户切英文你也切英文。\n'
@@ -41,10 +42,11 @@ class AiService {
       '  · 情绪倾诉、需要接住：3-5 句，先接情绪再回应内容。\n'
       '  · 用户明确要详细解释、教程、列表：充分展开，不要人为截断。\n'
       '- 不为了"显得简短"而省略关键信息。';
+
   /// OpenBMB MiniCPM5-1B 模型卡官方推荐的生成参数。
   ///
   /// - noThink: temp=0.7, topP=0.95, topK=40 (快速、回复短)
-  /// - think:   temp=0.9, topP=0.95, topK=40 (含 <think> 块、回复更长)
+  /// - think:   temp=0.9, topP=0.95, topK=40 (含 `<think>` 块、回复更长)
   ///
   /// `minP=0.05` 和 `penalty=1.10` 来自项目经验值，无 MiniCPM 官方推荐。
   static GenerationParams paramsFor(AiReasoningMode mode) {
@@ -133,10 +135,9 @@ class AiService {
   Future<void> warmup() async {
     if (_engine == null) return;
     try {
-      final stream = _engine!.create(
-        const [LlamaChatMessage.fromText(role: LlamaChatRole.user, text: 'hi')],
-        params: const GenerationParams(maxTokens: 1, temp: 0.0),
-      );
+      final stream = _engine!.create(const [
+        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: 'hi'),
+      ], params: const GenerationParams(maxTokens: 1, temp: 0.0));
       await for (final _ in stream) {
         // drain
       }
@@ -147,7 +148,7 @@ class AiService {
 
   /// Strips every `<think>...</think>` block from a final assembled string.
   ///
-  /// MiniCPM5-1B's Hybrid Reasoning mode emits a <think> block before the
+  /// MiniCPM5-1B's Hybrid Reasoning mode emits a `<think>` block before the
   /// user-facing answer. The final pass trims it out so the consumer only
   /// sees the answer.
   static String stripThinkBlocks(String text) {
@@ -201,10 +202,7 @@ class AiService {
         name: 'LocalChat',
       );
 
-      final stream = _engine!.create(
-        messages,
-        params: paramsFor(mode),
-      );
+      final stream = _engine!.create(messages, params: paramsFor(mode));
 
       final buffer = StringBuffer();
       var inThink = false;
