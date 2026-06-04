@@ -1,4 +1,5 @@
 import 'package:flutter_demo/pet/services/ai_service.dart';
+import 'package:llamadart/llamadart.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -14,6 +15,13 @@ void main() {
 
     test('contains anti-padding rule', () {
       expect(AiService.systemPrompt, contains('不堆叠'));
+    });
+
+    test('systemPrompt is non-empty and suitable for system-role injection', () {
+      // Verify the prompt is not a placeholder — it must contain concrete
+      // instructions that the model can act on.
+      expect(AiService.systemPrompt.length, greaterThan(50));
+      expect(AiService.systemPrompt, contains('AI 人格'));
     });
   });
 
@@ -51,9 +59,9 @@ void main() {
       'buildModelParams enables q4_0 KV cache quantization and flash attention',
       () {
         final p = AiService.buildModelParams(threads: 4);
-        expect(p.cacheTypeK, isNotNull);
-        expect(p.cacheTypeV, isNotNull);
-        expect(p.flashAttention, isNotNull);
+        expect(p.cacheTypeK, KvCacheType.q4_0);
+        expect(p.cacheTypeV, KvCacheType.q4_0);
+        expect(p.flashAttention, FlashAttention.auto);
       },
     );
 
@@ -61,7 +69,8 @@ void main() {
       final p = AiService.buildModelParams(threads: 6);
       expect(p.numberOfThreads, 6);
       expect(p.numberOfThreadsBatch, 6);
-      expect(p.batchSize, greaterThan(0));
+      expect(p.batchSize, 512);
+      expect(p.microBatchSize, 64);
     });
   });
 

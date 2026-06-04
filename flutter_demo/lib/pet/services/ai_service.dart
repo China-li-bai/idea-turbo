@@ -187,6 +187,10 @@ class AiService {
 
     try {
       final messages = <LlamaChatMessage>[
+        LlamaChatMessage.fromText(
+          role: LlamaChatRole.system,
+          text: systemPrompt,
+        ),
         for (final message in recentHistory)
           LlamaChatMessage.fromText(
             role: message.role == AiConversationRole.user
