@@ -17,6 +17,12 @@ void main() {
       expect(AiService.systemPrompt, contains('不堆叠'));
     });
 
+    test('contains rephrase-before-respond rule for short context', () {
+      // For 1B on-device models, prompting to rephrase the user's last
+      // sentence before responding helps the model stay grounded.
+      expect(AiService.systemPrompt, contains('复述'));
+    });
+
     test('systemPrompt is non-empty and suitable for system-role injection', () {
       // Verify the prompt is not a placeholder — it must contain concrete
       // instructions that the model can act on.
@@ -44,6 +50,20 @@ void main() {
       final noThink = AiService.paramsFor(AiReasoningMode.noThink);
       final think = AiService.paramsFor(AiReasoningMode.think);
       expect(think.maxTokens, greaterThan(noThink.maxTokens));
+    });
+
+    test('penalty follows llama.cpp recommended 1.05-1.10 range', () {
+      // llama.cpp official README: --repeat-penalty default 1.0, community
+      // 1.05-1.10. We use 1.05 (lower bound) to avoid over-penalizing in
+      // short replies from a 1B model.
+      final p = AiService.paramsFor(AiReasoningMode.noThink);
+      expect(p.penalty, greaterThanOrEqualTo(1.0));
+      expect(p.penalty, lessThanOrEqualTo(1.10));
+    });
+
+    test('maxTokens is bounded for mobile battery and latency', () {
+      final p = AiService.paramsFor(AiReasoningMode.noThink);
+      expect(p.maxTokens, lessThanOrEqualTo(512));
     });
   });
 

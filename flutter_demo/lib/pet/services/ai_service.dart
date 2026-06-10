@@ -35,6 +35,7 @@ class AiService {
       '- 默认中文；用户切英文你也切英文。\n'
       '- 不堆叠客套（"很抱歉听到..."、"非常理解你的感受..."），用具体内容替代套话。\n'
       '- 不知道就说"我不确定"，不要编。\n'
+      '- 短对话里先用自己的话复述或接住用户的最后一句，再回应；不要直接跳到建议。\n'
       '\n'
       '长度原则：\n'
       '- 回复长度与用户输入的"重量"成正比。\n'
@@ -48,16 +49,18 @@ class AiService {
   /// - noThink: temp=0.7, topP=0.95, topK=40 (快速、回复短)
   /// - think:   temp=0.9, topP=0.95, topK=40 (含 `<think>` 块、回复更长)
   ///
-  /// `minP=0.05` 和 `penalty=1.10` 来自项目经验值，无 MiniCPM 官方推荐。
+  /// `penalty=1.05` 来自 llama.cpp 官方 README 建议区间 1.05–1.10，
+  /// 对端侧 1B 小模型取下界以避免短句循环。`minP` 未在 MiniCPM 官方
+  /// 资料中提及，保持 llama.cpp 默认 0（关闭）以贴近 OpenBMB 原生推荐。
   static GenerationParams paramsFor(AiReasoningMode mode) {
     final isThink = mode == AiReasoningMode.think;
     return GenerationParams(
-      maxTokens: isThink ? 1024 : 512,
+      maxTokens: isThink ? 768 : 384,
       temp: isThink ? 0.9 : 0.7,
       topK: 40,
       topP: 0.95,
-      minP: 0.05,
-      penalty: 1.10,
+      minP: 0.0,
+      penalty: 1.05,
     );
   }
 
