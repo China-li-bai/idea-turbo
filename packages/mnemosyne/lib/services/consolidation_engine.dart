@@ -2,6 +2,15 @@ import 'dart:math';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 import 'package:mnemosyne/core/constants.dart';
 
+/// 邻居查找器函数类型（P0 #3 修复）。
+///
+/// 给定 query embedding 和 topK，返回最相似的邻居列表（memory + distance）。
+/// distance 是向量距离（越小越相似），由 HNSW 索引返回。
+typedef NeighborFinder = Future<List<({MemoryItem memory, double distance})>> Function(
+  List<double> queryEmbedding,
+  int topK,
+);
+
 class ConsolidationCandidate {
   final List<MemoryItem> memories;
   final List<double> centroid;
@@ -72,6 +81,25 @@ class ConsolidationEngine {
     if (eligible.length < minMemories) return [];
 
     final clusters = _clusterBySimilarity(eligible);
+    return clusters
+        .where((c) => c.length >= minMemories)
+        .map((c) => _createCandidate(c))
+        .toList();
+  }
+
+  /// 索引版聚类（P0 #3 修复）：用 HNSW topK 邻居替代 O(n²) 全表两两比较。
+  ///
+  /// 生产环境大数据集应使用此方法，传入 [neighborFinder]（封装 datasource 的向量检索）。
+  /// 同步版本 [findConsolidationCandidates] 保留用于测试和小数据集。
+  Future<List<ConsolidationCandidate>> findConsolidationCandidatesWithIndex(
+    List<MemoryItem> memories,
+    DateTime now,
+    NeighborFinder neighborFinder,
+  ) async {
+    final eligible = _filterEligibleMemories(memories, now);
+    if (eligible.length < minMemories) return [];
+
+    final clusters = await _clusterBySimilarityWithIndex(eligible, neighborFinder);
     return clusters
         .where((c) => c.length >= minMemories)
         .map((c) => _createCandidate(c))
@@ -202,6 +230,50 @@ class ConsolidationEngine {
         if (similarity >= similarityThreshold) {
           cluster.add(other);
           assigned.add(other.id);
+        }
+      }
+
+      clusters.add(cluster);
+    }
+
+    return clusters;
+  }
+
+  /// 索引版聚类（P0 #3 修复）：用 HNSW topK 邻居替代全表两两比较。
+  ///
+  /// 复杂度从 O(n²) 降为 O(n·k)，其中 k = maxClusterSize。
+  /// distance 是 HNSW 返回的向量距离，转换为 similarity = 1 - distance。
+  Future<List<List<MemoryItem>>> _clusterBySimilarityWithIndex(
+    List<MemoryItem> memories,
+    NeighborFinder neighborFinder,
+  ) async {
+    final clusters = <List<MemoryItem>>[];
+    final assigned = <String>{};
+    final eligibleById = <String, MemoryItem>{
+      for (final m in memories) m.id: m,
+    };
+
+    for (final memory in memories) {
+      if (assigned.contains(memory.id)) continue;
+      if (memory.embedding == null || memory.embedding!.isEmpty) continue;
+
+      final cluster = [memory];
+      assigned.add(memory.id);
+
+      // 用 HNSW 查询 topK 邻居，替代全表两两比较
+      final neighbors = await neighborFinder(memory.embedding!, maxClusterSize);
+      for (final n in neighbors) {
+        if (assigned.contains(n.memory.id)) continue;
+        if (cluster.length >= maxClusterSize) break;
+
+        // 只聚类 eligible 集合内的记忆（neighborFinder 可能返回集合外的记忆）
+        if (!eligibleById.containsKey(n.memory.id)) continue;
+
+        // distance → similarity 转换（cosine distance: 0=相同, 2=相反）
+        final similarity = (1.0 - n.distance).clamp(-1.0, 1.0);
+        if (similarity >= similarityThreshold) {
+          cluster.add(n.memory);
+          assigned.add(n.memory.id);
         }
       }
 

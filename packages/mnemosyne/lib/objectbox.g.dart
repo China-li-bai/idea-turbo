@@ -15,7 +15,7 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'features/memory/data/models/memory_entity.dart';
-import 'features/memory/data/models/memory_vector_index.dart';
+import 'features/memory/data/models/raw_message_entity.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -23,7 +23,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 6773016212286002508),
     name: 'MemoryEntity',
-    lastPropertyId: const obx_int.IdUid(30, 3123191238083601791),
+    lastPropertyId: const obx_int.IdUid(31, 3010145431378643102),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -114,7 +114,9 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(15, 962553004115099221),
         name: 'embedding',
         type: 28,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(3, 694537784553049337),
+        hnswParams: obx_int.ModelHnswParams(dimensions: 256, distanceType: 2),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(16, 6627265153757843114),
@@ -206,76 +208,81 @@ final _entities = <obx_int.ModelEntity>[
         type: 1,
         flags: 0,
       ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(31, 3010145431378643102),
+        name: 'contentHash',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(4, 48623085535412528),
+      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
   obx_int.ModelEntity(
-    id: const obx_int.IdUid(2, 8620475248495832367),
-    name: 'MemoryVectorIndex',
-    lastPropertyId: const obx_int.IdUid(10, 8143251517272286826),
+    id: const obx_int.IdUid(3, 1796791819879415904),
+    name: 'RawMessageEntity',
+    lastPropertyId: const obx_int.IdUid(10, 8758871504690148743),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(1, 3615359794522839591),
+        id: const obx_int.IdUid(1, 3195381275055376908),
         name: 'obId',
         type: 6,
         flags: 1,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(2, 1342668161307358200),
-        name: 'memoryUid',
+        id: const obx_int.IdUid(2, 8255585083896079438),
+        name: 'uid',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(3, 8413459363721986963),
-        name: 'embedding',
-        type: 28,
-        flags: 8,
-        indexId: const obx_int.IdUid(2, 7072052634653505159),
-        hnswParams: obx_int.ModelHnswParams(dimensions: 256, distanceType: 2),
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 249296523948631717),
-        name: 'modelName',
+        id: const obx_int.IdUid(3, 7121352137924251513),
+        name: 'content',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(5, 5713966613264714718),
-        name: 'rawDimensions',
+        id: const obx_int.IdUid(4, 1437296113748404272),
+        name: 'source',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 8211266944772170542),
+        name: 'speakerId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 3351329659532605432),
+        name: 'petId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 7396293245805287512),
+        name: 'timestampMs',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(6, 98292326733833896),
-        name: 'outputDimensions',
-        type: 6,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(7, 1847071067661988521),
-        name: 'isTruncated',
+        id: const obx_int.IdUid(8, 3528138127737009924),
+        name: 'isProcessed',
         type: 1,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(8, 8097161094944528768),
-        name: 'isDeleted',
-        type: 1,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(9, 7757474439673293120),
-        name: 'createdAtMs',
+        id: const obx_int.IdUid(9, 7734607746800888686),
+        name: 'processedAtMs',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(10, 8143251517272286826),
-        name: 'updatedAtMs',
-        type: 6,
+        id: const obx_int.IdUid(10, 8758871504690148743),
+        name: 'metadataJson',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -327,13 +334,24 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 8620475248495832367),
-    lastIndexId: const obx_int.IdUid(2, 7072052634653505159),
+    lastEntityId: const obx_int.IdUid(3, 1796791819879415904),
+    lastIndexId: const obx_int.IdUid(4, 48623085535412528),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
-    retiredEntityUids: const [],
+    retiredEntityUids: const [8620475248495832367],
     retiredIndexUids: const [2265069103966236129],
-    retiredPropertyUids: const [],
+    retiredPropertyUids: const [
+      3615359794522839591,
+      1342668161307358200,
+      8413459363721986963,
+      249296523948631717,
+      5713966613264714718,
+      98292326733833896,
+      1847071067661988521,
+      8097161094944528768,
+      7757474439673293120,
+      8143251517272286826,
+    ],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -383,7 +401,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final supersededByIdOffset = object.supersededById == null
             ? null
             : fbb.writeString(object.supersededById!);
-        fbb.startTable(31);
+        final contentHashOffset = fbb.writeString(object.contentHash);
+        fbb.startTable(32);
         fbb.addInt64(0, object.obId);
         fbb.addOffset(1, uidOffset);
         fbb.addOffset(2, contentOffset);
@@ -414,6 +433,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addBool(27, object.isPinned);
         fbb.addBool(28, object.isArchived);
         fbb.addBool(29, object.isConsolidated);
+        fbb.addOffset(30, contentHashOffset);
         fbb.finish(fbb.endTable());
         return object.obId;
       },
@@ -484,6 +504,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
           fb.Float32Reader(),
           lazy: false,
         ).vTableGetNullable(buffer, rootOffset, 32);
+        final contentHashParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 64, '');
         final encodingContextJsonParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 34);
@@ -566,6 +589,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           entities: entitiesParam,
           topics: topicsParam,
           embedding: embeddingParam,
+          contentHash: contentHashParam,
           encodingContextJson: encodingContextJsonParam,
           metadataJson: metadataJsonParam,
           createdAtMs: createdAtMsParam,
@@ -586,29 +610,38 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
-    MemoryVectorIndex: obx_int.EntityDefinition<MemoryVectorIndex>(
+    RawMessageEntity: obx_int.EntityDefinition<RawMessageEntity>(
       model: _entities[1],
-      toOneRelations: (MemoryVectorIndex object) => [],
-      toManyRelations: (MemoryVectorIndex object) => {},
-      getId: (MemoryVectorIndex object) => object.obId,
-      setId: (MemoryVectorIndex object, int id) {
+      toOneRelations: (RawMessageEntity object) => [],
+      toManyRelations: (RawMessageEntity object) => {},
+      getId: (RawMessageEntity object) => object.obId,
+      setId: (RawMessageEntity object, int id) {
         object.obId = id;
       },
-      objectToFB: (MemoryVectorIndex object, fb.Builder fbb) {
-        final memoryUidOffset = fbb.writeString(object.memoryUid);
-        final embeddingOffset = fbb.writeListFloat32(object.embedding);
-        final modelNameOffset = fbb.writeString(object.modelName);
+      objectToFB: (RawMessageEntity object, fb.Builder fbb) {
+        final uidOffset = fbb.writeString(object.uid);
+        final contentOffset = fbb.writeString(object.content);
+        final sourceOffset = fbb.writeString(object.source);
+        final speakerIdOffset = object.speakerId == null
+            ? null
+            : fbb.writeString(object.speakerId!);
+        final petIdOffset = object.petId == null
+            ? null
+            : fbb.writeString(object.petId!);
+        final metadataJsonOffset = object.metadataJson == null
+            ? null
+            : fbb.writeString(object.metadataJson!);
         fbb.startTable(11);
         fbb.addInt64(0, object.obId);
-        fbb.addOffset(1, memoryUidOffset);
-        fbb.addOffset(2, embeddingOffset);
-        fbb.addOffset(3, modelNameOffset);
-        fbb.addInt64(4, object.rawDimensions);
-        fbb.addInt64(5, object.outputDimensions);
-        fbb.addBool(6, object.isTruncated);
-        fbb.addBool(7, object.isDeleted);
-        fbb.addInt64(8, object.createdAtMs);
-        fbb.addInt64(9, object.updatedAtMs);
+        fbb.addOffset(1, uidOffset);
+        fbb.addOffset(2, contentOffset);
+        fbb.addOffset(3, sourceOffset);
+        fbb.addOffset(4, speakerIdOffset);
+        fbb.addOffset(5, petIdOffset);
+        fbb.addInt64(6, object.timestampMs);
+        fbb.addBool(7, object.isProcessed);
+        fbb.addInt64(8, object.processedAtMs);
+        fbb.addOffset(9, metadataJsonOffset);
         fbb.finish(fbb.endTable());
         return object.obId;
       },
@@ -621,63 +654,52 @@ obx_int.ModelDefinition getObjectBoxModel() {
           4,
           0,
         );
-        final memoryUidParam = const fb.StringReader(
+        final uidParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 6, '');
-        final embeddingParam = const fb.ListReader<double>(
-          fb.Float32Reader(),
-          lazy: false,
-        ).vTableGet(buffer, rootOffset, 8, []);
-        final modelNameParam = const fb.StringReader(
+        final contentParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 8, '');
+        final sourceParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 10, '');
-        final rawDimensionsParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          12,
-          0,
-        );
-        final outputDimensionsParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          14,
-          0,
-        );
-        final isTruncatedParam = const fb.BoolReader().vTableGet(
+        final speakerIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 12);
+        final petIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 14);
+        final timestampMsParam = const fb.Int64Reader().vTableGet(
           buffer,
           rootOffset,
           16,
-          false,
+          0,
         );
-        final isDeletedParam = const fb.BoolReader().vTableGet(
+        final isProcessedParam = const fb.BoolReader().vTableGet(
           buffer,
           rootOffset,
           18,
           false,
         );
-        final createdAtMsParam = const fb.Int64Reader().vTableGet(
+        final processedAtMsParam = const fb.Int64Reader().vTableGetNullable(
           buffer,
           rootOffset,
           20,
-          0,
         );
-        final updatedAtMsParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          22,
-          0,
-        );
-        final object = MemoryVectorIndex(
+        final metadataJsonParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 22);
+        final object = RawMessageEntity(
           obId: obIdParam,
-          memoryUid: memoryUidParam,
-          embedding: embeddingParam,
-          modelName: modelNameParam,
-          rawDimensions: rawDimensionsParam,
-          outputDimensions: outputDimensionsParam,
-          isTruncated: isTruncatedParam,
-          isDeleted: isDeletedParam,
-          createdAtMs: createdAtMsParam,
-          updatedAtMs: updatedAtMsParam,
+          uid: uidParam,
+          content: contentParam,
+          source: sourceParam,
+          speakerId: speakerIdParam,
+          petId: petIdParam,
+          timestampMs: timestampMsParam,
+          isProcessed: isProcessedParam,
+          processedAtMs: processedAtMsParam,
+          metadataJson: metadataJsonParam,
         );
 
         return object;
@@ -761,7 +783,7 @@ class MemoryEntity_ {
   );
 
   /// See [MemoryEntity.embedding].
-  static final embedding = obx.QueryDoubleVectorProperty<MemoryEntity>(
+  static final embedding = obx.QueryHnswProperty<MemoryEntity>(
     _entities[0].properties[14],
   );
 
@@ -839,57 +861,62 @@ class MemoryEntity_ {
   static final isConsolidated = obx.QueryBooleanProperty<MemoryEntity>(
     _entities[0].properties[29],
   );
+
+  /// See [MemoryEntity.contentHash].
+  static final contentHash = obx.QueryStringProperty<MemoryEntity>(
+    _entities[0].properties[30],
+  );
 }
 
-/// [MemoryVectorIndex] entity fields to define ObjectBox queries.
-class MemoryVectorIndex_ {
-  /// See [MemoryVectorIndex.obId].
-  static final obId = obx.QueryIntegerProperty<MemoryVectorIndex>(
+/// [RawMessageEntity] entity fields to define ObjectBox queries.
+class RawMessageEntity_ {
+  /// See [RawMessageEntity.obId].
+  static final obId = obx.QueryIntegerProperty<RawMessageEntity>(
     _entities[1].properties[0],
   );
 
-  /// See [MemoryVectorIndex.memoryUid].
-  static final memoryUid = obx.QueryStringProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.uid].
+  static final uid = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[1],
   );
 
-  /// See [MemoryVectorIndex.embedding].
-  static final embedding = obx.QueryHnswProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.content].
+  static final content = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[2],
   );
 
-  /// See [MemoryVectorIndex.modelName].
-  static final modelName = obx.QueryStringProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.source].
+  static final source = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[3],
   );
 
-  /// See [MemoryVectorIndex.rawDimensions].
-  static final rawDimensions = obx.QueryIntegerProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.speakerId].
+  static final speakerId = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[4],
   );
 
-  /// See [MemoryVectorIndex.outputDimensions].
-  static final outputDimensions = obx.QueryIntegerProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.petId].
+  static final petId = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[5],
   );
 
-  /// See [MemoryVectorIndex.isTruncated].
-  static final isTruncated = obx.QueryBooleanProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.timestampMs].
+  static final timestampMs = obx.QueryIntegerProperty<RawMessageEntity>(
     _entities[1].properties[6],
   );
 
-  /// See [MemoryVectorIndex.isDeleted].
-  static final isDeleted = obx.QueryBooleanProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.isProcessed].
+  static final isProcessed = obx.QueryBooleanProperty<RawMessageEntity>(
     _entities[1].properties[7],
   );
 
-  /// See [MemoryVectorIndex.createdAtMs].
-  static final createdAtMs = obx.QueryIntegerProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.processedAtMs].
+  static final processedAtMs = obx.QueryIntegerProperty<RawMessageEntity>(
     _entities[1].properties[8],
   );
 
-  /// See [MemoryVectorIndex.updatedAtMs].
-  static final updatedAtMs = obx.QueryIntegerProperty<MemoryVectorIndex>(
+  /// See [RawMessageEntity.metadataJson].
+  static final metadataJson = obx.QueryStringProperty<RawMessageEntity>(
     _entities[1].properties[9],
   );
 }

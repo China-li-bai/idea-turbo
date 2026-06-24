@@ -1,4 +1,4 @@
 library models;
 
 export 'memory_entity.dart';
-export 'memory_vector_index.dart';
+export 'raw_message_entity.dart';

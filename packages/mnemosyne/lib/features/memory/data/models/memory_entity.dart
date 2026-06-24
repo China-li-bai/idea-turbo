@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:objectbox/objectbox.dart';
+import 'package:crypto/crypto.dart';
 import 'package:mnemosyne/features/memory/domain/entities/memory_item.dart';
 import 'package:mnemosyne/features/memory/domain/entities/encoding_context.dart';
 import 'package:mnemosyne/core/constants.dart';
@@ -26,8 +27,18 @@ class MemoryEntity {
   String entities;
   String topics;
 
+  /// embedding 统一 SSOT（P0 #4 修复）。
+  /// 之前 embedding 同时存在 MemoryEntity 和 MemoryVectorIndex 两处，
+  /// 现在统一到 MemoryEntity，加 HNSW 索引支持向量检索。
+  @HnswIndex(dimensions: 256, distanceType: VectorDistanceType.cosine)
   @Property(type: PropertyType.floatVector)
   List<double>? embedding;
+
+  /// contentHash 索引字段（P0 #2 修复）。
+  /// 之前 contentHash 存在 metadata['contentHash']，去重需全表扫描。
+  /// 现在提升为独立索引字段，用 ObjectBox query 精确查找。
+  @Index()
+  String contentHash;
 
   String? encodingContextJson;
   String? metadataJson;
@@ -64,6 +75,7 @@ class MemoryEntity {
     this.entities = '',
     this.topics = '',
     this.embedding,
+    this.contentHash = '',
     this.encodingContextJson,
     this.metadataJson,
     required this.createdAtMs,
@@ -82,6 +94,14 @@ class MemoryEntity {
   });
 
   factory MemoryEntity.fromDomain(MemoryItem item) {
+    // contentHash 从 metadata 提取，若不存在则计算
+    String contentHash = '';
+    if (item.metadata != null && item.metadata!['contentHash'] is String) {
+      contentHash = item.metadata!['contentHash'] as String;
+    } else {
+      contentHash = _computeContentHash(item.content);
+    }
+
     return MemoryEntity(
       uid: item.id,
       content: item.content,
@@ -97,6 +117,7 @@ class MemoryEntity {
       entities: item.entities.join('\x01'),
       topics: item.topics.join('\x01'),
       embedding: item.embedding,
+      contentHash: contentHash,
       encodingContextJson: item.encodingContext != null
           ? jsonEncode(item.encodingContext!.toJson())
           : null,
@@ -136,8 +157,7 @@ class MemoryEntity {
       encodingContext: encodingContextJson != null
           ? _encodingContextFromJson(encodingContextJson!)
           : null,
-      metadata: metadataJson != null ? _metadataFromJson(metadataJson!) : null,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMs),
+      metadata: _metadataFromJson(metadataJson, contentHash),      createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMs),
       accessedAt: DateTime.fromMillisecondsSinceEpoch(accessedAtMs),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(updatedAtMs),
       accessCount: accessCount,
@@ -151,6 +171,11 @@ class MemoryEntity {
       isArchived: isArchived,
       isConsolidated: isConsolidated,
     );
+  }
+
+  static String _computeContentHash(String content) {
+    final digest = md5.convert(utf8.encode(content));
+    return digest.toString();
   }
 
   static List<String> _splitNull(String? value) {
@@ -167,10 +192,22 @@ class MemoryEntity {
     }
   }
 
-  static Map<String, dynamic>? _metadataFromJson(String json) {
+  static Map<String, dynamic>? _metadataFromJson(String? json, String contentHash) {
+    if (json == null || json.isEmpty) {
+      // metadata 为空时，仍返回包含 contentHash 的最小 map
+      if (contentHash.isNotEmpty) return {'contentHash': contentHash};
+      return null;
+    }
     try {
-      return jsonDecode(json) as Map<String, dynamic>;
+      final map = jsonDecode(json) as Map<String, dynamic>;
+      // 确保 metadata 中包含 contentHash（向后兼容）
+      if (contentHash.isNotEmpty && !map.containsKey('contentHash')) {
+        map['contentHash'] = contentHash;
+      }
+      return map;
     } catch (_) {
+      // metadata 解析失败时，仍返回包含 contentHash 的最小 map
+      if (contentHash.isNotEmpty) return {'contentHash': contentHash};
       return null;
     }
   }

@@ -230,9 +230,15 @@ class MemoryService implements MemoryRepository {
 
   Future<List<ConsolidationCandidate>> findConsolidationCandidates() async {
     final allMemories = await _datasource.getAllMemories();
-    return _consolidationEngine.findConsolidationCandidates(
+    // P0 #3 修复：用 HNSW topK 邻居替代 O(n²) 全表两两比较
+    return _consolidationEngine.findConsolidationCandidatesWithIndex(
       allMemories,
       DateTime.now(),
+      (queryEmbedding, topK) => _datasource.vectorSearchWithDistance(
+        queryEmbedding,
+        topK,
+        excludeArchived: true,
+      ),
     );
   }
 

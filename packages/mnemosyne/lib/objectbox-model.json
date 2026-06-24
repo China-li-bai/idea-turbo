@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:6773016212286002508",
-      "lastPropertyId": "30:3123191238083601791",
+      "lastPropertyId": "31:3010145431378643102",
       "name": "MemoryEntity",
       "properties": [
         {
@@ -82,7 +82,9 @@
         {
           "id": "15:962553004115099221",
           "name": "embedding",
-          "type": 28
+          "indexId": "3:694537784553049337",
+          "type": 28,
+          "flags": 8
         },
         {
           "id": "16:6627265153757843114",
@@ -158,83 +160,101 @@
           "id": "30:3123191238083601791",
           "name": "isConsolidated",
           "type": 1
+        },
+        {
+          "id": "31:3010145431378643102",
+          "name": "contentHash",
+          "indexId": "4:48623085535412528",
+          "type": 9,
+          "flags": 2048
         }
       ],
       "relations": []
     },
     {
-      "id": "2:8620475248495832367",
-      "lastPropertyId": "10:8143251517272286826",
-      "name": "MemoryVectorIndex",
+      "id": "3:1796791819879415904",
+      "lastPropertyId": "10:8758871504690148743",
+      "name": "RawMessageEntity",
       "properties": [
         {
-          "id": "1:3615359794522839591",
+          "id": "1:3195381275055376908",
           "name": "obId",
           "type": 6,
           "flags": 1
         },
         {
-          "id": "2:1342668161307358200",
-          "name": "memoryUid",
+          "id": "2:8255585083896079438",
+          "name": "uid",
           "type": 9
         },
         {
-          "id": "3:8413459363721986963",
-          "name": "embedding",
-          "indexId": "2:7072052634653505159",
-          "type": 28,
-          "flags": 8
-        },
-        {
-          "id": "4:249296523948631717",
-          "name": "modelName",
+          "id": "3:7121352137924251513",
+          "name": "content",
           "type": 9
         },
         {
-          "id": "5:5713966613264714718",
-          "name": "rawDimensions",
+          "id": "4:1437296113748404272",
+          "name": "source",
+          "type": 9
+        },
+        {
+          "id": "5:8211266944772170542",
+          "name": "speakerId",
+          "type": 9
+        },
+        {
+          "id": "6:3351329659532605432",
+          "name": "petId",
+          "type": 9
+        },
+        {
+          "id": "7:7396293245805287512",
+          "name": "timestampMs",
           "type": 6
         },
         {
-          "id": "6:98292326733833896",
-          "name": "outputDimensions",
-          "type": 6
-        },
-        {
-          "id": "7:1847071067661988521",
-          "name": "isTruncated",
+          "id": "8:3528138127737009924",
+          "name": "isProcessed",
           "type": 1
         },
         {
-          "id": "8:8097161094944528768",
-          "name": "isDeleted",
-          "type": 1
-        },
-        {
-          "id": "9:7757474439673293120",
-          "name": "createdAtMs",
+          "id": "9:7734607746800888686",
+          "name": "processedAtMs",
           "type": 6
         },
         {
-          "id": "10:8143251517272286826",
-          "name": "updatedAtMs",
-          "type": 6
+          "id": "10:8758871504690148743",
+          "name": "metadataJson",
+          "type": 9
         }
       ],
       "relations": []
     }
   ],
-  "lastEntityId": "2:8620475248495832367",
-  "lastIndexId": "2:7072052634653505159",
+  "lastEntityId": "3:1796791819879415904",
+  "lastIndexId": "4:48623085535412528",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
   "modelVersionParserMinimum": 5,
-  "retiredEntityUids": [],
+  "retiredEntityUids": [
+    8620475248495832367
+  ],
   "retiredIndexUids": [
     2265069103966236129
   ],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    3615359794522839591,
+    1342668161307358200,
+    8413459363721986963,
+    249296523948631717,
+    5713966613264714718,
+    98292326733833896,
+    1847071067661988521,
+    8097161094944528768,
+    7757474439673293120,
+    8143251517272286826
+  ],
   "retiredRelationUids": [],
   "version": 1
 }
