@@ -1,0 +1,29 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Platform
+.DS_Store
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+# Generated
+*.g.dart
+*.freezed.dart
+.objectbox/
+
+# Models (downloaded at runtime, not committed)
+assets/models/

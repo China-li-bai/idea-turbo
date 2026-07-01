@@ -1,0 +1,23 @@
+name: asr_sdk
+description: On-device speech-to-text SDK for Flutter. Wraps sherpa-onnx with a clean engine interface, model registry, and streaming support. Designed to be consumed by idea-turbo's mnemosyne domain layer and flutter_demo presentation layer.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.11.5
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  meta: ^1.16.0
+  path: ^1.9.0
+  sherpa_onnx: ^1.13.2
+  path_provider: ^2.1.5
+  crypto: ^3.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  mocktail: ^1.0.0

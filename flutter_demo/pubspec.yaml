@@ -44,6 +44,8 @@ dependencies:
   shared_preferences: ^2.3.4
   mnemosyne:
     path: ../packages/mnemosyne
+  asr_sdk:
+    path: ../flutter-packages/asr_sdk
 
 dev_dependencies:
   flutter_test:
