@@ -42,6 +42,10 @@ dependencies:
   package_info_plus: ^8.3.0
   device_info_plus: ^11.3.2
   shared_preferences: ^2.3.4
+  # Microphone capture for streaming ASR. record 5.x is the last line that
+  # supports Dart 3.3+; record 7.x requires Dart 3.12+. Locked to ^5.2.0
+  # so the resolver doesn't jump to 7.x and break the project SDK constraint.
+  record: ^5.2.0
   mnemosyne:
     path: ../packages/mnemosyne
   asr_sdk:
