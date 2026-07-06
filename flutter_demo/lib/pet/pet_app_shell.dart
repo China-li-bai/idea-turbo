@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ui/design/memory_design.dart';
 import '../ui/pages/model_download_page.dart';
+import '../ui/widgets/voice_input_button.dart';
+import '../ui/widgets/voice_input_controller.dart';
 import 'services/ai_service.dart';
 
 const _chatStorageKey = 'local_chat_messages_v1';
@@ -66,6 +68,8 @@ class _PetAppShellState extends State<PetAppShell> {
   final FocusNode _focusNode = FocusNode();
   final List<_ChatMessage> _messages = [];
 
+  late final VoiceInputController _voiceInput;
+
   bool _isInitializing = true;
   bool _isSending = false;
   String? _error;
@@ -74,11 +78,13 @@ class _PetAppShellState extends State<PetAppShell> {
   @override
   void initState() {
     super.initState();
+    _voiceInput = VoiceInputController(textController: _textController);
     _initialize();
   }
 
   @override
   void dispose() {
+    _voiceInput.dispose();
     _aiService.dispose();
     _textController.dispose();
     _scrollController.dispose();
@@ -130,9 +136,18 @@ class _PetAppShellState extends State<PetAppShell> {
     final text = _textController.text.trim();
     if (text.isEmpty || _isSending || _isInitializing) return;
 
+    // If a voice input is in progress, finalize it first so any pending
+    // partial text gets committed before we read the draft.
+    if (_voiceInput.state == VoiceInputState.listening) {
+      await _voiceInput.toggle();
+    }
+
+    final finalText = _textController.text.trim();
+    if (finalText.isEmpty) return;
+
     final userMessage = _ChatMessage(
       role: _ChatRole.user,
-      text: text,
+      text: finalText,
       createdAt: DateTime.now(),
     );
 
@@ -327,7 +342,7 @@ class _PetAppShellState extends State<PetAppShell> {
               onSubmitted: (_) => _sendMessage(),
               style: const TextStyle(color: MemoryPalette.paper, fontSize: 16),
               decoration: InputDecoration(
-                hintText: _isInitializing ? '正在加载模型...' : '输入消息',
+                hintText: _isInitializing ? '正在加载模型...' : '输入消息或按住麦克风说话',
                 hintStyle: TextStyle(
                   color: MemoryPalette.paper.withValues(alpha: 0.40),
                 ),
@@ -344,6 +359,8 @@ class _PetAppShellState extends State<PetAppShell> {
               ),
             ),
           ),
+          const SizedBox(width: 10),
+          VoiceInputButton(controller: _voiceInput),
           const SizedBox(width: 10),
           SizedBox(
             width: 48,

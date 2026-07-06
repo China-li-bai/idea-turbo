@@ -1,5 +1,126 @@
 # Worklog
 
+## 2026-06-23
+
+### 任务：mnemosyne 记忆层 P0 缺陷修复 + reranker 移植（方案 A-revised：抄设计，不抄代码）
+
+**开始时间**: 2026-06-23
+**任务描述**: 放弃直接引入 `isar_agent_memory`（源码审计发现 5 个致命问题），改为**抄其 reranker 设计 + 自研 ObjectBox 数据层**，修复 mnemosyne 记忆层 4 个 P0 缺陷。
+
+**背景**:
+- 方案 A（直接引入 isar_agent_memory 0.4.0）源码审计发现致命问题：
+  1. `MemoryNode.metadata` 是 `@ignore`（不持久化）→ 业务字段丢失
+  2. `ObjectBoxVectorIndex` 硬编码 `@HnswIndex(dimensions: 768)` → mnemosyne 用 256 维会抛 ArgumentError
+  3. `ObjectBoxVectorIndex.open()` 用独立 Store → 双数据库
+  4. 重依赖 firebase_core/onnxruntime/langchain/cryptography/vertex_ai
+  5. flat_buffers 冲突，dependency_overrides 不传递到使用者
+- isar_agent_memory 真正可复用价值：4 个 reranker 类（BM25/MMR/Diversity/Recency，~200 行）
+- 为 200 行引入 Isar + firebase + onnx + 双数据库 + 依赖冲突，代价远超收益
+
+**方案 A-revised 决策**:
+- 不引入 isar_agent_memory、不引入 Isar、不引入任何新依赖
+- 抄 isar_agent_memory 的 reranker 算法设计，自己实现（~200 行）
+- 基于现有 ObjectBox 数据层修复 P0 缺陷
+- ADR-003：否决 isar_agent_memory 直接引入，改为参考设计自研
+
+**P0 缺陷修复映射**:
+| # | 缺陷 | 修复方案 |
+|---|------|---------|
+| #2 | contentHash 全表扫描 | 用 ObjectBox HNSW 向量检索做去重（已有 MemoryVectorIndex） |
+| #3 | lifecycle O(n²) 合并 | 用 HNSW topK 邻居替代全表两两比较 |
+| #4 | embedding 双写 | 统一 SSOT 到 MemoryEntity.embedding，删除 MemoryVectorIndex 或合并 |
+| #6 | RawMessage 内存态 | 新增 RawMessageEntity（ObjectBox 持久化） |
+
+**预期产出**:
+- 4 个 reranker 类（BM25/MMR/Diversity/Recency）
+- 4 个 P0 缺陷修复
+- 单元测试覆盖
+- dart analyze 无错误
+- 0 新增依赖
+
+**当前状态**: ✅ 已完成（2026-06-23）
+
+**完成总结**:
+
+#### Phase 1.2: 4 个 reranker 实现（抄设计，不抄代码）
+- `lib/features/memory/domain/rerankers/re_ranking_strategy.dart` — 抽象接口
+- `lib/features/memory/domain/rerankers/bm25_re_ranker.dart` — Okapi BM25 算法
+- `lib/features/memory/domain/rerankers/mmr_re_ranker.dart` — Maximal Marginal Relevance
+- `lib/features/memory/domain/rerankers/diversity_re_ranker.dart` — 多样性最大化
+- `lib/features/memory/domain/rerankers/recency_re_ranker.dart` — 时间近因
+- `lib/features/memory/domain/rerankers/rerankers.dart` — barrel export
+- 16 个单元测试全过（`test/domain/rerankers/re_ranker_test.dart`）
+
+#### Phase 1.3: P0 #4 修复 — embedding 统一 SSOT
+- `MemoryEntity.embedding` 加 `@HnswIndex(dimensions: 256, distanceType: VectorDistanceType.cosine)`
+- 删除 `MemoryVectorIndex` 实体（消除 embedding 双写）
+- `ObjectBoxMemoryDataSource.vectorSearch` 直接查 `MemoryEntity.embedding`
+- `retrieval_engine.dart` 适配：`MemoryVectorIndex` → `MemoryEntity`
+
+#### Phase 1.4: P0 #2 修复 — contentHash 索引化
+- `MemoryEntity` 新增 `@Index() String contentHash` 字段
+- `fromDomain` 自动从 metadata 提取或计算 MD5 contentHash
+- `ObjectBoxMemoryDataSource` 新增 `findByContentHash` / `findAllByContentHash` / `getMemoriesGroupedByContentHash`
+- 全表扫描 → ObjectBox 索引精确查询
+
+#### Phase 1.5: P0 #3 修复 — lifecycle O(n²) → HNSW topK
+- `ConsolidationEngine` 新增 `findConsolidationCandidatesWithIndex`（异步版）
+- 新增 `NeighborFinder` typedef + `_clusterBySimilarityWithIndex` 方法
+- `MemoryService.findConsolidationCandidates` 改用索引版
+- `ObjectBoxMemoryDataSource` 新增 `vectorSearchWithDistance` 返回 distance
+- 复杂度 O(n²) → O(n·k)，k = maxClusterSize
+
+#### Phase 1.6: P0 #6 修复 — RawMessage 持久化
+- 新增 `RawMessageEntity`（ObjectBox @Entity）
+- `ObjectBoxMemoryDataSource` 新增 RawMessage CRUD：
+  - `insertRawMessage` / `updateRawMessage`
+  - `getPendingRawMessages` / `markRawMessageProcessed`
+- 应用重启后未处理消息不再丢失
+
+#### Phase 1.7: 测试验证
+- `dart analyze lib/` — 0 错误（1 个预先存在的 warning）
+- `test/domain/` + `test/services/` — 136 个测试全过
+- `test/domain/rerankers/` — 16 个新测试全过
+- `test/integration/memory_lifecycle_test.dart` — 19 个测试全过
+- 3 个 xiang_recall_test 失败是 ObjectBox 动态库环境问题（预先存在，非本次引入）
+
+**新增依赖**: 0（完全使用现有 objectbox 5.2.0 + crypto 3.0.3）
+**修改文件**: 12 个（新建 7 个，修改 5 个）
+**删除文件**: 1 个（memory_vector_index.dart）
+
+---
+
+## 2026-06-18
+
+### 任务：mnemosyne 记忆层迁移到 isar_agent_memory（方案 A：保留外壳，替换内核）
+
+**开始时间**: 2026-06-18
+**任务描述**: 将 mnemosyne 的通用记忆基础设施（向量检索/去重/合并/重排/同步）替换为开源 `isar_agent_memory` 0.4.0，保留情感衰减/象/拟人化等差异化模块，修复上次审计出的 P0 缺陷（contentHash 全表扫描、O(n²) 合并、embedding 双写、RawMessage 内存态）。
+
+**背景**:
+- 上次审计发现 mnemosyne 记忆层有 6 个 P0/P1 缺陷，集中在 God Object、全表扫描、SSOT 违反
+- GitHub 社区已有 `isar_agent_memory`（Dart/Flutter，0.4.0，HiRAG 分层 + BM25/MMR/Recency 重排 + 跨设备同步 + 可解释召回），与 mnemosyne 重合度 85%
+- 用户选择方案 A：保留情感层外壳，替换数据层内核
+
+**预期产出**:
+- 迁移设计文档（字段映射、数据流、功能分层、安全性、回滚策略）
+- 修复 P0 缺陷 #2/#3/#4/#6
+- 代码量减少约 40%
+
+**当前状态**: ✅ 完成 — 迁移设计文档已产出
+
+**产出**:
+- `docs/plans/2026-06-18-mnemosyne-isar-migration.md`（迁移设计文档，14 章节）
+- 字段映射表（28 个 MemoryItem 字段 → MemoryNode/Degree/MemoryEmbedding/metadata）
+- 4 阶段渐进式迁移路径（Phase 1 新增 adapter → Phase 2 双写 → Phase 3 切换 → Phase 4 清理）
+- P0 缺陷修复映射（#2/#3/#4/#6 全部解决）
+- ADR-001（选 isar_agent_memory）+ ADR-002（strength→Degree.importance）
+- 回滚策略（MnemosyneConfig.backend 开关）
+
+**下一步**: 等待用户确认后进入 Phase 1 实施
+
+---
+
 ## 2026-04-21
 
 ### 任务：AI数字分身宠物 UI/UX 全面升级

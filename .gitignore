@@ -17,3 +17,4 @@ build/
 zip/
 packages/neural_bridge/test/fixtures/beir
 packages/neural_bridge/test/fixtures/longmemeval
+/node_modules/

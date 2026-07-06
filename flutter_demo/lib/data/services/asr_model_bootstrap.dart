@@ -63,6 +63,11 @@ class AsrModelBootstrap {
   /// event types. Broadcast: safe to subscribe/unsubscribe at any time.
   Stream<AsrModelProgress> get progress => _manager.progress;
 
+  /// The most recent error message, if any. Mirrors
+  /// [AsrModelManager.lastError]. Useful for surfacing a failure reason
+  /// after [requestEngine] returned null.
+  String? get lastError => _manager.lastError;
+
   /// Whether [bootstrap] has been called (regardless of outcome).
   bool get isBootstrapped => _bootstrapped;
 
