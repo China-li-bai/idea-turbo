@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'data/models/model_config.dart';
 import 'core/product/product_copy.dart';
+import 'data/models/model_config.dart';
+import 'data/services/asr_model_bootstrap.dart';
 import 'pet/pet_app_shell.dart';
 import 'ui/design/memory_design.dart';
 import 'ui/pages/model_download_page.dart';
@@ -94,6 +95,13 @@ class _AppEntryState extends State<_AppEntry> {
       _isChecking = false;
       _existingModelPath = modelPath;
     });
+
+    // Kick off background download of the default streaming ASR model.
+    // Non-blocking: if the model is already on disk, this is a no-op.
+    // The engine itself is NOT initialized here — that is deferred to
+    // AsrModelBootstrap.requestEngine() when the user actually needs ASR.
+    // ignore: unawaited_futures
+    AsrModelBootstrap.instance.bootstrap();
   }
 
   @override

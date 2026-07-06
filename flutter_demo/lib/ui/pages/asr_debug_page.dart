@@ -2,19 +2,18 @@ import 'dart:async';
 
 import 'package:asr_sdk/asr_sdk.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data/services/asr_model_bootstrap.dart';
 import '../../data/services/asr_service.dart';
 import '../design/memory_design.dart';
 
 /// Debug page for end-to-end ASR verification.
 ///
 /// Lifecycle:
-///   1. On enter, looks for a streaming ASR model on disk. If none is
-///      present, shows a banner and a "去下载 ASR 模型" button (Phase 2C
-///      will wire the actual download flow; for now the button is a
-///      placeholder that informs the user).
-///   2. Once a model is ready, taps "开始录音" to start streaming
+///   1. On enter, calls [AsrModelBootstrap.requestEngine] which blocks
+///      until the model is downloaded (if needed) and the engine is
+///      initialized. Download progress is shown in real time.
+///   2. Once the engine is ready, taps "开始录音" to start streaming
 ///      recognition. The partial text and committed (endpoint-finalized)
 ///      text are displayed in real time.
 ///   3. "停止" flushes trailing context and finalizes the session.
@@ -24,23 +23,23 @@ import '../design/memory_design.dart';
 class AsrDebugPage extends StatefulWidget {
   const AsrDebugPage({super.key});
 
-  /// SharedPreferences key for the active ASR model id (set by the
-  /// Phase 2C download flow).
-  static const String selectedAsrModelIdKey = 'selected_asr_model_id';
-
   @override
   State<AsrDebugPage> createState() => _AsrDebugPageState();
 }
 
 class _AsrDebugPageState extends State<AsrDebugPage> {
   final AsrService _asrService = AsrService();
-  SherpaOnnxAsrEngine? _engine;
 
   bool _initializing = true;
   String? _error;
   String _partial = '';
   final StringBuffer _committed = StringBuffer();
 
+  // Download progress display
+  double? _downloadFraction;
+  String _statusText = '';
+
+  StreamSubscription<AsrModelProgress>? _progressSub;
   StreamSubscription<TranscriptionChunk>? _chunkSub;
 
   @override
@@ -51,20 +50,44 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
 
   @override
   void dispose() {
+    _progressSub?.cancel();
     _chunkSub?.cancel();
-    _asrService.dispose().then((_) => _engine?.dispose());
+    _asrService.dispose();
     super.dispose();
   }
 
   Future<void> _bootstrap() async {
+    // Subscribe to progress BEFORE calling requestEngine so we don't miss
+    // events emitted during the synchronous parts of ensureReady.
+    _progressSub = AsrModelBootstrap.instance.progress.listen(
+      _onProgress,
+      onError: (Object e, StackTrace st) {
+        if (!mounted) return;
+        setState(() {
+          _error = '$e';
+          _initializing = false;
+        });
+      },
+    );
+
     try {
-      final model = await _resolveStreamingModel();
-      final engine = SherpaOnnxAsrEngine();
-      await engine.initialize(model: model);
+      final engine = await AsrModelBootstrap.instance.requestEngine();
       if (!mounted) return;
+
+      if (engine == null) {
+        setState(() {
+          _error = AsrModelBootstrap.instance.state == AsrModelState.failed
+              ? 'ASR 准备失败：${AsrModelBootstrap.instance.state.name}'
+              : 'ASR 引擎不可用';
+          _initializing = false;
+        });
+        return;
+      }
+
       setState(() {
-        _engine = engine;
         _initializing = false;
+        _statusText = '';
+        _downloadFraction = null;
       });
     } catch (e, st) {
       if (!mounted) return;
@@ -75,49 +98,42 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
     }
   }
 
-  /// Resolves the streaming ASR model to use.
-  ///
-  /// Strategy:
-  ///   1. If a model id is stored in prefs and points to a present
-  ///      streaming model on disk, use it.
-  ///   2. Otherwise scan the model directory for any registry model
-  ///      whose [AsrModelConfig.mode] is [AsrModelMode.streaming] and
-  ///      whose files exist.
-  ///   3. Fallback: throw a [StateError] telling the user no streaming
-  ///      model is available yet.
-  Future<AsrModelConfig> _resolveStreamingModel() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storedId = prefs.getString(AsrDebugPage.selectedAsrModelIdKey);
+  void _onProgress(AsrModelProgress event) {
+    if (!mounted) return;
 
-    final loader = AsrModelLoader();
-    AsrModelConfig? candidate;
-
-    if (storedId != null && storedId.isNotEmpty) {
-      final m = AsrModelRegistry.findById(storedId);
-      if (m != null && m.mode == AsrModelMode.streaming) {
-        candidate = m;
-      }
+    switch (event) {
+      case AsrModelDownloadProgress(:final fraction):
+        setState(() {
+          _downloadFraction = fraction;
+          _statusText = fraction == null
+              ? '正在下载 ASR 模型…'
+              : '正在下载 ASR 模型 ${(fraction * 100).toStringAsFixed(0)}%';
+        });
+      case AsrModelExtracting():
+        setState(() {
+          _downloadFraction = null;
+          _statusText = '正在解压模型…';
+        });
+      case AsrModelInitializing():
+        setState(() {
+          _downloadFraction = null;
+          _statusText = '正在加载引擎…';
+        });
+      case AsrModelReady():
+        // requestEngine() will return shortly; no action needed here.
+        break;
+      case AsrModelFailed(:final message):
+        setState(() {
+          _error = message;
+          _initializing = false;
+        });
     }
-
-    candidate ??= AsrModelRegistry.all
-        .where((m) => m.mode == AsrModelMode.streaming)
-        .firstOrNull;
-
-    if (candidate == null) {
-      throw StateError('No streaming ASR model registered');
-    }
-
-    if (!await loader.isPresent(candidate)) {
-      throw StateError(
-        'Streaming ASR model "${candidate.id}" is not downloaded yet. '
-        'Please download it first (Phase 2C flow).',
-      );
-    }
-    return candidate;
   }
 
   Future<void> _startRecording() async {
-    final engine = _engine;
+    if (_asrService.isRunning) return;
+
+    final engine = await AsrModelBootstrap.instance.requestEngine();
     if (engine == null || _asrService.isRunning) return;
 
     setState(() {
@@ -186,12 +202,11 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
 
   Widget _buildBody() {
     if (_initializing) {
-      return const Center(
-        child: CircularProgressIndicator(color: MemoryPalette.gold),
-      );
+      return _buildInitializingState();
     }
 
-    if (_engine == null) {
+    final state = AsrModelBootstrap.instance.state;
+    if (state != AsrModelState.ready) {
       return _buildNoModelState();
     }
 
@@ -283,6 +298,48 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
     );
   }
 
+  Widget _buildInitializingState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_downloadFraction != null) ...[
+              SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(
+                  value: _downloadFraction,
+                  color: MemoryPalette.gold,
+                  backgroundColor:
+                      MemoryPalette.paper.withValues(alpha: 0.10),
+                ),
+              ),
+            ] else
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  color: MemoryPalette.gold,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            const SizedBox(height: 16),
+            Text(
+              _statusText.isEmpty ? '正在准备 ASR…' : _statusText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: MemoryPalette.paper,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildNoModelState() {
     return Center(
       child: Padding(
@@ -291,13 +348,13 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.cloud_download,
+              Icons.error_outline,
               size: 64,
-              color: MemoryPalette.gold,
+              color: MemoryPalette.rust,
             ),
             const SizedBox(height: 16),
             Text(
-              _error ?? '尚未下载流式 ASR 模型',
+              _error ?? 'ASR 模型不可用',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: MemoryPalette.paper,
@@ -305,21 +362,32 @@ class _AsrDebugPageState extends State<AsrDebugPage> {
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '请在 Phase 2C 模型下载流程里下载一个流式模型 '
-              '（例如 Moonshine v2 Base）。',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: MemoryPalette.paper.withValues(alpha: 0.55),
-                fontSize: 12,
-                height: 1.5,
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _retry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+              style: FilledButton.styleFrom(
+                backgroundColor: MemoryPalette.gold,
+                foregroundColor: MemoryPalette.ink,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _retry() async {
+    setState(() {
+      _initializing = true;
+      _error = null;
+      _statusText = '';
+      _downloadFraction = null;
+    });
+    await _progressSub?.cancel();
+    await AsrModelBootstrap.instance.dispose();
+    await _bootstrap();
   }
 
   BoxDecoration _surfaceDecoration() {
