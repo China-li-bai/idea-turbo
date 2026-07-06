@@ -31,5 +31,10 @@ export 'package:asr_sdk/src/domain/asr_engine.dart';
 // Infrastructure
 export 'package:asr_sdk/src/infrastructure/asr_model_registry.dart';
 export 'package:asr_sdk/src/infrastructure/asr_model_loader.dart';
+export 'package:asr_sdk/src/infrastructure/asr_model_manager.dart';
 export 'package:asr_sdk/src/infrastructure/fake_asr_engine.dart';
 export 'package:asr_sdk/src/infrastructure/sherpa_onnx_asr_engine.dart';
+
+// Streaming (audio source-agnostic; consumers feed PCM frames)
+export 'package:asr_sdk/src/streaming/streaming_recognizer.dart';
+export 'package:asr_sdk/src/streaming/streaming_asr_session.dart';

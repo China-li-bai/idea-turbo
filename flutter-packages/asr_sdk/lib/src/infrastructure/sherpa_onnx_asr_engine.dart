@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,8 @@ import 'package:asr_sdk/src/domain/asr_model_config.dart';
 import 'package:asr_sdk/src/domain/transcription_chunk.dart';
 import 'package:asr_sdk/src/domain/transcription_request.dart';
 import 'package:asr_sdk/src/domain/transcription_result.dart';
+import 'package:asr_sdk/src/streaming/streaming_asr_session.dart';
+import 'package:asr_sdk/src/streaming/streaming_recognizer.dart';
 
 /// Sherpa-onnx-backed [AsrEngine] implementation.
 ///
@@ -157,25 +160,50 @@ class SherpaOnnxAsrEngine implements AsrEngine {
   Stream<TranscriptionChunk> startStreamRecognition({
     AsrLanguage language = AsrLanguage.auto,
   }) async* {
+    // Adapter that exposes a StreamingAsrSession as a plain
+    // Stream<TranscriptionChunk>. The session is owned by the stream: when
+    // the subscription is cancelled or the stream closes (session.stop),
+    // the native resources are released.
+    //
+    // Consumers that need finer control (e.g. explicitly calling stop after
+    // the user taps a stop button) should call [createStreamingSession]
+    // instead and own the session lifecycle themselves.
+    final session = createStreamingSession(language: language);
+    session.start();
+    try {
+      yield* session.chunks;
+    } finally {
+      await session.dispose();
+    }
+  }
+
+  /// Creates a [StreamingAsrSession] bound to this engine's active
+  /// streaming recognizer.
+  ///
+  /// The caller owns the session lifecycle: call [StreamingAsrSession.start],
+  /// feed audio frames, observe [StreamingAsrSession.chunks], and call
+  /// [StreamingAsrSession.stop] + [StreamingAsrSession.dispose] when done.
+  ///
+  /// Throws [AsrTranscriptionException] if the engine is not initialized
+  /// with a streaming model.
+  StreamingAsrSession createStreamingSession({
+    AsrLanguage language = AsrLanguage.auto,
+  }) {
     _ensureInitialized();
     _ensureLanguageSupported(language);
 
     final recognizer = _onlineRecognizer;
     if (recognizer == null) {
       throw AsrTranscriptionException(
-        'startStreamRecognition requires a streaming model. '
+        'createStreamingSession requires a streaming model. '
         'Active model ${_model!.id} is offline-only.',
       );
     }
-
-    // Phase 1 PoC: streaming recognition requires a StreamingAsrSession that
-    // feeds audio frames from a recorder (Phase 2). The engine does NOT
-    // capture audio itself; doing so would couple the SDK to a specific
-    // recorder package and violate the engine abstraction.
-    throw UnimplementedError(
-      'startStreamRecognition requires Phase 2 StreamingAsrSession. '
-      'For Phase 1 PoC, use transcribeFile with the offline SenseVoice model.',
+    final adapter = _SherpaStreamingRecognizerAdapter(
+      recognizer: recognizer,
+      languageCode: language == AsrLanguage.auto ? null : language.code,
     );
+    return StreamingAsrSession(recognizer: adapter);
   }
 
   @override
@@ -364,4 +392,67 @@ class SherpaOnnxAsrEngine implements AsrEngine {
     final byCode = AsrLanguage.values.where((l) => l.code == sherpaLang);
     return byCode.isEmpty ? AsrLanguage.auto : byCode.first;
   }
+}
+
+/// Adapts [sherpa.OnlineRecognizer] to the backend-agnostic
+/// [StreamingRecognizer] interface used by [StreamingAsrSession].
+class _SherpaStreamingRecognizerAdapter implements StreamingRecognizer {
+  _SherpaStreamingRecognizerAdapter({
+    required sherpa.OnlineRecognizer recognizer,
+    required String? languageCode,
+  })  : _recognizer = recognizer,
+        _languageCode = languageCode;
+
+  final sherpa.OnlineRecognizer _recognizer;
+  final String? _languageCode;
+
+  @override
+  StreamingRecognizerStream createStream() {
+    final stream = _recognizer.createStream();
+    // Hint the language for multilingual models that support setOption
+    // (e.g. Nemotron). Sherpa-onnx silently ignores unknown keys on
+    // other models, so this is safe to always set.
+    final code = _languageCode;
+    if (code != null && code.isNotEmpty) {
+      stream.setOption(key: 'language', value: code);
+    }
+    return _SherpaStreamingStreamAdapter(
+      recognizer: _recognizer,
+      stream: stream,
+    );
+  }
+}
+
+class _SherpaStreamingStreamAdapter implements StreamingRecognizerStream {
+  _SherpaStreamingStreamAdapter({
+    required sherpa.OnlineRecognizer recognizer,
+    required sherpa.OnlineStream stream,
+  })  : _recognizer = recognizer,
+        _stream = stream;
+
+  final sherpa.OnlineRecognizer _recognizer;
+  final sherpa.OnlineStream _stream;
+
+  @override
+  void acceptWaveform({required Float32List samples, required int sampleRate}) {
+    _stream.acceptWaveform(samples: samples, sampleRate: sampleRate);
+  }
+
+  @override
+  void decode() => _recognizer.decode(_stream);
+
+  @override
+  String get partialText => _recognizer.getResult(_stream).text;
+
+  @override
+  bool isEndpoint() => _recognizer.isEndpoint(_stream);
+
+  @override
+  void reset() => _recognizer.reset(_stream);
+
+  @override
+  void inputFinished() => _stream.inputFinished();
+
+  @override
+  void free() => _stream.free();
 }
